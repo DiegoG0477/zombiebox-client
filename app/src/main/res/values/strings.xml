@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Hello Zombie</string>
+    <string name="hello">Hello Zombie — API %1$d</string>
+    <string name="check_health">Check gateway /health</string>
+    <string name="connecting">Connecting…</string>
+    <string name="http_status">Gateway HTTP %1$d</string>
+    <string name="unavailable">Gateway unavailable: %1$s</string>
+</resources>
