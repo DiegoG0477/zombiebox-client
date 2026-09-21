@@ -27,6 +27,15 @@ class SettingsViewModel(
         update(preferences.copy(playbackMode = value))
     }
 
+    fun surfaceBackend(value: String) {
+        require(value in listOf("AUTO", "SURFACE", "TEXTURE"))
+        update(preferences.copy(surfaceBackend = value))
+    }
+
+    fun networkAdaptation(enabled: Boolean) {
+        update(preferences.copy(networkAdaptation = enabled))
+    }
+
     fun automaticRecovery(value: Boolean) = update(preferences.copy(automaticRecovery = value))
 
     private fun update(value: ClientPreferences) {

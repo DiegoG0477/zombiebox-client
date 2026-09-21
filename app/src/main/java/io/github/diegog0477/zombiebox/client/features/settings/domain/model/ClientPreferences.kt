@@ -5,4 +5,6 @@ data class ClientPreferences(
     val mode: String = "AUTO",
     val playbackMode: String = "AUTO",
     val automaticRecovery: Boolean = true,
+    val networkAdaptation: Boolean = true,
+    val surfaceBackend: String = "AUTO",
 )

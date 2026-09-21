@@ -10,6 +10,7 @@ import org.json.JSONObject
 class GatewayProbeRepository(
     private val api: GatewayApi,
     private val localAssets: () -> List<ProbeAsset> = { emptyList() },
+    private val recordEvidence: (List<ProbeResult>) -> Unit = {},
     private val refreshInventory: () -> Unit = {},
 ) : ProbeRepository {
     private var cacheKey = ""
@@ -21,17 +22,23 @@ class GatewayProbeRepository(
         cacheKey = manifest.optString("cacheKey")
         suiteVersion = manifest.optInt("suiteVersion", 1)
         val data = manifest.getJSONArray("probes")
-        return (0 until data.length().coerceAtMost(32)).map {
-            val item = data.getJSONObject(it)
-            val path = item.getString("url")
-            require(path.startsWith("/v1/probes/") && !path.contains(".."))
-            ProbeAsset(
-                item.getString("id"),
-                api.base + path,
-                item.getBoolean("video"),
-                item.optString("kind", "playback"),
-            )
-        } + localAssets()
+        val assets =
+            (0 until data.length().coerceAtMost(31)).map {
+                val item = data.getJSONObject(it)
+                val path = item.getString("url")
+                require(path.startsWith("/v1/probes/") && !path.contains(".."))
+                ProbeAsset(
+                    item.getString("id"),
+                    api.base + path,
+                    item.getBoolean("video"),
+                    item.optString("kind", "playback"),
+                )
+            }
+        val texture =
+            assets
+                .firstOrNull { it.id == "h264-baseline-360" }
+                ?.copy(id = "texture-output", kind = "texture-output")
+        return assets + listOfNotNull(texture) + localAssets()
     }
 
     override fun save(results: List<ProbeResult>) {
@@ -72,5 +79,6 @@ class GatewayProbeRepository(
                 }
                 .put("probes", values),
         )
+        recordEvidence(results)
     }
 }

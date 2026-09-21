@@ -12,7 +12,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.view.Gravity
 import android.view.KeyEvent
-import android.view.SurfaceHolder
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -54,9 +53,12 @@ import io.github.diegog0477.zombiebox.client.features.playback.domain.model.Queu
 import io.github.diegog0477.zombiebox.client.features.playback.platform.AudioFocusController
 import io.github.diegog0477.zombiebox.client.features.playback.platform.PlaybackConnection
 import io.github.diegog0477.zombiebox.client.features.playback.platform.PlaybackNotifications
+import io.github.diegog0477.zombiebox.client.features.playback.platform.SurfaceEvidence
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.PlaybackFailureDialog
+import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.SurfaceOutputView
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.TracksDialog
-import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.VideoSurface
+import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.VideoOutputFactory
+import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.VideoOutputView
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel.PlaybackViewModel
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel.TracksViewModel
 import io.github.diegog0477.zombiebox.client.features.settings.data.GatewaySettingsRepository
@@ -90,6 +92,22 @@ class MainActivity : Activity() {
     private val settingsModel by lazy {
         SettingsViewModel(GatewaySettingsRepository(applicationContext, api), screenTasks())
     }
+    private val searchModel by lazy {
+        io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel
+            .SearchViewModel(
+                io.github.diegog0477.zombiebox.client.features.catalog.data.GatewaySearchRepository(
+                    api
+                ),
+                { work -> worker.execute { work() } },
+                { work -> handler.post { work() } },
+                { delay, work ->
+                    val task = Runnable { work() }
+                    handler.postDelayed(task, delay)
+                    val cancel: () -> Unit = { handler.removeCallbacks(task) }
+                    cancel
+                },
+            )
+    }
     private val catalogModel by lazy {
         CatalogViewModel(GatewayCatalogRepository(api), screenTasks())
     }
@@ -108,7 +126,9 @@ class MainActivity : Activity() {
 
     private val playbackModel by lazy {
         PlaybackViewModel(
-            GatewayPlaybackRepository(api),
+            GatewayPlaybackRepository(api) {
+                getSharedPreferences("zombie", MODE_PRIVATE).getBoolean("networkAdaptation", true)
+            },
             { work -> worker.execute { work() } },
             { work -> handler.post { work() } },
         )
@@ -162,7 +182,7 @@ class MainActivity : Activity() {
             this,
             catalogModel,
             { homeViewModel.state.scope.query },
-            { refresh(query = it) },
+            searchModel,
             { startPlayback(it) },
             ::error,
             { item ->
@@ -240,7 +260,8 @@ class MainActivity : Activity() {
     private lateinit var now: TextView
     private lateinit var playerLayer: LinearLayout
     private lateinit var playerStatus: TextView
-    private lateinit var videoSurface: VideoSurface
+    private lateinit var videoSurface: VideoOutputView
+    private lateinit var videoViewport: FrameLayout
     private lateinit var player: PlaybackConnection
     private lateinit var nextButton: Button
     private var restoreFullscreen = true
@@ -682,33 +703,35 @@ class MainActivity : Activity() {
             else -> !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
         }
 
+    private fun installVideoOutput(output: VideoOutputView) {
+        if (::videoSurface.isInitialized) {
+            videoSurface.close()
+            videoViewport.removeView(videoSurface.view)
+        }
+        videoSurface = output
+        val view =
+            output.create(
+                this,
+                { player.surface(it) },
+                {
+                    handler.post {
+                        if (!closed && !isFinishing && videoSurface === output) {
+                            SurfaceEvidence(this).failed()
+                            installVideoOutput(SurfaceOutputView())
+                        }
+                    }
+                },
+            )
+        videoViewport.addView(view, 0, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
+    }
+
     private fun createPlayer() {
         playerLayer = ui.column()
         playerLayer.setBackgroundColor(Color.BLACK)
         playerLayer.visibility = View.GONE
-        val surface = VideoSurface(this)
-        videoSurface = surface
-        surface.holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS)
-        surface.holder.addCallback(
-            object : SurfaceHolder.Callback {
-                override fun surfaceCreated(holder: SurfaceHolder) {
-                    player.surface(holder)
-                }
-
-                override fun surfaceChanged(
-                    holder: SurfaceHolder,
-                    format: Int,
-                    width: Int,
-                    height: Int,
-                ) {}
-
-                override fun surfaceDestroyed(holder: SurfaceHolder) {
-                    player.surface(null)
-                }
-            }
-        )
         val viewport = FrameLayout(this)
-        viewport.addView(surface, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
+        videoViewport = viewport
+        installVideoOutput(VideoOutputFactory.select(this, !isTV()))
         receiverInfo =
             ui.text("", 22f).apply {
                 gravity = Gravity.CENTER
@@ -1067,7 +1090,7 @@ class MainActivity : Activity() {
         receiverInfo.visibility = View.GONE
         receiverArtwork.visibility = View.GONE
         receiverArtwork.bind(artwork, "")
-        videoSurface.visibility = View.VISIBLE
+        videoSurface.view.visibility = View.VISIBLE
         audioController.release()
         // Cancel pending Activity requests; the service owns session progress and revocation.
         playbackModel.stop("", PlaybackProgress("STOPPED", 0, 0))
@@ -1208,8 +1231,10 @@ class MainActivity : Activity() {
         closed = true
         events.close()
         settingsModel.close()
+        videoSurface.close()
         catalogDialogs.close()
         catalogModel.close()
+        searchModel.close()
         playbackModel.close()
         tracksModel.close()
         diagnosticsModel?.close()

@@ -47,3 +47,10 @@ No product milestone or physical gate is closed.
 
 Artwork encoded caching now survives Home rerenders, expires after five minutes
 and clears on connection changes. Physical scroll/bitmap-memory evidence remains open.
+
+## dev.21 increment
+
+Measured network preference, debounced federated search, and evidence-gated API14 TextureView with baseline fallback and explicit diagnostics. VersionCode 21.
+No physical, account or product milestone closes.
+
+Verification: 65 JVM tests, debug/release compilation, lint and APK audit pass. The debug APK is 1,248,788 bytes, minSdk 9, single DEX 035 and contains no native libraries. Physical output/probe behavior remains unverified.

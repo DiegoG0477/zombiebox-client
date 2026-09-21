@@ -68,3 +68,5 @@ First-party code: [GPL-3.0-only](LICENSE). See [NOTICE](NOTICE) for third-party 
 Dev.19: Language settings, explicit process-death queue resume, guide/search restoration, asynchronous decoded image reuse and diagnostic export. Client versionCode 19.
 
 Dev.20: Service-owned bounded recovery, Advanced recovery policy, automatic Spotify/AirPlay selection and richer semantic details/resume/start-over actions. APK versionCode 20.
+
+Dev.21: Measured network preference, debounced federated search, and evidence-gated API14 TextureView with baseline fallback and explicit diagnostics. VersionCode 21.

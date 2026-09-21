@@ -5,9 +5,17 @@ import io.github.diegog0477.zombiebox.client.features.playback.domain.repository
 import io.github.diegog0477.zombiebox.shared.GatewayApi
 import org.json.JSONObject
 
-class GatewayPlaybackRepository(private val api: GatewayApi) : PlaybackRepository {
+class GatewayPlaybackRepository(
+    private val api: GatewayApi,
+    private val adaptNetwork: () -> Boolean = { true },
+) : PlaybackRepository {
+    private val bandwidth = GatewayBandwidth(api)
+
     override fun start(itemId: String, mode: String, positionMs: Int?): PlaybackPlan {
-        val request = JSONObject().put("itemId", itemId).put("mode", mode)
+        val adaptive = adaptNetwork()
+        if (mode == "AUTO" && adaptive) bandwidth.refresh()
+        val request =
+            JSONObject().put("itemId", itemId).put("mode", mode).put("networkAdaptation", adaptive)
         if (positionMs != null) request.put("positionMs", positionMs)
         val plan = api.request("POST", "/v1/playback", request)
         return PlaybackPlanDecoder.decode(api.base, plan)
@@ -15,9 +23,11 @@ class GatewayPlaybackRepository(private val api: GatewayApi) : PlaybackRepositor
 
     override fun recover(itemId: String, positionMs: Int, attempt: Int): PlaybackPlan {
         require(attempt in 1..3)
+        if (adaptNetwork()) bandwidth.refresh()
         val request =
             JSONObject()
                 .put("itemId", itemId)
+                .put("networkAdaptation", adaptNetwork())
                 .put("positionMs", positionMs)
                 .put("mode", if (attempt == 1) "AUTO" else "TRANSCODE")
         if (attempt == 3) request.put("quality", "LOW")

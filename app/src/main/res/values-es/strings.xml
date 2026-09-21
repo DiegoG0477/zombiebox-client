@@ -254,4 +254,15 @@
     <string name="catalog_progress">%1$s / %2$s</string>
     <string name="resume_content">Reanudar</string>
     <string name="start_over">Reproducir desde el principio</string>
+    <string name="network_adaptation">Medir conexión y adaptar calidad</string>
+    <string name="search_all">Buscar en todos los servicios</string>
+    <string name="search_all_hint">Escribe al menos dos caracteres</string>
+    <string name="search_count">%1$d resultados</string>
+    <string name="search_partial">No disponible: %1$s</string>
+    <string name="search_more">Ver más de %1$s</string>
+    <string name="surface_backend">Salida de video</string>
+    <string name="texture_verified">TextureView (requiere un probe satisfactorio)</string>
+    <string name="surface_restart">
+        Vuelve a abrir la app para aplicar. Sin evidencia se usa SurfaceView.
+    </string>
 </resources>

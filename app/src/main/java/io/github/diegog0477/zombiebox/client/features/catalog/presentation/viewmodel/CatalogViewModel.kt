@@ -26,6 +26,16 @@ class CatalogViewModel(private val repository: CatalogRepository, private val ta
         load(CatalogLocation(provider, query = query), false, done, failed)
     }
 
+    fun openLocation(
+        location: CatalogLocation,
+        done: (CatalogScreen) -> Unit,
+        failed: (Exception) -> Unit,
+    ) {
+        history.clear()
+        screen = null
+        load(location, false, done, failed)
+    }
+
     fun rememberViewport(viewport: CatalogViewport) {
         screen = screen?.copy(viewport = viewport)
     }

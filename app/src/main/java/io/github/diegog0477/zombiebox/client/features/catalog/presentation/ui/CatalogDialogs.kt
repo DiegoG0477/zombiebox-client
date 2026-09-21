@@ -7,15 +7,17 @@ import io.github.diegog0477.zombiebox.client.R
 import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.core.ui.TvWidgets
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogBookmark
+import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogLocation
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogOverlay
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogScreen
 import io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel.CatalogViewModel
+import io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel.SearchViewModel
 
 class CatalogDialogs(
     private val activity: Activity,
     private val model: CatalogViewModel,
     private val query: () -> String,
-    private val searchQuery: (String) -> Unit,
+    private val searchModel: SearchViewModel,
     private val play: (MediaItem) -> Unit,
     private val error: (Exception) -> Unit,
     private val artwork: (MediaItem) -> android.view.View?,
@@ -31,19 +33,34 @@ class CatalogDialogs(
         guide?.snapshot()?.takeIf { it.kind.isNotEmpty() }
             ?: if (overlay?.isShowing == true) overlayCapture() else CatalogOverlay()
 
-    fun search(draft: String = query()) {
-        val input = EditText(activity)
-        input.setSingleLine(true)
-        input.setText(draft)
+    fun search(draft: String = searchModel.state.query.ifEmpty { query() }) {
         overlay?.dismiss()
-        overlayCapture = { CatalogOverlay("home_search", input.text.toString()) }
         overlay =
-            AlertDialog.Builder(activity)
-                .setTitle(R.string.search)
-                .setView(input)
-                .setPositiveButton(R.string.search) { _, _ -> searchQuery(input.text.toString()) }
-                .setNegativeButton(R.string.cancel, null)
-                .show()
+            SearchDialog(activity, searchModel)
+                .show(
+                    draft,
+                    { item ->
+                        if (item.kind == "search_more") {
+                            load {
+                                model.open(
+                                    item.provider,
+                                    searchModel.state.query,
+                                    ::showPage,
+                                    ::loadFailed,
+                                )
+                            }
+                        } else if (item.browseId.isNotEmpty()) {
+                            load {
+                                model.openLocation(
+                                    CatalogLocation(item.provider, parent = item.browseId),
+                                    ::showPage,
+                                    ::loadFailed,
+                                )
+                            }
+                        } else showDetails(item) { search(searchModel.state.query) }
+                    },
+                    { capture -> overlayCapture = { CatalogOverlay("home_search", capture()) } },
+                )
     }
 
     private var browser: AlertDialog? = null

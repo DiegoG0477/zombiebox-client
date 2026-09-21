@@ -34,6 +34,7 @@
         <activity
             android:name="io.github.diegog0477.zombiebox.client.features.diagnostics.presentation.ui.ProbesActivity"
             android:exported="false"
+            android:hardwareAccelerated="true"
         />
         <activity
             android:name="io.github.diegog0477.zombiebox.client.features.services.presentation.ui.ServicesActivity"
@@ -45,6 +46,7 @@
         />
         <activity
             android:name=".MainActivity"
+            android:hardwareAccelerated="true"
             android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden"
         >

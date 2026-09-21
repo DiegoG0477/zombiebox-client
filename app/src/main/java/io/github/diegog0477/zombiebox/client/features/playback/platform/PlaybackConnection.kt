@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
-import android.view.SurfaceHolder
 import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.PlaybackPlan
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.PlaybackSession
@@ -25,7 +24,7 @@ class PlaybackConnection(
 
     private var closed = false
     private var visible = false
-    private var surface: SurfaceHolder? = null
+    private var surface: PlayerSurface? = null
     private val pending = ArrayList<(PlaybackService) -> Unit>()
     private val observer: (PlaybackSession) -> Unit = { state ->
         if (!closed) {
@@ -87,7 +86,7 @@ class PlaybackConnection(
         context.startService(Intent(context, PlaybackService::class.java))
     }
 
-    fun surface(value: SurfaceHolder?) {
+    fun surface(value: PlayerSurface?) {
         surface = value
         service?.let { if (it.listener === observer) it.player.surface(value) }
     }

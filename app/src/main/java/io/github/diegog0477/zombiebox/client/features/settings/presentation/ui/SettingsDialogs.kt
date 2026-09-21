@@ -299,20 +299,50 @@ class SettingsDialogs(
                     activity.getString(R.string.audio_focus_backend),
                     activity.getString(R.string.playback_backend),
                     activity.getString(R.string.automatic_recovery),
+                    activity.getString(R.string.network_adaptation),
+                    activity.getString(R.string.surface_backend),
                 )
             ) { _, index ->
                 if (index == 0) actions.audioSettings()
-                else if (index == 2) {
+                else if (index == 4) {
+                    val modes = arrayOf("AUTO", "SURFACE", "TEXTURE")
                     AlertDialog.Builder(activity)
-                        .setTitle(R.string.automatic_recovery)
+                        .setTitle(R.string.surface_backend)
+                        .setSingleChoiceItems(
+                            arrayOf(
+                                activity.getString(R.string.automatic),
+                                "SurfaceView",
+                                activity.getString(R.string.texture_verified),
+                            ),
+                            modes.indexOf(model.preferences.surfaceBackend),
+                        ) { dialog, selected ->
+                            model.surfaceBackend(modes[selected])
+                            dialog.dismiss()
+                            Toast.makeText(activity, R.string.surface_restart, Toast.LENGTH_LONG)
+                                .show()
+                        }
+                        .setNegativeButton(R.string.close, null)
+                        .show()
+                } else if (index == 2 || index == 3) {
+                    AlertDialog.Builder(activity)
+                        .setTitle(
+                            if (index == 2) R.string.automatic_recovery
+                            else R.string.network_adaptation
+                        )
                         .setSingleChoiceItems(
                             arrayOf(
                                 activity.getString(R.string.disabled),
                                 activity.getString(R.string.enabled),
                             ),
-                            if (model.preferences.automaticRecovery) 1 else 0,
+                            if (
+                                if (index == 2) model.preferences.automaticRecovery
+                                else model.preferences.networkAdaptation
+                            )
+                                1
+                            else 0,
                         ) { dialog, choice ->
-                            model.automaticRecovery(choice == 1)
+                            if (index == 2) model.automaticRecovery(choice == 1)
+                            else model.networkAdaptation(choice == 1)
                             dialog.dismiss()
                         }
                         .setNegativeButton(R.string.close, null)

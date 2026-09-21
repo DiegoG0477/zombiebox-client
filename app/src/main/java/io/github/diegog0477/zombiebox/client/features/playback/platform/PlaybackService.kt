@@ -161,7 +161,10 @@ class PlaybackService : Service() {
         refreshFocus()
         model =
             PlaybackSessionViewModel(
-                GatewayPlaybackRepository(api),
+                GatewayPlaybackRepository(api) {
+                    getSharedPreferences("zombie", MODE_PRIVATE)
+                        .getBoolean("networkAdaptation", true)
+                },
                 GatewayCatalogRepository(api),
                 { id -> GatewayReceiverRepository(api).stop(id) },
                 { work -> worker.execute { work() } },

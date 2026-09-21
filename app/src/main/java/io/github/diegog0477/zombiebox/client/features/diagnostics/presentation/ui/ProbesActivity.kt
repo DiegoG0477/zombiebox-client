@@ -13,6 +13,9 @@ import io.github.diegog0477.zombiebox.client.features.diagnostics.data.GatewayPr
 import io.github.diegog0477.zombiebox.client.features.diagnostics.platform.HardwareScanner
 import io.github.diegog0477.zombiebox.client.features.diagnostics.platform.MediaProbePlayback
 import io.github.diegog0477.zombiebox.client.features.diagnostics.presentation.viewmodel.ProbeViewModel
+import io.github.diegog0477.zombiebox.client.features.playback.platform.SurfaceEvidence
+import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.VideoOutputFactory
+import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.VideoOutputView
 import io.github.diegog0477.zombiebox.shared.GatewayApi
 import java.util.concurrent.Executors
 
@@ -22,6 +25,7 @@ class ProbesActivity : Activity() {
     private val handler = Handler()
     private val playback = MediaProbePlayback()
     private lateinit var model: ProbeViewModel
+    private var texture: VideoOutputView? = null
     private lateinit var probes:
         io.github.diegog0477.zombiebox.client.features.diagnostics.platform.PlatformProbes
 
@@ -49,6 +53,11 @@ class ProbesActivity : Activity() {
                         io.github.diegog0477.zombiebox.client.features.diagnostics.platform
                             .PlatformProbes
                             .assets()
+                    },
+                    { results ->
+                        results.forEach {
+                            SurfaceEvidence(applicationContext).record(it.id, it.status)
+                        }
                     },
                 ) {
                     diagnostics.scanAndSave()
@@ -91,6 +100,15 @@ class ProbesActivity : Activity() {
             preview,
             LinearLayout.LayoutParams(-1, (180 * resources.displayMetrics.density).toInt()),
         )
+        texture = VideoOutputFactory.textureCandidate()
+        texture?.let { output ->
+            val view = output.create(this, { playback.textureSurface = it }, {})
+            playback.textureFrames = { output.frames }
+            root.addView(
+                view,
+                LinearLayout.LayoutParams(-1, (120 * resources.displayMetrics.density).toInt()),
+            )
+        }
         root.addView(start)
         root.addView(stop)
         root.addView(status)
@@ -155,6 +173,7 @@ class ProbesActivity : Activity() {
 
     override fun onDestroy() {
         model.close()
+        texture?.close()
         playback.close()
         api.close()
         executor.shutdownNow()

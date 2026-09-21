@@ -5,7 +5,6 @@ import android.media.MediaPlayer
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
-import android.view.SurfaceHolder
 import io.github.diegog0477.zombiebox.client.features.playback.domain.policy.PlaybackIntent
 
 /** One media looper and one decoder. Callbacks belong to a specific playback generation. */
@@ -18,7 +17,7 @@ class EmbeddedPlayer(
     private val main = Handler(Looper.getMainLooper())
     private val intent = PlaybackIntent()
     private var player: MediaPlayer? = null
-    private var holder: SurfaceHolder? = null
+    private var output: PlayerSurface? = null
     private var prepared = false
     private var seekable = true
     private var seeking = false
@@ -70,20 +69,29 @@ class EmbeddedPlayer(
         }
     }
 
-    fun surface(value: SurfaceHolder?) {
+    fun surface(value: PlayerSurface?) {
         if (closed) return
+        value?.retain()
         handler.post {
-            if (!closed) {
-                holder = value
-                intent.surfaceAvailable = value != null
-                try {
-                    // Suspend video before detaching its output; audio does not need a surface.
-                    if (value == null) applyIntent()
-                    player?.setDisplay(value)
-                    applyIntent()
-                } catch (_: Exception) {
-                    fail()
-                }
+            if (closed) {
+                value?.release()
+                return@post
+            }
+            val previous = output
+            output = value
+            intent.surfaceAvailable = value != null
+            try {
+                if (value == null) applyIntent()
+                if (previous !== value)
+                    player?.let { media ->
+                        previous?.detach(media)
+                        if (value != null) value.attach(media) else media.setDisplay(null)
+                    }
+                applyIntent()
+            } catch (_: Exception) {
+                fail()
+            } finally {
+                previous?.release()
             }
         }
     }
@@ -123,7 +131,7 @@ class EmbeddedPlayer(
         player = media
         media.setAudioStreamType(AudioManager.STREAM_MUSIC)
         media.setVolume(volumeGain, volumeGain)
-        media.setDisplay(holder)
+        output?.attach(media)
         media.setOnVideoSizeChangedListener { source, width, height ->
             if (isCurrent(source)) {
                 val request = activeEpoch
@@ -329,6 +337,8 @@ class EmbeddedPlayer(
         epoch++
         handler.post {
             dispose()
+            output?.release()
+            output = null
             thread.quit()
         }
     }

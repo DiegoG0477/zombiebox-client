@@ -8,12 +8,16 @@ import android.view.SurfaceHolder
 import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.model.ProbeAsset
 import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.model.ProbeResult
 import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.repository.ProbePlayback
+import io.github.diegog0477.zombiebox.client.features.playback.platform.PlayerSurface
 
 /** API9 calls only. Completion and advancement are evidence, prepare alone is not. */
 class MediaProbePlayback : ProbePlayback {
     private val thread = HandlerThread("zombie-probes").apply { start() }
     private val handler = Handler(thread.looper)
     @Volatile var surface: SurfaceHolder? = null
+    @Volatile var textureSurface: PlayerSurface? = null
+    @Volatile var textureFrames: () -> Int = { 0 }
+    private var boundOutput: PlayerSurface? = null
     private var player: MediaPlayer? = null
     private var generation = 0
     private var closed = false
@@ -31,7 +35,8 @@ class MediaProbePlayback : ProbePlayback {
             player = media
             var finished = false
             var operationStarted = false
-            var operationComplete = asset.kind in listOf("playback", "hls")
+            val initialFrames = textureFrames()
+            var operationComplete = asset.kind in listOf("playback", "hls", "texture-output")
             var operationPosition = 0
             var advancedAfterOperation = false
             fun finish(status: String, completed: Boolean = false, stalled: Boolean = false) {
@@ -129,11 +134,22 @@ class MediaProbePlayback : ProbePlayback {
             try {
                 media.setVolume(0f, 0f)
                 if (asset.video) {
-                    if (surface == null) {
-                        finish("UNKNOWN")
-                        return@post
+                    if (asset.kind == "texture-output") {
+                        val output = textureSurface
+                        if (output == null) {
+                            finish("UNKNOWN")
+                            return@post
+                        }
+                        output.retain()
+                        boundOutput = output
+                        output.attach(media)
+                    } else {
+                        if (surface == null) {
+                            finish("UNKNOWN")
+                            return@post
+                        }
+                        media.setDisplay(surface)
                     }
-                    media.setDisplay(surface)
                 }
                 media.setOnPreparedListener {
                     if (finished || run != generation) return@setOnPreparedListener
@@ -169,7 +185,10 @@ class MediaProbePlayback : ProbePlayback {
                     }
                 }
                 media.setOnCompletionListener {
-                    val passed = operationComplete && advancedAfterOperation
+                    val passed =
+                        operationComplete &&
+                            advancedAfterOperation &&
+                            (asset.kind != "texture-output" || textureFrames() - initialFrames >= 3)
                     finish(if (passed) "PASS" else "UNKNOWN", completed = true)
                 }
                 media.setOnErrorListener { _, what, extra ->
@@ -190,6 +209,8 @@ class MediaProbePlayback : ProbePlayback {
             player?.release()
         } catch (_: Exception) {}
         player = null
+        boundOutput?.release()
+        boundOutput = null
     }
 
     override fun cancel() {
