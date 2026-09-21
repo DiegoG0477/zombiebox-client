@@ -75,3 +75,8 @@ Dev.21: Measured network preference, debounced federated search, and evidence-ga
 
 Explicit receiver switching, Cast handoff preference, semantic YouTube lease expiry and service-owned interrupted-session restoration. APK versionCode 22.
 No product or physical acceptance gate closes.
+
+## dev.23 increment
+
+Automatic gateway candidates below manual pairing URL, lifecycle-safe discovery state and isolated modern system-bar insets.
+No product or physical acceptance gate closes.

@@ -61,3 +61,10 @@ Explicit receiver switching, Cast handoff preference, semantic YouTube lease exp
 No product or physical acceptance gate closes.
 
 Verification: 69 JVM tests, debug/release builds, lint and APK compatibility audit pass. Interrupted receiver chains and cancelled pending YouTube resolution are covered; physical A/V, foreground transitions and OEM behavior remain unverified.
+
+## dev.23 increment
+
+Manual URL plus automatic gateway candidates and guarded modern system-bar insets; APK versionCode 23.
+Product exit gates and deferred physical acceptance remain open.
+
+Verification: 71 JVM tests, debug/unsigned-release builds, lint and APK audit pass. Debug APK: 1,258,607 bytes, minSdk9, single DEX035 and no native libraries. Physical/visual behavior remains unverified.

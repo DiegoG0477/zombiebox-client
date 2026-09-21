@@ -33,6 +33,7 @@ import io.github.diegog0477.zombiebox.client.features.diagnostics.data.GatewayDi
 import io.github.diegog0477.zombiebox.client.features.diagnostics.platform.HardwareScanner
 import io.github.diegog0477.zombiebox.client.features.diagnostics.presentation.ui.DiagnosticsDialog
 import io.github.diegog0477.zombiebox.client.features.diagnostics.presentation.viewmodel.DiagnosticsViewModel
+import io.github.diegog0477.zombiebox.client.features.discovery.presentation.viewmodel.DiscoveryViewModel
 import io.github.diegog0477.zombiebox.client.features.home.data.GatewayHomeRepository
 import io.github.diegog0477.zombiebox.client.features.home.domain.model.HomeScope
 import io.github.diegog0477.zombiebox.client.features.home.presentation.ui.HomeActions
@@ -69,6 +70,7 @@ import io.github.diegog0477.zombiebox.client.features.youtubereceiver.data.Gatew
 import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.YouTubeCommand
 import io.github.diegog0477.zombiebox.client.features.youtubereceiver.presentation.viewmodel.YouTubeReceiverViewModel
 import io.github.diegog0477.zombiebox.shared.GatewayApi
+import io.github.diegog0477.zombiebox.shared.GatewayDiscovery
 import io.github.diegog0477.zombiebox.shared.GatewayFailure
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -145,6 +147,13 @@ class MainActivity : Activity() {
             { api.token.isNotEmpty() },
             { api.base },
             ::error,
+            {
+                DiscoveryViewModel(
+                    GatewayDiscovery()::scan,
+                    { work -> worker.execute { work() } },
+                    { work -> handler.post { work() } },
+                )
+            },
             SettingsActions(
                 { profile ->
                     stopPlayback()
@@ -436,6 +445,7 @@ class MainActivity : Activity() {
                 state.failure?.let { error(it) }
             }
         }
+        io.github.diegog0477.zombiebox.client.core.platform.WindowInsetsPolicy.apply(root)
         setContentView(root)
         render()
         content.focus.remember(state?.getString("homeFocus"))

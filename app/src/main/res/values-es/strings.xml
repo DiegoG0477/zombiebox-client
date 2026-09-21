@@ -270,4 +270,11 @@
         Permite que un Cast entrante sustituya Spotify, AirPlay o YouTube en esta pantalla cuando su
         transmisión esté lista. Desactivado por defecto.
     </string>
+    <string name="discover_gateways">Buscar gateways en esta red</string>
+    <string name="discovery_searching">Buscando gateways cercanos…</string>
+    <string name="discovery_failed">
+        Descubrimiento no disponible. Introduce la URL manualmente.
+    </string>
+    <string name="discovery_empty">Sin gateways. Comprueba la red local o introduce la URL.</string>
+    <string name="discovery_choose">Selecciona un gateway y empareja con su código.</string>
 </resources>

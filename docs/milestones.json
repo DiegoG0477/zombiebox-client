@@ -14,7 +14,8 @@
     "Dev.19: Language settings, explicit process-death queue resume, guide/search restoration, asynchronous decoded image reuse and diagnostic export. Client versionCode 19. Product exit gates remain open.",
     "Dev.20: Service-owned bounded recovery, Advanced recovery policy, automatic Spotify/AirPlay selection and richer semantic details/resume/start-over actions. APK versionCode 20. Product and physical exit gates remain open.",
     "Dev.21: Measured network preference, debounced federated search, and evidence-gated API14 TextureView with baseline fallback and explicit diagnostics. VersionCode 21. Product/physical exit gates remain open.",
-    "Dev.22: Explicit receiver switching, Cast handoff preference, semantic YouTube lease expiry and service-owned interrupted-session restoration. APK versionCode 22. Product and physical exit gates remain open."
+    "Dev.22: Explicit receiver switching, Cast handoff preference, semantic YouTube lease expiry and service-owned interrupted-session restoration. APK versionCode 22. Product and physical exit gates remain open.",
+    "Dev.23: Manual URL plus automatic gateway candidates and guarded modern system-bar insets; APK versionCode 23. Product and physical gates remain open."
   ],
   "milestones": [
     {
@@ -88,5 +89,5 @@
       "remoteId": null
     }
   ],
-  "developmentCheckpoint": "v0.1.0-dev.22"
+  "developmentCheckpoint": "v0.1.0-dev.23"
 }

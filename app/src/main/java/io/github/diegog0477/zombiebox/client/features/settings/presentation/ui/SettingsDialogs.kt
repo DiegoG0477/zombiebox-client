@@ -8,6 +8,8 @@ import android.text.InputType
 import android.widget.*
 import io.github.diegog0477.zombiebox.client.R
 import io.github.diegog0477.zombiebox.client.core.ui.TvWidgets
+import io.github.diegog0477.zombiebox.client.features.discovery.presentation.ui.DiscoveryPanel
+import io.github.diegog0477.zombiebox.client.features.discovery.presentation.viewmodel.DiscoveryViewModel
 import io.github.diegog0477.zombiebox.client.features.services.presentation.ui.ServicesActivity
 import io.github.diegog0477.zombiebox.client.features.settings.domain.model.GatewayProfile
 import io.github.diegog0477.zombiebox.client.features.settings.domain.model.ProviderPatch
@@ -33,6 +35,7 @@ class SettingsDialogs(
     private val paired: () -> Boolean,
     private val address: () -> String,
     private val error: (Exception) -> Unit,
+    private val discovery: () -> DiscoveryViewModel,
     private val actions: SettingsActions,
 ) {
     private val ui = TvWidgets(activity)
@@ -65,6 +68,10 @@ class SettingsDialogs(
         val address = field(form, R.string.gateway_address)
         address.setText(address())
         address.hint = activity.getString(R.string.gateway_hint)
+        val discoveryModel = discovery()
+        form.addView(
+            DiscoveryPanel(activity, discoveryModel) { candidate -> address.setText(candidate) }
+        )
         val code = field(form, R.string.operator_code, true)
         val dialog =
             AlertDialog.Builder(activity)
@@ -97,8 +104,12 @@ class SettingsDialogs(
                 )
             }
         }
-        dialog.setOnDismissListener { code.setText("") }
+        dialog.setOnDismissListener {
+            code.setText("")
+            discoveryModel.close()
+        }
         dialog.show()
+        discoveryModel.refresh()
     }
 
     fun show() {
@@ -235,6 +246,10 @@ class SettingsDialogs(
             form.addView(ui.text(activity.getString(R.string.epg_mapping_help), 13f, ui.muted))
         val catalog = if (id == "stremio") field(form, R.string.catalog_id) else null
         val media = if (id == "stremio") field(form, R.string.media_type) else null
+        val discoveryModel = discovery()
+        form.addView(
+            DiscoveryPanel(activity, discoveryModel) { candidate -> address.setText(candidate) }
+        )
         val code = field(form, R.string.operator_code, true)
         val dialog =
             AlertDialog.Builder(activity)
