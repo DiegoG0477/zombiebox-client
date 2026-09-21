@@ -7,3 +7,7 @@ dependencyResolutionManagement {
 }
 rootProject.name = "zombie-client"
 include(":app")
+
+include(":shared", ":cast")
+project(":shared").projectDir = file("../android-shared")
+project(":cast").projectDir = file("../zombie-aircast-android")

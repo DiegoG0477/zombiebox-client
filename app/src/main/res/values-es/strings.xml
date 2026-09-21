@@ -91,4 +91,13 @@
     <string name="audio_focus_backend">Control de foco de audio</string>
     <string name="backend_auto">Automático (preferir API moderna si está disponible)</string>
     <string name="backend_compatibility">Implementación de compatibilidad</string>
+    <string name="receive_cast">Recibir pantalla compartida</string>
+    <string name="receive_cast_detail">Permitir que dispositivos vinculados al gateway compartan su pantalla aquí mientras este cliente está abierto. Puedes detenerlo con el botón Detener del reproductor.</string>
+    <string name="screen_mirroring">Pantalla compartida</string>
+    <string name="enable">Activar</string>
+    <string name="disable">Desactivar</string>
+    <string name="playback_backend">Estrategia de reproducción (archivos locales)</string>
+    <string name="direct_play">Reproducción directa</string>
+    <string name="remux">Remux a MP4</string>
+    <string name="transcode">Convertir a H.264 baseline</string>
 </resources>

@@ -1,5 +1,7 @@
 package io.github.diegog0477.zombiebox.client
 
+import io.github.diegog0477.zombiebox.shared.GatewayApi
+import io.github.diegog0477.zombiebox.shared.GatewayFailure
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.AlertDialog
@@ -27,6 +29,8 @@ import android.widget.*
 import io.github.diegog0477.zombiebox.client.data.GatewayHomeRepository
 import io.github.diegog0477.zombiebox.client.model.*
 import io.github.diegog0477.zombiebox.client.presentation.HomeViewModel
+import io.github.diegog0477.zombiebox.client.presentation.ReceiverViewModel
+import io.github.diegog0477.zombiebox.client.data.GatewayReceiverRepository
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URL
@@ -53,6 +57,8 @@ class MainActivity : Activity() {
     private val audioFocus = AudioManager.OnAudioFocusChangeListener { if (it <= 0) player.pause() }
     private lateinit var homeViewModel: HomeViewModel
     private val snapshot get() = homeViewModel.state.snapshot
+    private lateinit var receiverViewModel:ReceiverViewModel
+    private var currentItem:MediaItem?=null
     private var session = ""
     private var stream = ""
     private var mime = "video/mp4"
@@ -120,6 +126,8 @@ class MainActivity : Activity() {
         val backgroundExecutor = worker
         val uiHandler = handler
         homeViewModel = HomeViewModel(GatewayHomeRepository(api), { work -> backgroundExecutor.execute { work() } }, { done -> uiHandler.post { done() } })
+        receiverViewModel=ReceiverViewModel(GatewayReceiverRepository(api),{ work -> backgroundExecutor.execute { work() } },{ done -> uiHandler.post { done() } })
+        receiverViewModel.observer={plan -> receiveCast(plan)}
         homeViewModel.observer = { state ->
             if (!closed && !state.loading) { render(); state.failure?.let { error(it) } }
         }
@@ -133,7 +141,7 @@ class MainActivity : Activity() {
                 try {
                     val result = api.request("GET", "/v1/events?cursor=" + URLEncoder.encode(cursor, "UTF-8"))
                     cursor = result.optString("cursor")
-                    if ((result.optJSONArray("events")?.length() ?: 0) > 0) runOnUiThread { if (!closed && foreground) refresh() }
+                    runOnUiThread { if (!closed && foreground) { receiverViewModel.refresh(); if ((result.optJSONArray("events")?.length() ?: 0) > 0) refresh() } }
                 } catch (e: Exception) {
                     if (e is GatewayFailure && e.status == 409) cursor = ""
                     try { Thread.sleep(3000) } catch (_: InterruptedException) { break }
@@ -215,7 +223,7 @@ class MainActivity : Activity() {
         for (module in snapshot.modules) {
             val id = module.id
             val label = serviceTitle(id) + "\n" + localizedState(module.state)
-            services.addView(action(label) { if (module.state == "DISABLED") providerList() else refresh(id, "") }.apply {
+            services.addView(action(label) { if(id=="android_mirror") receiverSettings() else if (module.state == "DISABLED") providerList() else refresh(id, "") }.apply {
                 tag = "service:$id"
                 layoutParams = LinearLayout.LayoutParams(dp(165), dp(66)).apply { setMargins(dp(3), dp(3), dp(6), dp(3)) }
             })
@@ -274,7 +282,7 @@ class MainActivity : Activity() {
                 async({ val connection = GatewayApi(); connection.base = candidate; connection.request("POST", "/v1/devices/register", payload) }, { result ->
                     stopPlayback(); api.disconnect(); api.configure(candidate, result.getString("deviceId"), result.getString("deviceToken"))
                     prefs.edit().putString("gateway", api.base).putString("device", api.device).putString("token", api.token).commit()
-                    dialog.dismiss(); homeViewModel.reset(); refresh()
+                    dialog.dismiss(); receiverViewModel.reset(); homeViewModel.reset(); refresh(); receiverViewModel.refresh()
                 }, onError = { dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true })
             }
         }
@@ -285,14 +293,14 @@ class MainActivity : Activity() {
         val display = resources.displayMetrics
         val touch = packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
         val memory = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-        return JSONObject().put("clientVersion", "0.1.0-dev.3").put("protocolVersion", 1).put("installationId", id)
+        return JSONObject().put("clientVersion", "0.1.0-dev.4").put("protocolVersion", 1).put("installationId", id)
             .put("platform", JSONObject().put("androidApi", Build.VERSION.SDK_INT).put("release", Build.VERSION.RELEASE).put("manufacturer", Build.MANUFACTURER).put("model", Build.MODEL).put("abis", JSONArray().put(Build.CPU_ABI)))
             .put("display", JSONObject().put("width", display.widthPixels).put("height", display.heightPixels).put("dpi", display.densityDpi).put("touch", touch).put("dpad", resources.configuration.navigation == Configuration.NAVIGATION_DPAD || !touch))
             .put("memory", JSONObject().put("memoryClassMb", memory.memoryClass).put("physicalMb", 0))
     }
     private fun settings() {
-        AlertDialog.Builder(this).setTitle(R.string.settings).setItems(arrayOf(getString(R.string.connect_gateway), getString(R.string.configure_services), getString(R.string.diagnostics), getString(R.string.language), getString(R.string.presentation_mode), getString(R.string.advanced))) { _, index ->
-            when (index) { 0 -> pairing(); 1 -> providerList(); 2 -> diagnostics(); 3 -> language(); 4 -> mode(); 5 -> advanced() }
+        AlertDialog.Builder(this).setTitle(R.string.settings).setItems(arrayOf(getString(R.string.connect_gateway), getString(R.string.configure_services), getString(R.string.diagnostics), getString(R.string.language), getString(R.string.presentation_mode), getString(R.string.advanced), getString(R.string.receive_cast))) { _, index ->
+            when (index) { 0 -> pairing(); 1 -> providerList(); 2 -> diagnostics(); 3 -> language(); 4 -> mode(); 5 -> advanced(); 6 -> receiverSettings() }
         }.setNegativeButton(R.string.close, null).show()
     }
     private fun providerList() {
@@ -333,6 +341,15 @@ class MainActivity : Activity() {
         dialog.show()
     }
     private fun advanced() {
+        AlertDialog.Builder(this).setTitle(R.string.advanced).setItems(arrayOf(getString(R.string.audio_focus_backend),getString(R.string.playback_backend))) {_,index ->
+            if(index==0)audioSettings() else {
+                val modes=arrayOf("AUTO","DIRECT_PLAY","REMUX","TRANSCODE","EXTERNAL_PLAYER")
+                val labels=arrayOf(R.string.automatic,R.string.direct_play,R.string.remux,R.string.transcode,R.string.external_player).map {getString(it)}.toTypedArray()
+                AlertDialog.Builder(this).setTitle(R.string.playback_backend).setSingleChoiceItems(labels,modes.indexOf(prefs.getString("playbackMode","AUTO"))) {dialog,selection -> prefs.edit().putString("playbackMode",modes[selection]).commit();dialog.dismiss()}.setNegativeButton(R.string.close,null).show()
+            }
+        }.setNegativeButton(R.string.close,null).show()
+    }
+    private fun audioSettings() {
         AlertDialog.Builder(this).setTitle(R.string.audio_focus_backend)
             .setSingleChoiceItems(arrayOf(getString(R.string.backend_auto), getString(R.string.backend_compatibility)),
                 if (prefs.getBoolean("audioFocusCompatibility", false)) 1 else 0) { dialog, index ->
@@ -357,7 +374,32 @@ class MainActivity : Activity() {
         if (api.token.isEmpty()) return
         val payload = JSONObject().put("mode", prefs.getString("mode", "AUTO")).put("uiLanguage", prefs.getString("language", "en"))
             .put("audioLanguages", JSONArray().put("en").put("es")).put("subtitleLanguages", JSONArray().put("en").put("es")).put("subtitleMode", "auto")
-        async({ api.request("PUT", "/v1/device/preferences", payload) }, {})
+        async({ val current=api.request("GET", "/v1/device/preferences"); payload.put("allowCasting",current.optBoolean("allowCasting")); api.request("PUT", "/v1/device/preferences", payload) }, {})
+    }
+    private fun receiverSettings() {
+        if(api.token.isEmpty()){pairing();return}
+        val repository=GatewayReceiverRepository(api)
+        async({repository.enabled()},{enabled ->
+            AlertDialog.Builder(this).setTitle(R.string.receive_cast).setMessage(R.string.receive_cast_detail)
+                .setPositiveButton(if(enabled)R.string.disable else R.string.enable){_,_ -> async({repository.setEnabled(!enabled)},{receiverViewModel.refresh()})}
+                .setNegativeButton(R.string.cancel,null).show()
+        })
+    }
+    private fun receiveCast(plan:ReceiverPlan?) {
+        if(!foreground)return
+        when(val change=receiverViewModel.transition(plan,PlaybackContext(currentItem,full,lastState=="PLAYING"))) {
+            is ReceiverChange.Restore -> {
+                stopPlayback(keepReceiver=true)
+                change.previous?.let { previous -> previous.item?.let { startPlayback(it,previous.fullscreen,previous.playing) } }
+            }
+            is ReceiverChange.Begin -> {
+                stopPlayback(keepReceiver=true)
+                session=change.plan.sessionId;stream=api.base+change.plan.path;mime=change.plan.mime
+                itemTitle=getString(R.string.screen_mirroring);lastReport=0;lastState="";setFullscreen(true)
+                if(audioController.acquire())player.play(stream,0)
+            }
+            null -> Unit
+        }
     }
     private fun isTV(): Boolean = when (prefs.getString("mode", "AUTO")) {
         "TV", "DOCKED" -> true; "HANDHELD" -> false; else -> !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
@@ -411,21 +453,22 @@ class MainActivity : Activity() {
         root.addView(playerLayer, FrameLayout.LayoutParams(-1, -1))
     }
     private fun togglePlayback() { if (session.isNotEmpty() && foreground && audioController.acquire()) player.toggle() }
-    private fun startPlayback(item: MediaItem) {
+    private fun startPlayback(item: MediaItem, fullscreen:Boolean=true,autoplay:Boolean=true) {
         stopPlayback()
         val generation = playbackGeneration
-        async({ api.request("POST", "/v1/playback", JSONObject().put("itemId", item.id)) }, { plan ->
+        async({ api.request("POST", "/v1/playback", JSONObject().put("itemId", item.id).put("mode",prefs.getString("playbackMode","AUTO"))) }, { plan ->
             if (generation != playbackGeneration) {
                 val abandoned = plan.getString("sessionId")
                 async({ api.request("DELETE", "/v1/playback/$abandoned") }, {}, false)
                 return@async
             }
             session = plan.getString("sessionId"); stream = api.base + plan.getString("url"); mime = plan.optString("mimeType", "video/mp4")
-            itemTitle = item.title; now.text = itemTitle; lastState = ""; lastReport = 0; lastPosition = 0; lastDuration = 0
-            setFullscreen(true)
+            currentItem=item; itemTitle = item.title; now.text = itemTitle; lastState = ""; lastReport = 0; lastPosition = 0; lastDuration = 0
+            setFullscreen(fullscreen)
+            if(plan.optString("mode")=="EXTERNAL_PLAYER"){external();return@async}
             if (audioController.acquire()) {
                 player.play(stream, plan.optInt("resumePositionMs"))
-                if (!foreground) player.pause()
+                if (!foreground || !autoplay) player.pause()
             }
         })
     }
@@ -437,7 +480,9 @@ class MainActivity : Activity() {
         playerLayer.bringToFront()
         if (full) playerFocus.restore() else homeFocus.restore()
     }
-    private fun stopPlayback() {
+    private fun stopPlayback(keepReceiver:Boolean=false) {
+        if(!keepReceiver && receiverViewModel.activeSession.isNotEmpty())receiverViewModel.dismiss(receiverViewModel.activeSession)
+        currentItem=null
         audioController.release()
         playbackGeneration++
         if (session.isNotEmpty()) {
@@ -501,10 +546,10 @@ class MainActivity : Activity() {
         return super.dispatchKeyEvent(event)
     }
     override fun onBackPressed() { if (full) setFullscreen(false) else if (session.isNotEmpty()) stopPlayback() else super.onBackPressed() }
-    override fun onResume() { super.onResume(); foreground = true }
+    override fun onResume() { super.onResume(); foreground = true; if(::receiverViewModel.isInitialized && api.token.isNotEmpty())receiverViewModel.refresh() }
     override fun onPause() { foreground = false; player.pause(); super.onPause() }
     override fun onDestroy() {
         audioController.release()
-        closed = true; homeViewModel.close(); foreground = false; handler.removeCallbacksAndMessages(null); api.close(); player.close(); worker.shutdownNow(); poller.shutdownNow(); super.onDestroy()
+        closed = true; receiverViewModel.close(); homeViewModel.close(); foreground = false; handler.removeCallbacksAndMessages(null); api.close(); player.close(); worker.shutdownNow(); poller.shutdownNow(); super.onDestroy()
     }
 }

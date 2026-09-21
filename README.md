@@ -9,3 +9,5 @@ IntelliJ can edit the project; Gradle Wrapper is the build reference. JDK 21 and
 Provider credentials are transient form input, sent only to the gateway and never persisted in Android preferences. Only gateway/device credentials and presentation preferences are stored locally; backups are disabled. See [configuration](../docs/development/services-and-credentials.md).
 
 Build/lint/DEX success is not API 9/10/13 runtime validation. Codec probes, subtitles/audio selection, image delivery, refined handheld layout, interruption/device lifecycle validation and physical focus/surface behavior still need implementation or device verification. No real provider/device playback has been claimed.
+
+Dev.4 adds opt-in screen receiving, active-session recovery through long polling, and local playback strategy overrides under Advanced. Incoming streams reuse the embedded player; remote stop restores the interrupted playback context. The separate Cast APK shares `android-shared/` transport only. MediaProjection and API 29 audio capture are absent from the legacy client DEX. See [mirroring](../docs/development/mirroring.md).

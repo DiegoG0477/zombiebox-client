@@ -12,8 +12,8 @@ android {
         minSdk = 9
         // Sideload-only spike. Not a Play Store release configuration.
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.1.0-dev.3"
+        versionCode = 4
+        versionName = "0.1.0-dev.4"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -24,4 +24,4 @@ android {
 }
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8) } }
 
-dependencies { testImplementation("junit:junit:4.13.2") }
+dependencies { implementation(project(":shared")); testImplementation("junit:junit:4.13.2") }

@@ -2,7 +2,7 @@ package io.github.diegog0477.zombiebox.client.data
 
 import org.json.JSONArray
 import org.json.JSONObject
-import io.github.diegog0477.zombiebox.client.GatewayApi
+import io.github.diegog0477.zombiebox.shared.GatewayApi
 import io.github.diegog0477.zombiebox.client.model.*
 import java.net.URLEncoder
 

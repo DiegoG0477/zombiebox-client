@@ -91,4 +91,13 @@
     <string name="audio_focus_backend">Audio focus backend</string>
     <string name="backend_auto">Automatic (prefer modern platform when available)</string>
     <string name="backend_compatibility">Compatibility platform backend</string>
+    <string name="receive_cast">Receive screen mirroring</string>
+    <string name="receive_cast_detail">Allow paired devices on this gateway to share their screen here while this client is open. You can stop sharing with the playback Stop button.</string>
+    <string name="screen_mirroring">Screen mirroring</string>
+    <string name="enable">Enable</string>
+    <string name="disable">Disable</string>
+    <string name="playback_backend">Playback strategy (local files)</string>
+    <string name="direct_play">Direct play</string>
+    <string name="remux">Remux to MP4</string>
+    <string name="transcode">Transcode to H.264 baseline</string>
 </resources>
