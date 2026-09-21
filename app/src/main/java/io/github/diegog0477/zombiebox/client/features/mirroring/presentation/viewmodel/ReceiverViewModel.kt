@@ -24,6 +24,12 @@ class ReceiverViewModel(
     fun command(action: String, failed: (Exception) -> Unit) =
         settingsTasks.run({ repository.command(action) }, { refresh() }, failed)
 
+    fun readHandoff(done: (Boolean) -> Unit, failed: (Exception) -> Unit) =
+        settingsTasks.run({ repository.handoffEnabled() }, done, failed)
+
+    fun setHandoff(enabled: Boolean, failed: (Exception) -> Unit) =
+        settingsTasks.run({ repository.setHandoffEnabled(enabled) }, {}, failed)
+
     fun readEnabled(done: (Boolean) -> Unit, failed: (Exception) -> Unit) =
         settingsTasks.run({ repository.enabled() }, done, failed)
 

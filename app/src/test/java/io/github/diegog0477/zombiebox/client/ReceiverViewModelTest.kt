@@ -26,6 +26,10 @@ class ReceiverViewModelTest {
 
         override fun command(action: String) {}
 
+        override fun handoffEnabled() = false
+
+        override fun setHandoffEnabled(enabled: Boolean) {}
+
         override fun enabled() = true
 
         override fun setEnabled(enabled: Boolean) {}

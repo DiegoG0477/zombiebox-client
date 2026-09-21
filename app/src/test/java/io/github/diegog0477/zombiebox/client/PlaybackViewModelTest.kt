@@ -20,6 +20,11 @@ class PlaybackViewModelTest {
             return PlaybackPlan(itemId, "/stream", "video/mp4", mode, positionMs ?: 0)
         }
 
+        override fun receive(itemId: String, receiverId: String, positionMs: Int?): PlaybackPlan {
+            events.add("receiver:$receiverId:$positionMs")
+            return start(itemId, "AUTO", positionMs)
+        }
+
         override fun progress(sessionId: String, progress: PlaybackProgress) {
             events.add("progress:${progress.positionMs}")
             if (failProgress) throw IllegalStateException("offline")
@@ -105,5 +110,22 @@ class PlaybackViewModelTest {
         repository.onStart = { model.close() }
         model.start("late", "AUTO", { fail("late delivery") }, { throw it })
         assertEquals(listOf("late"), repository.stopped)
+    }
+
+    @Test
+    fun leaseLossCancelsPendingReceiverResolutionAndDiscardsLatePlan() {
+        val repository = Repository()
+        val background = mutableListOf<() -> Unit>()
+        val ui = mutableListOf<() -> Unit>()
+        val model = PlaybackViewModel(repository, { background.add(it) }, { ui.add(it) })
+        model.start("video", "AUTO", { fail("stale receiver plan") }, { throw it }, 12000, "lease")
+        assertTrue(model.receiverPending)
+        background.removeAt(0)()
+        assertTrue(repository.events.contains("receiver:lease:12000"))
+        model.stop("", null)
+        assertFalse(model.receiverPending)
+        ui.removeAt(0)()
+        while (background.isNotEmpty()) background.removeAt(0)()
+        assertEquals(listOf("video"), repository.stopped)
     }
 }

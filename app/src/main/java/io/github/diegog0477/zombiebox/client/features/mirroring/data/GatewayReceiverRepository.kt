@@ -13,7 +13,12 @@ class GatewayReceiverRepository(private val api: GatewayApi) : ReceiverRepositor
 
     override fun selectMediaProvider(provider: String) {
         if (provider.isEmpty()) api.request("DELETE", "/v1/media-receiver")
-        else api.request("PUT", "/v1/media-receiver", JSONObject().put("provider", provider))
+        else
+            api.request(
+                "PUT",
+                "/v1/media-receiver",
+                JSONObject().put("provider", provider).put("replaceExisting", true),
+            )
     }
 
     override fun command(action: String) {
@@ -49,6 +54,15 @@ class GatewayReceiverRepository(private val api: GatewayApi) : ReceiverRepositor
 
     override fun stop(sessionId: String) {
         api.request("DELETE", "/v1/playback/$sessionId")
+    }
+
+    override fun handoffEnabled() =
+        api.request("GET", "/v1/device/preferences").optBoolean("allowReceiverHandoff")
+
+    override fun setHandoffEnabled(enabled: Boolean) {
+        val preferences =
+            api.request("GET", "/v1/device/preferences").put("allowReceiverHandoff", enabled)
+        api.request("PUT", "/v1/device/preferences", preferences)
     }
 
     override fun enabled() = api.request("GET", "/v1/device/preferences").optBoolean("allowCasting")

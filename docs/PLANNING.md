@@ -54,3 +54,10 @@ Measured network preference, debounced federated search, and evidence-gated API1
 No physical, account or product milestone closes.
 
 Verification: 65 JVM tests, debug/release compilation, lint and APK audit pass. The debug APK is 1,248,788 bytes, minSdk 9, single DEX 035 and contains no native libraries. Physical output/probe behavior remains unverified.
+
+## dev.22 increment
+
+Explicit receiver switching, Cast handoff preference, semantic YouTube lease expiry and service-owned interrupted-session restoration. APK versionCode 22.
+No product or physical acceptance gate closes.
+
+Verification: 69 JVM tests, debug/release builds, lint and APK compatibility audit pass. Interrupted receiver chains and cancelled pending YouTube resolution are covered; physical A/V, foreground transitions and OEM behavior remain unverified.

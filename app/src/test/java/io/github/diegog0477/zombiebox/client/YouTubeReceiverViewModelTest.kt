@@ -1,5 +1,6 @@
 package io.github.diegog0477.zombiebox.client
 
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.ReceiverExpired
 import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.ReceiverFeedback
 import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.YouTubeCommand
 import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.YouTubeReceiver
@@ -14,10 +15,14 @@ class YouTubeReceiverViewModelTest {
         val feedback = ArrayList<ReceiverFeedback>()
         var closed = false
         var rejectFeedback = false
+        var expired = false
 
         override fun open() = value
 
-        override fun poll(id: String) = value
+        override fun poll(id: String): YouTubeReceiver {
+            if (expired) throw ReceiverExpired()
+            return value
+        }
 
         override fun feedback(id: String, value: ReceiverFeedback) {
             if (rejectFeedback) throw IllegalStateException("stale")
@@ -96,5 +101,39 @@ class YouTubeReceiverViewModelTest {
         repo.rejectFeedback = false
         model.tick()
         assertTrue(repo.feedback.last().commandId.isEmpty())
+    }
+
+    @Test
+    fun revokedLeaseDropsPendingCommandAndAllowsExplicitRearm() {
+        val repo = Repository()
+        val model = YouTubeReceiverViewModel(repo, { it() }, { it() })
+        var expired = 0
+        model.expired = { expired++ }
+        model.open()
+        repo.value = repo.value.copy(command = YouTubeCommand("pending", "play"))
+        model.tick()
+        assertTrue(model.accepts("pending"))
+        repo.expired = true
+        model.tick()
+        assertEquals(1, expired)
+        assertNull(model.receiver)
+        assertFalse(model.accepts("pending"))
+        assertFalse(model.failed)
+        model.tick()
+        assertEquals(1, expired)
+        repo.expired = false
+        model.open()
+        assertNotNull(model.receiver)
+    }
+
+    @Test
+    fun disabledReceiverRejectsLatePlaybackResolution() {
+        val repo = Repository()
+        val model = YouTubeReceiverViewModel(repo, { it() }, { it() })
+        model.open()
+        repo.value = repo.value.copy(command = YouTubeCommand("pending", "play"))
+        model.tick()
+        model.disable()
+        assertFalse(model.accepts("pending"))
     }
 }

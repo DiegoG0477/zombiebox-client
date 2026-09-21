@@ -251,4 +251,9 @@
     <string name="surface_restart">
         Reopen the app to apply. Unverified outputs use SurfaceView.
     </string>
+    <string name="receiver_handoff">Allow receiver handoff</string>
+    <string name="receiver_handoff_detail">
+        Allow an incoming Cast to replace Spotify, AirPlay or YouTube on this screen once its stream
+        is ready. Disabled by default.
+    </string>
 </resources>

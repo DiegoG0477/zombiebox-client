@@ -13,6 +13,8 @@ class PlaybackViewModel(
     @Volatile private var closed = false
     @Volatile private var generation = 0
     private val recovery = PlaybackRecovery()
+    var receiverPending = false
+        private set
 
     fun adopt(plan: PlaybackPlan) = recovery.adopt(plan)
 
@@ -36,8 +38,9 @@ class PlaybackViewModel(
         done: (PlaybackPlan) -> Unit,
         failed: (Exception) -> Unit,
         positionMs: Int? = null,
+        receiverId: String = "",
     ) {
-        request(itemId, mode, positionMs, "", null, done, failed)
+        request(itemId, mode, positionMs, "", null, done, failed, receiverId)
     }
 
     private fun request(
@@ -48,9 +51,11 @@ class PlaybackViewModel(
         progress: PlaybackProgress?,
         done: (PlaybackPlan) -> Unit,
         failed: (Exception) -> Unit,
+        receiverId: String = "",
     ) {
         if (closed) return
         val request = ++generation
+        receiverPending = receiverId.isNotEmpty()
         execute {
             try {
                 if (oldSession.isNotEmpty()) {
@@ -61,19 +66,27 @@ class PlaybackViewModel(
                     }
                 }
                 if (closed || request != generation) return@execute
-                val plan = repository.start(itemId, mode, positionMs)
+                val plan =
+                    if (receiverId.isEmpty()) repository.start(itemId, mode, positionMs)
+                    else repository.receive(itemId, receiverId, positionMs)
                 if (closed || request != generation) {
                     discard(plan.sessionId)
                     return@execute
                 }
                 deliver {
                     if (!closed && request == generation) {
+                        receiverPending = false
                         recovery.adopt(plan)
                         done(plan)
                     } else execute { discard(plan.sessionId) }
                 }
             } catch (error: Exception) {
-                deliver { if (!closed && request == generation) failed(error) }
+                deliver {
+                    if (!closed && request == generation) {
+                        receiverPending = false
+                        failed(error)
+                    }
+                }
             }
         }
     }
@@ -88,6 +101,7 @@ class PlaybackViewModel(
     }
 
     fun stop(id: String, value: PlaybackProgress?) {
+        receiverPending = false
         generation++
         if (id.isNotEmpty())
             execute {
@@ -106,6 +120,7 @@ class PlaybackViewModel(
     }
 
     fun close() {
+        receiverPending = false
         closed = true
         generation++
     }

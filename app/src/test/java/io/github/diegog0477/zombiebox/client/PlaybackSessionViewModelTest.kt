@@ -52,6 +52,30 @@ class PlaybackSessionViewModelTest {
         assertFalse(vm.restoreInterrupted())
     }
 
+    @Test
+    fun receiverToReceiverChangesPreserveTheOriginalInterruptedQueue() {
+        val repository = Repository()
+        val vm = model(repository)
+        vm.adopt(plan("original"), item("original"), listOf(item("original"), item("next")))
+        vm.mediaState("PAUSED", 12000, 60000)
+        vm.subtitle(2)
+        for (provider in listOf("youtube", "android_mirror", "airplay")) {
+            vm.rememberInterruption()
+            vm.stop(preserveInterrupted = true)
+            vm.adopt(
+                plan(provider),
+                MediaItem(provider, provider, provider),
+                emptyList(),
+                incoming = true,
+            )
+        }
+        assertTrue(vm.restoreInterrupted())
+        assertEquals("original", vm.state.item?.id)
+        assertEquals("PAUSED", vm.state.progress.state)
+        assertEquals(2, vm.state.subtitleId)
+        assertTrue(repository.events.contains("start:original:12000"))
+    }
+
     private class Resume : PlaybackResumeRepository {
         var bookmark: PlaybackBookmark? = null
 

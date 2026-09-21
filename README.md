@@ -70,3 +70,8 @@ Dev.19: Language settings, explicit process-death queue resume, guide/search res
 Dev.20: Service-owned bounded recovery, Advanced recovery policy, automatic Spotify/AirPlay selection and richer semantic details/resume/start-over actions. APK versionCode 20.
 
 Dev.21: Measured network preference, debounced federated search, and evidence-gated API14 TextureView with baseline fallback and explicit diagnostics. VersionCode 21.
+
+## dev.22 increment
+
+Explicit receiver switching, Cast handoff preference, semantic YouTube lease expiry and service-owned interrupted-session restoration. APK versionCode 22.
+No product or physical acceptance gate closes.

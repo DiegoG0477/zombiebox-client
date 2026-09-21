@@ -11,11 +11,23 @@ class GatewayPlaybackRepository(
 ) : PlaybackRepository {
     private val bandwidth = GatewayBandwidth(api)
 
-    override fun start(itemId: String, mode: String, positionMs: Int?): PlaybackPlan {
+    override fun start(itemId: String, mode: String, positionMs: Int?): PlaybackPlan =
+        resolve(itemId, mode, positionMs, "")
+
+    override fun receive(itemId: String, receiverId: String, positionMs: Int?): PlaybackPlan =
+        resolve(itemId, "AUTO", positionMs, receiverId)
+
+    private fun resolve(
+        itemId: String,
+        mode: String,
+        positionMs: Int?,
+        receiverId: String,
+    ): PlaybackPlan {
         val adaptive = adaptNetwork()
         if (mode == "AUTO" && adaptive) bandwidth.refresh()
         val request =
             JSONObject().put("itemId", itemId).put("mode", mode).put("networkAdaptation", adaptive)
+        if (receiverId.isNotEmpty()) request.put("receiverId", receiverId)
         if (positionMs != null) request.put("positionMs", positionMs)
         val plan = api.request("POST", "/v1/playback", request)
         return PlaybackPlanDecoder.decode(api.base, plan)

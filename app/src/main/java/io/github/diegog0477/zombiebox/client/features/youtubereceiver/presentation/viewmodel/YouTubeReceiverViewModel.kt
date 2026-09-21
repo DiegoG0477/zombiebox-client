@@ -1,5 +1,6 @@
 package io.github.diegog0477.zombiebox.client.features.youtubereceiver.presentation.viewmodel
 
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.ReceiverExpired
 import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.ReceiverFeedback
 import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.YouTubeCommand
 import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.YouTubeReceiver
@@ -15,6 +16,7 @@ class YouTubeReceiverViewModel(
         private set
 
     var observer: (() -> Unit)? = null
+    var expired: (() -> Unit)? = null
     var command: ((YouTubeCommand) -> Unit)? = null
     var failed = false
         private set
@@ -100,17 +102,30 @@ class YouTubeReceiverViewModel(
                         }
                     }
                 }
-            } catch (_: Exception) {
+            } catch (error: Exception) {
                 deliver {
-                    if (run == generation) {
+                    if (!closed && run == generation) {
                         busy = false
-                        failed = true
-                        observer?.invoke()
+                        if (error is ReceiverExpired) {
+                            generation++
+                            receiver = null
+                            pending = null
+                            ready = null
+                            dispatched = ""
+                            failed = false
+                            observer?.invoke()
+                            expired?.invoke()
+                        } else {
+                            failed = true
+                            observer?.invoke()
+                        }
                     }
                 }
             }
         }
     }
+
+    fun accepts(id: String): Boolean = !closed && pending?.id == id
 
     fun playerState(state: String, position: Int, duration: Int) {
         latest =
@@ -173,5 +188,6 @@ class YouTubeReceiverViewModel(
         disable()
         observer = null
         command = null
+        expired = null
     }
 }

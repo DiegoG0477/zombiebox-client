@@ -265,4 +265,9 @@
     <string name="surface_restart">
         Vuelve a abrir la app para aplicar. Sin evidencia se usa SurfaceView.
     </string>
+    <string name="receiver_handoff">Permitir cambio de receptor</string>
+    <string name="receiver_handoff_detail">
+        Permite que un Cast entrante sustituya Spotify, AirPlay o YouTube en esta pantalla cuando su
+        transmisión esté lista. Desactivado por defecto.
+    </string>
 </resources>

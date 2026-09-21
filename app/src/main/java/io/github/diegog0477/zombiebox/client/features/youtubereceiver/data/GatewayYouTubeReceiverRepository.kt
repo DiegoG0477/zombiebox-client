@@ -1,10 +1,12 @@
 package io.github.diegog0477.zombiebox.client.features.youtubereceiver.data
 
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.ReceiverExpired
 import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.ReceiverFeedback
 import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.YouTubeCommand
 import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.YouTubeReceiver
 import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.repository.YouTubeReceiverRepository
 import io.github.diegog0477.zombiebox.shared.GatewayApi
+import io.github.diegog0477.zombiebox.shared.GatewayFailure
 import org.json.JSONObject
 
 class GatewayYouTubeReceiverRepository(private val api: GatewayApi) : YouTubeReceiverRepository {
@@ -28,9 +30,18 @@ class GatewayYouTubeReceiverRepository(private val api: GatewayApi) : YouTubeRec
         )
     }
 
-    override fun open() = decode(api.request("POST", "/v1/youtube/receiver", JSONObject()))
+    override fun open() =
+        decode(
+            api.request("POST", "/v1/youtube/receiver", JSONObject().put("replaceExisting", true))
+        )
 
-    override fun poll(id: String) = decode(api.request("GET", "/v1/youtube/receiver/$id"))
+    override fun poll(id: String): YouTubeReceiver =
+        try {
+            decode(api.request("GET", "/v1/youtube/receiver/$id"))
+        } catch (error: GatewayFailure) {
+            if (error.status == 404) throw ReceiverExpired()
+            throw error
+        }
 
     override fun feedback(id: String, value: ReceiverFeedback) {
         api.request(
