@@ -80,3 +80,9 @@ No product or physical acceptance gate closes.
 
 Automatic gateway candidates below manual pairing URL, lifecycle-safe discovery state and isolated modern system-bar insets.
 No product or physical acceptance gate closes.
+
+
+## dev.24 increment
+
+Gateway-generated QR display, local six-digit consent/revocation and guarded discrete remote input for Home/player/catalog. API9 thin-client/no-native boundary remains; APK versionCode 24.
+Full visual/capture policy, extended Remote, HEVC/4K and other product gates remain open; physical acceptance stays deferred.

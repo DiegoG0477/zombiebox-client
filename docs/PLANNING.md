@@ -68,3 +68,11 @@ Manual URL plus automatic gateway candidates and guarded modern system-bar inset
 Product exit gates and deferred physical acceptance remain open.
 
 Verification: 71 JVM tests, debug/unsigned-release builds, lint and APK audit pass. Debug APK: 1,258,607 bytes, minSdk9, single DEX035 and no native libraries. Physical/visual behavior remains unverified.
+
+
+## dev.24 increment
+
+Gateway-generated QR display, local six-digit consent/revocation and guarded discrete remote input for Home/player/catalog. API9 thin-client/no-native boundary remains; APK versionCode 24.
+Full visual/capture policy, extended Remote, HEVC/4K and other product gates remain open; physical acceptance stays deferred.
+
+Verification: 74 JVM tests, debug/unsigned-release builds, lint and APK audit pass. Debug APK: 1,282,973 bytes, minSdk9, single DEX035 and no `.so`. Long-poll companion events wake bounded input consumption without refreshing Home; periodic polling remains a heartbeat/fallback. Physical camera/input/verifier behavior is unverified.

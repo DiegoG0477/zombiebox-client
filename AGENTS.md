@@ -7,3 +7,5 @@
 - `monorepo/*` tags preserve filtered historical checkpoints; they are not independent release or milestone evidence. Component completion requires its own checks plus the global product gates.
 
 - Android uses feature-first MVVM, manual constructor injection and semantic repository interfaces. Never import Android/JSON/data implementations into ViewModels. Preserve application IDs and isolated API-specific factory loading.
+
+- This TV thin Client APK must contain no `.so` libraries. Cast has a separate assessed-native-dependency policy; do not import Cast dependencies or capture APIs into this APK.

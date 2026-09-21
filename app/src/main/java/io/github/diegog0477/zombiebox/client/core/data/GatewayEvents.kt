@@ -12,7 +12,7 @@ class GatewayEvents(
 ) {
     @Volatile private var closed = false
 
-    fun start(changed: (Boolean) -> Unit) {
+    fun start(companionChanged: () -> Unit = {}, changed: (Boolean) -> Unit) {
         executor.execute {
             var cursor = ""
             while (!closed && !Thread.currentThread().isInterrupted) {
@@ -23,7 +23,19 @@ class GatewayEvents(
                     }
                     val result = api.request("GET", "/v1/events?cursor=$cursor")
                     cursor = result.optString("cursor")
-                    val hasEvents = (result.optJSONArray("events")?.length() ?: 0) > 0
+                    val events = result.optJSONArray("events")
+                    val hasEvents =
+                        events != null &&
+                            (0 until events.length()).any {
+                                events.optJSONObject(it)?.optString("type") != "companion.changed"
+                            }
+                    val companionEvent =
+                        events != null &&
+                            (0 until events.length()).any {
+                                events.optJSONObject(it)?.optString("type") == "companion.changed"
+                            }
+                    if (companionEvent) deliver { if (!closed) companionChanged() }
+                    if (events != null && events.length() > 0 && !hasEvents) continue
                     deliver { if (!closed) changed(hasEvents) }
                 } catch (error: Exception) {
                     if (error is GatewayFailure && error.status == 409) cursor = ""

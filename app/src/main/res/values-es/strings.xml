@@ -277,4 +277,20 @@
     </string>
     <string name="discovery_empty">Sin gateways. Comprueba la red local o introduce la URL.</string>
     <string name="discovery_choose">Selecciona un gateway y empareja con su código.</string>
+    <string name="phone_pair_title">Emparejar teléfono / controles de confianza</string>
+    <string name="phone_pair_loading">Creando una invitación temporal…</string>
+    <string name="phone_pair_code">
+        Escanea desde Zombie Cast o introduce el código %1$s. Válido hasta dos minutos.
+    </string>
+    <string name="phone_pair_expired">
+        La invitación caducó. Abre esta pantalla de nuevo para obtener otro código.
+    </string>
+    <string name="phone_pair_accept_title">¿Permitir este teléfono?</string>
+    <string name="phone_pair_accept">
+        %1$s solicita control remoto y permiso para solicitar mirroring. Compara el código %2$s en
+        ambas pantallas. El mirroring también requiere activar Recibir Cast.
+    </string>
+    <string name="phone_allow">Permitir</string>
+    <string name="phone_deny">Rechazar</string>
+    <string name="phone_forget">Revocar %1$s</string>
 </resources>

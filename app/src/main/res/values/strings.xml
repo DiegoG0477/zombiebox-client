@@ -261,4 +261,20 @@
     <string name="discovery_failed">Discovery unavailable. Enter the gateway URL manually.</string>
     <string name="discovery_empty">No gateways found. Check the same LAN or enter the URL.</string>
     <string name="discovery_choose">Select a gateway below, then pair with its code.</string>
+    <string name="phone_pair_title">Pair phone / trusted remotes</string>
+    <string name="phone_pair_loading">Creating a temporary invitation…</string>
+    <string name="phone_pair_code">
+        Scan in Zombie Cast or enter code %1$s. Valid for up to two minutes.
+    </string>
+    <string name="phone_pair_expired">
+        Invitation expired. Reopen this screen for a new code.
+    </string>
+    <string name="phone_pair_accept_title">Allow this phone?</string>
+    <string name="phone_pair_accept">
+        %1$s wants remote control and permission to request mirroring. Compare code %2$s on both
+        screens. Mirroring also requires Receive Cast to be enabled.
+    </string>
+    <string name="phone_allow">Allow</string>
+    <string name="phone_deny">Deny</string>
+    <string name="phone_forget">Revoke %1$s</string>
 </resources>

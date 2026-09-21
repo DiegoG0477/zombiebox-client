@@ -26,6 +26,7 @@ data class SettingsActions(
     val youtubeReceiverSettings: () -> Unit,
     val mediaReceiverSettings: () -> Unit,
     val resumePlayback: () -> Unit,
+    val companionSettings: () -> Unit = {},
 )
 
 /** Dialog inputs/rendering only. Provider JSON and persistence stay behind the ViewModel. */
@@ -129,6 +130,7 @@ class SettingsDialogs(
                     activity.getString(R.string.media_receiver),
                     activity.getString(R.string.media_languages),
                     activity.getString(R.string.resume_previous),
+                    activity.getString(R.string.phone_pair_title),
                 )
             ) { _, index ->
                 when (index) {
@@ -144,6 +146,7 @@ class SettingsDialogs(
                     9 -> actions.mediaReceiverSettings()
                     10 -> mediaLanguages()
                     11 -> actions.resumePlayback()
+                    12 -> actions.companionSettings()
                 }
             }
             .setNegativeButton(R.string.close, null)

@@ -29,6 +29,9 @@ import io.github.diegog0477.zombiebox.client.features.catalog.data.GatewayCatalo
 import io.github.diegog0477.zombiebox.client.features.catalog.platform.CatalogSavedState
 import io.github.diegog0477.zombiebox.client.features.catalog.presentation.ui.CatalogDialogs
 import io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel.CatalogViewModel
+import io.github.diegog0477.zombiebox.client.features.companion.data.GatewayCompanionRepository
+import io.github.diegog0477.zombiebox.client.features.companion.presentation.ui.CompanionController
+import io.github.diegog0477.zombiebox.client.features.companion.presentation.viewmodel.CompanionViewModel
 import io.github.diegog0477.zombiebox.client.features.diagnostics.data.GatewayDiagnosticsRepository
 import io.github.diegog0477.zombiebox.client.features.diagnostics.platform.HardwareScanner
 import io.github.diegog0477.zombiebox.client.features.diagnostics.presentation.ui.DiagnosticsDialog
@@ -140,7 +143,25 @@ class MainActivity : Activity() {
     private fun screenTasks() =
         ScreenTasks({ work -> worker.execute { work() } }, { work -> handler.post { work() } })
 
-    private val settingsDialogs by lazy {
+    private val companionModel by lazy {
+        CompanionViewModel(
+            GatewayCompanionRepository(api),
+            screenTasks(),
+            { android.os.SystemClock.elapsedRealtime() },
+            { api.base + "\n" + api.device },
+        )
+    }
+    private val companionController: CompanionController by lazy {
+        CompanionController(
+            this,
+            companionModel,
+            { api.token.isNotEmpty() },
+            { foreground && (hasWindowFocus() || catalogDialogs.remoteReady) },
+            ::remoteCommand,
+            ::error,
+        )
+    }
+    private val settingsDialogs: SettingsDialogs by lazy {
         SettingsDialogs(
             this,
             settingsModel,
@@ -176,6 +197,7 @@ class MainActivity : Activity() {
                         Toast.makeText(this, R.string.no_saved_playback, Toast.LENGTH_LONG).show()
                     }
                 },
+                { if (api.token.isNotEmpty()) companionController.show() else pairing() },
             ),
         )
     }
@@ -460,7 +482,7 @@ class MainActivity : Activity() {
                 )
             }
         } else handler.post { pairing() }
-        events.start { changed ->
+        events.start({ companionController.wake() }) { changed ->
             if (!closed && foreground) {
                 receiverViewModel.refresh()
                 if (changed) refresh()
@@ -1197,6 +1219,78 @@ class MainActivity : Activity() {
             if (::homeViewModel.isInitialized) homeViewModel.state.scope.provider else ""
         )
 
+    private fun remoteCommand(action: String, provider: String): String {
+        if (!foreground) return "BUSY"
+        if (!hasWindowFocus()) {
+            if (!catalogDialogs.remoteReady) return "BUSY"
+            val key =
+                when (action) {
+                    "UP" -> KeyEvent.KEYCODE_DPAD_UP
+                    "DOWN" -> KeyEvent.KEYCODE_DPAD_DOWN
+                    "LEFT" -> KeyEvent.KEYCODE_DPAD_LEFT
+                    "RIGHT" -> KeyEvent.KEYCODE_DPAD_RIGHT
+                    "OK" -> KeyEvent.KEYCODE_DPAD_CENTER
+                    "BACK" -> KeyEvent.KEYCODE_BACK
+                    else -> 0
+                }
+            if (key != 0) return if (catalogDialogs.remoteKey(key)) "EXECUTED" else "UNSUPPORTED"
+            if (action == "HOME" || action == "PROVIDER") catalogDialogs.close()
+            else return "UNSUPPORTED"
+        }
+        if (currentFocus is EditText) return "BUSY"
+        when (action) {
+            "HOME" -> {
+                if (full) setFullscreen(false)
+                refresh("", "")
+                return "EXECUTED"
+            }
+            "PROVIDER" -> {
+                if (full) setFullscreen(false)
+                refresh(provider, "")
+                return "EXECUTED"
+            }
+            "BACK" -> {
+                if (full || session.isNotEmpty() || catalogModel.screen != null) onBackPressed()
+                return "EXECUTED"
+            }
+            "VOLUME_UP",
+            "VOLUME_DOWN",
+            "MUTE" -> {
+                val audio = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+                if (action == "MUTE") return "UNSUPPORTED"
+                audio.adjustStreamVolume(
+                    android.media.AudioManager.STREAM_MUSIC,
+                    if (action == "VOLUME_UP") android.media.AudioManager.ADJUST_RAISE
+                    else android.media.AudioManager.ADJUST_LOWER,
+                    android.media.AudioManager.FLAG_SHOW_UI,
+                )
+                return "EXECUTED"
+            }
+        }
+        val key =
+            when (action) {
+                "UP" -> KeyEvent.KEYCODE_DPAD_UP
+                "DOWN" -> KeyEvent.KEYCODE_DPAD_DOWN
+                "LEFT" -> KeyEvent.KEYCODE_DPAD_LEFT
+                "RIGHT" -> KeyEvent.KEYCODE_DPAD_RIGHT
+                "OK" -> KeyEvent.KEYCODE_DPAD_CENTER
+                "PLAY_PAUSE" -> KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
+                "STOP" -> KeyEvent.KEYCODE_MEDIA_STOP
+                "NEXT" -> KeyEvent.KEYCODE_MEDIA_NEXT
+                "SEEK_BACK" -> KeyEvent.KEYCODE_MEDIA_REWIND
+                "SEEK_FORWARD" -> KeyEvent.KEYCODE_MEDIA_FAST_FORWARD
+                else -> return "UNSUPPORTED"
+            }
+        if (
+            action in listOf("PLAY_PAUSE", "STOP", "NEXT", "SEEK_BACK", "SEEK_FORWARD") &&
+                session.isEmpty()
+        )
+            return "UNSUPPORTED"
+        val down = dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key))
+        val up = dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key))
+        return if (down || up) "EXECUTED" else "UNSUPPORTED"
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val key = event.keyCode
         if (currentFocus !is EditText) {
@@ -1263,6 +1357,7 @@ class MainActivity : Activity() {
         super.onResume()
         PlaybackNotifications.requestPermission(this)
         foreground = true
+        companionController.resume()
         if (::player.isInitialized) {
             if (session.isNotEmpty() && !audioController.acquire()) player.pause()
             player.foreground(true)
@@ -1291,6 +1386,7 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
+        companionController.pause()
         foreground = false
         youtubeReceiver.disable()
         endYouTubePlayback()
@@ -1303,6 +1399,7 @@ class MainActivity : Activity() {
         playbackFailure.dismiss()
         closed = true
         events.close()
+        companionController.close()
         settingsModel.close()
         videoSurface.close()
         catalogDialogs.close()

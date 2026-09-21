@@ -123,6 +123,26 @@ class CatalogDialogs(
         return true
     }
 
+    // Only these owned catalog windows accept companion input. Consent/settings/system
+    // dialogs are deliberately absent, and focus must belong to the selected window.
+    private fun remoteDialog(): AlertDialog? =
+        listOf(overlay, detail, browser).firstOrNull {
+            it?.isShowing == true && it.window?.decorView?.hasWindowFocus() == true
+        }
+
+    val remoteReady: Boolean
+        get() = remoteDialog()?.let { it.currentFocus !is EditText } == true
+
+    fun remoteKey(key: Int): Boolean {
+        val dialog = remoteDialog() ?: return false
+        if (dialog.currentFocus is EditText) return false
+        val down =
+            dialog.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, key))
+        val up =
+            dialog.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, key))
+        return down || up
+    }
+
     fun close() {
         overlay?.dismiss()
         overlay = null
