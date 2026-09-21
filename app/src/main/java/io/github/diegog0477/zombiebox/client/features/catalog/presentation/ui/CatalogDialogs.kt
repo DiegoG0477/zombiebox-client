@@ -18,6 +18,8 @@ class CatalogDialogs(
     private val searchQuery: (String) -> Unit,
     private val play: (MediaItem) -> Unit,
     private val error: (Exception) -> Unit,
+    private val artwork: (MediaItem) -> android.view.View?,
+    private val startOver: (MediaItem) -> Unit,
 ) {
     private val ui = TvWidgets(activity)
 
@@ -271,25 +273,8 @@ class CatalogDialogs(
     private fun showDetails(item: MediaItem, closed: (() -> Unit)?) {
         detail?.dismiss()
         detailItemId = item.id
-        val description =
-            StringBuilder(
-                item.description.takeIf { it.isNotEmpty() } ?: ui.serviceTitle(item.provider)
-            )
-        for (programme in item.programmes) {
-            val time =
-                java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
-                    .format(java.util.Date(programme.start * 1000))
-            description.append("\n\n").append(time).append(" · ").append(programme.title)
-        }
-        val builder =
-            AlertDialog.Builder(activity)
-                .setTitle(item.title)
-                .setMessage(description.toString())
-                .setNegativeButton(R.string.close) { _, _ -> closed?.invoke() }
-        if (item.playable) builder.setPositiveButton(R.string.play) { _, _ -> play(item) }
-        val dialog = builder.create()
-        detail = dialog
-        dialog.setOnCancelListener { closed?.invoke() }
-        dialog.show()
+        detail =
+            CatalogDetailsDialog(activity)
+                .show(item, artwork(item), { play(item) }, { startOver(item) }, closed)
     }
 }

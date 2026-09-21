@@ -235,4 +235,9 @@
     <string name="export_diagnostics">Export diagnostic report</string>
     <string name="share_report">Share report</string>
     <string name="share_unavailable">No app is available to share this report.</string>
+    <string name="media_receiver_auto">Automatic — Spotify / AirPlay</string>
+    <string name="automatic_recovery">Automatic recovery (next playback)</string>
+    <string name="catalog_progress">%1$s / %2$s</string>
+    <string name="resume_content">Resume</string>
+    <string name="start_over">Play from beginning</string>
 </resources>

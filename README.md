@@ -66,3 +66,5 @@ Dev.16: Seven-card Home windows, bounded artwork cache, IPTV time guide, extende
 First-party code: [GPL-3.0-only](LICENSE). See [NOTICE](NOTICE) for third-party scope.
 
 Dev.19: Language settings, explicit process-death queue resume, guide/search restoration, asynchronous decoded image reuse and diagnostic export. Client versionCode 19.
+
+Dev.20: Service-owned bounded recovery, Advanced recovery policy, automatic Spotify/AirPlay selection and richer semantic details/resume/start-over actions. APK versionCode 20.

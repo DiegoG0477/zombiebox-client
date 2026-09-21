@@ -13,6 +13,17 @@ class GatewayPlaybackRepository(private val api: GatewayApi) : PlaybackRepositor
         return PlaybackPlanDecoder.decode(api.base, plan)
     }
 
+    override fun recover(itemId: String, positionMs: Int, attempt: Int): PlaybackPlan {
+        require(attempt in 1..3)
+        val request =
+            JSONObject()
+                .put("itemId", itemId)
+                .put("positionMs", positionMs)
+                .put("mode", if (attempt == 1) "AUTO" else "TRANSCODE")
+        if (attempt == 3) request.put("quality", "LOW")
+        return PlaybackPlanDecoder.decode(api.base, api.request("POST", "/v1/playback", request))
+    }
+
     override fun progress(sessionId: String, progress: PlaybackProgress) {
         api.request(
             "PUT",

@@ -35,8 +35,9 @@ class PlaybackViewModel(
         mode: String,
         done: (PlaybackPlan) -> Unit,
         failed: (Exception) -> Unit,
+        positionMs: Int? = null,
     ) {
-        request(itemId, mode, null, "", null, done, failed)
+        request(itemId, mode, positionMs, "", null, done, failed)
     }
 
     private fun request(

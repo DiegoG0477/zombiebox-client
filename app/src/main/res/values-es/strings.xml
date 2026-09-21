@@ -249,4 +249,9 @@
     <string name="share_unavailable">
         No hay una aplicación disponible para compartir este informe.
     </string>
+    <string name="media_receiver_auto">Automático — Spotify / AirPlay</string>
+    <string name="automatic_recovery">Recuperación automática (próxima reproducción)</string>
+    <string name="catalog_progress">%1$s / %2$s</string>
+    <string name="resume_content">Reanudar</string>
+    <string name="start_over">Reproducir desde el principio</string>
 </resources>

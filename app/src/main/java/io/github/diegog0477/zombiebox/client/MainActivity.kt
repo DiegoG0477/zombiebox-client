@@ -165,6 +165,11 @@ class MainActivity : Activity() {
             { refresh(query = it) },
             { startPlayback(it) },
             ::error,
+            { item ->
+                if (item.imageUrl.isEmpty()) null
+                else ArtworkImageView(this, artworkDecoder).apply { bind(artwork, item.imageUrl) }
+            },
+            { item -> startPlayback(item, positionMs = 0) },
         )
     }
 
@@ -893,6 +898,7 @@ class MainActivity : Activity() {
         fullscreen: Boolean = true,
         autoplay: Boolean = true,
         remote: YouTubeCommand? = null,
+        positionMs: Int? = null,
     ) {
         if (remote == null) youtubeReceiver.disable()
         val catalog =
@@ -961,6 +967,7 @@ class MainActivity : Activity() {
                 if (remote != null) youtubeReceiver.complete(false, remote.id)
                 error(failure)
             },
+            positionMs = positionMs,
         )
     }
 

@@ -277,4 +277,70 @@ class PlaybackSessionViewModelTest {
         vm.stop()
         assertEquals(listOf("receiver-stop:receiver"), r.events)
     }
+
+    @Test
+    fun automaticRecoveryIsBoundedAndPreservesPositionQueueAndSubtitle() {
+        val repository = Repository()
+        var now = 1000L
+        val vm = PlaybackSessionViewModel(repository, repository, {}, { it() }, { it() }, { now })
+        vm.adopt(plan("old"), item("a"), listOf(item("a"), item("b")))
+        vm.subtitle(4)
+        for (attempt in 1..3) {
+            vm.mediaState("FAILED", 42000, 100000)
+            assertTrue(vm.state.loading)
+            vm.recoveryTick()
+            assertEquals(attempt - 1, repository.events.count { it.startsWith("start:") })
+            now += 10000
+            vm.recoveryTick()
+            assertFalse(vm.state.loading)
+            assertTrue(repository.events.contains("start:a:42000"))
+            assertEquals(listOf("b"), vm.state.queue.map { it.id })
+            assertEquals(4, vm.state.subtitleId)
+        }
+        vm.mediaState("FAILED", 42000, 100000)
+        assertFalse(vm.state.loading)
+        assertEquals("FAILED", vm.state.progress.state)
+        now += 10000
+        vm.recoveryTick()
+        assertEquals(3, repository.events.count { it.startsWith("start:") })
+    }
+
+    @Test
+    fun stoppingDuringRecoveryRevokesLatePlanAndIncomingNeverUsesThisRecovery() {
+        val repository = Repository()
+        var now = 1000L
+        val vm = PlaybackSessionViewModel(repository, repository, {}, { it() }, { it() }, { now })
+        vm.adopt(plan("old"), item("a"), listOf(item("a")))
+        vm.mediaState("FAILED", 100, 0)
+        repository.onStart = { vm.stop() }
+        now += 10000
+        vm.recoveryTick()
+        assertNull(vm.state.plan)
+        assertTrue(repository.events.contains("stop:a"))
+        repository.events.clear()
+        vm.adopt(plan("incoming"), item("a"), emptyList(), incoming = true)
+        vm.mediaState("FAILED", 0, 0)
+        now += 10000
+        vm.recoveryTick()
+        assertFalse(vm.state.loading)
+        assertTrue(repository.events.isEmpty())
+    }
+
+    @Test
+    fun pauseHoldsScheduledRecoveryAndLateReplacementKeepsPausedIntent() {
+        val repository = Repository()
+        var now = 1000L
+        val vm = PlaybackSessionViewModel(repository, repository, {}, { it() }, { it() }, { now })
+        vm.adopt(plan("old"), item("a"), listOf(item("a")))
+        vm.mediaState("FAILED", 42000, 100000)
+        assertTrue(vm.setRecoveryPaused(true))
+        now += 10000
+        vm.recoveryTick()
+        assertFalse(repository.events.any { it.startsWith("start:") })
+        assertTrue(vm.setRecoveryPaused(false))
+        repository.onStart = { vm.setRecoveryPaused(true) }
+        vm.recoveryTick()
+        assertEquals("PAUSED", vm.state.progress.state)
+        assertFalse(vm.state.loading)
+    }
 }

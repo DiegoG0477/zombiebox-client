@@ -58,6 +58,7 @@ class PlaybackService : Service() {
         object : Runnable {
             override fun run() {
                 if (closed) return
+                model.recoveryTick()
                 val current = model.state
                 val plan = current.plan
                 if (
@@ -178,6 +179,10 @@ class PlaybackService : Service() {
     }
 
     fun configure(base: String, device: String, token: String) {
+        val preferences = getSharedPreferences("zombie", MODE_PRIVATE)
+        model.automaticRecovery =
+            preferences.getBoolean("automaticRecovery", true) &&
+                preferences.getString("playbackMode", "AUTO") == "AUTO"
         // Serialize profile changes after queued writes/revocation for the old gateway.
         worker.execute { api.configure(base, device, token) }
     }
@@ -196,7 +201,9 @@ class PlaybackService : Service() {
             AudioFocusFactory.create(
                 Build.VERSION.SDK_INT,
                 getSystemService(AUDIO_SERVICE) as AudioManager,
-                AudioManager.OnAudioFocusChangeListener { if (it <= 0) player.pause() },
+                AudioManager.OnAudioFocusChangeListener {
+                    if (it <= 0 && !model.setRecoveryPaused(true)) player.pause()
+                },
                 getSharedPreferences("zombie", MODE_PRIVATE)
                     .getBoolean("audioFocusCompatibility", false),
                 {
@@ -278,6 +285,7 @@ class PlaybackService : Service() {
     }
 
     fun toggle() {
+        if (model.setRecoveryPaused(model.state.progress.state != "PAUSED")) return
         if (model.state.incoming && model.state.item?.provider == "spotify") {
             val action = if (receiverPlaybackState == "PAUSED") "resume" else "pause"
             worker.execute {

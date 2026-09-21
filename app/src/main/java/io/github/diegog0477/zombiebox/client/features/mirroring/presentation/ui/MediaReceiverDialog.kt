@@ -13,12 +13,13 @@ class MediaReceiverDialog(
     fun show() {
         model.readMediaProvider(
             { provider ->
-                val providers = listOf("", "spotify", "airplay")
+                val providers = listOf("", "spotify", "airplay", "auto")
                 val labels =
                     arrayOf(
                         activity.getString(R.string.disabled),
                         activity.getString(R.string.spotify),
                         activity.getString(R.string.airplay),
+                        activity.getString(R.string.media_receiver_auto),
                     )
                 AlertDialog.Builder(activity)
                     .setTitle(R.string.media_receiver)

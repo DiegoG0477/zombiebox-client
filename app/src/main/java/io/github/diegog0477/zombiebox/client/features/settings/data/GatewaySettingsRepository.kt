@@ -19,6 +19,7 @@ class GatewaySettingsRepository(context: Context, private val api: GatewayApi) :
             prefs.getString("language", "en") ?: "en",
             prefs.getString("mode", "AUTO") ?: "AUTO",
             prefs.getString("playbackMode", "AUTO") ?: "AUTO",
+            prefs.getBoolean("automaticRecovery", true),
         )
 
     override fun saveLocalPreferences(value: ClientPreferences) {
@@ -27,6 +28,7 @@ class GatewaySettingsRepository(context: Context, private val api: GatewayApi) :
             .putString("language", value.language)
             .putString("mode", value.mode)
             .putString("playbackMode", value.playbackMode)
+            .putBoolean("automaticRecovery", value.automaticRecovery)
             .commit()
     }
 

@@ -27,6 +27,8 @@ class SettingsViewModel(
         update(preferences.copy(playbackMode = value))
     }
 
+    fun automaticRecovery(value: Boolean) = update(preferences.copy(automaticRecovery = value))
+
     private fun update(value: ClientPreferences) {
         repository.saveLocalPreferences(value)
         preferences = value

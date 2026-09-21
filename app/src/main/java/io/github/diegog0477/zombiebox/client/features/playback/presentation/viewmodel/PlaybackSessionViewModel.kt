@@ -3,6 +3,7 @@ package io.github.diegog0477.zombiebox.client.features.playback.presentation.vie
 import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.repository.CatalogRepository
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.*
+import io.github.diegog0477.zombiebox.client.features.playback.domain.policy.AutomaticRecovery
 import io.github.diegog0477.zombiebox.client.features.playback.domain.repository.PlaybackRepository
 import io.github.diegog0477.zombiebox.client.features.playback.domain.repository.PlaybackResumeRepository
 
@@ -25,6 +26,10 @@ class PlaybackSessionViewModel(
     var play: ((PlaybackPlan, MediaItem) -> Unit)? = null
     var stopPlayer: (() -> Unit)? = null
     var autoplay = true
+    var automaticRecovery = true
+    private val recovery = AutomaticRecovery()
+    private var recoveryActive = false
+    private var recoveryPaused = false
     @Volatile private var generation = 0
     @Volatile private var closed = false
     private var reported = 0L
@@ -37,14 +42,23 @@ class PlaybackSessionViewModel(
         items: List<MediaItem>? = null,
         cursor: QueueCursor? = null,
         incoming: Boolean = false,
+        recovering: Boolean = false,
+        paused: Boolean = false,
     ) {
         generation++
+        if (!recovering) recovery.reset()
+        recoveryActive = false
+        recoveryPaused = false
         val rest = if (items == null) state.queue else items.dropWhile { it.id != item.id }.drop(1)
         state =
             PlaybackSession(
                 plan,
                 item,
-                PlaybackProgress("BUFFERING", plan.resumePositionMs + plan.timelineOffsetMs, 0),
+                PlaybackProgress(
+                    if (paused) "PAUSED" else "BUFFERING",
+                    plan.resumePositionMs + plan.timelineOffsetMs,
+                    0,
+                ),
                 rest.filter { it.playable && it.browseId.isEmpty() }.take(200),
                 if (items == null) state.cursor else cursor,
                 incoming,
@@ -81,6 +95,8 @@ class PlaybackSessionViewModel(
                 } catch (_: Exception) {}
             }
         }
+        recovery.observe(status, clock())
+        if (status == "FAILED") scheduleRecovery()
         observer?.invoke(state)
         if (status == "ENDED" && ended != plan.sessionId) {
             ended = plan.sessionId
@@ -89,6 +105,9 @@ class PlaybackSessionViewModel(
     }
 
     fun suspendForReplacement() {
+        recoveryActive = false
+        recoveryPaused = false
+        recovery.reset()
         generation++
         state = state.copy(loading = true)
         stopPlayer?.invoke()
@@ -102,6 +121,9 @@ class PlaybackSessionViewModel(
 
     fun next() {
         if (closed || !state.canNext) return
+        recovery.reset()
+        recoveryActive = false
+        recoveryPaused = false
         val before = state
         val request = ++generation
         state = state.copy(loading = true, error = false)
@@ -157,6 +179,76 @@ class PlaybackSessionViewModel(
                 deliver {
                     if (!closed && request == generation) {
                         state = state.copy(loading = false, error = true)
+                        observer?.invoke(state)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun scheduleRecovery() {
+        if (!automaticRecovery || state.incoming || state.plan?.mode == "EXTERNAL_PLAYER") return
+        if (recovery.schedule(clock())) {
+            recoveryActive = true
+            state =
+                state.copy(
+                    loading = true,
+                    progress =
+                        state.progress.copy(state = if (recoveryPaused) "PAUSED" else "BUFFERING"),
+                )
+        }
+    }
+
+    fun setRecoveryPaused(paused: Boolean): Boolean {
+        if (!recoveryActive || !state.loading) return false
+        recoveryPaused = paused
+        state =
+            state.copy(
+                progress = state.progress.copy(state = if (paused) "PAUSED" else "BUFFERING")
+            )
+        observer?.invoke(state)
+        return true
+    }
+
+    /** Service clock tick; no Activity is needed for bounded reconnection. */
+    fun recoveryTick() {
+        if (closed || !automaticRecovery || state.incoming || !state.loading || recoveryPaused)
+            return
+        val before = state
+        val old = before.plan ?: return
+        val item = before.item ?: return
+        val attempt = recovery.take(clock()) ?: return
+        val request = ++generation
+        stopPlayer?.invoke()
+        execute {
+            try {
+                try {
+                    repository.progress(old.sessionId, before.progress.copy(state = "FAILED"))
+                } catch (_: Exception) {}
+                discard(old.sessionId)
+                if (closed || request != generation) return@execute
+                val plan =
+                    repository.recover(
+                        item.id,
+                        if (old.live) 0 else before.progress.positionMs,
+                        attempt,
+                    )
+                deliver {
+                    if (closed || request != generation) execute { discard(plan.sessionId) }
+                    else {
+                        adopt(plan, item, recovering = true, paused = recoveryPaused)
+                        play?.invoke(plan, item)
+                    }
+                }
+            } catch (_: Exception) {
+                deliver {
+                    if (!closed && request == generation) {
+                        state =
+                            before.copy(
+                                loading = false,
+                                progress = before.progress.copy(state = "FAILED"),
+                            )
+                        scheduleRecovery()
                         observer?.invoke(state)
                     }
                 }
@@ -240,6 +332,9 @@ class PlaybackSessionViewModel(
     }
 
     fun stop(preserveInterrupted: Boolean = false, preserveResume: Boolean = false) {
+        recoveryActive = false
+        recoveryPaused = false
+        recovery.reset()
         if (!preserveInterrupted && !preserveResume && resumeRepository != null)
             execute {
                 try {

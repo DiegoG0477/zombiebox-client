@@ -115,9 +115,11 @@ class PlaybackConnection(
         else it.model.mediaState("FAILED", position, 0)
     }
 
-    fun resume() = command { if (it.focus.acquire()) it.player.resume() }
+    fun resume() = command {
+        if (!it.model.setRecoveryPaused(false) && it.focus.acquire()) it.player.resume()
+    }
 
-    fun pause() = command { it.player.pause() }
+    fun pause() = command { if (!it.model.setRecoveryPaused(true)) it.player.pause() }
 
     fun toggle() = command { it.toggle() }
 

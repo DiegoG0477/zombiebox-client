@@ -298,10 +298,26 @@ class SettingsDialogs(
                 arrayOf(
                     activity.getString(R.string.audio_focus_backend),
                     activity.getString(R.string.playback_backend),
+                    activity.getString(R.string.automatic_recovery),
                 )
             ) { _, index ->
                 if (index == 0) actions.audioSettings()
-                else {
+                else if (index == 2) {
+                    AlertDialog.Builder(activity)
+                        .setTitle(R.string.automatic_recovery)
+                        .setSingleChoiceItems(
+                            arrayOf(
+                                activity.getString(R.string.disabled),
+                                activity.getString(R.string.enabled),
+                            ),
+                            if (model.preferences.automaticRecovery) 1 else 0,
+                        ) { dialog, choice ->
+                            model.automaticRecovery(choice == 1)
+                            dialog.dismiss()
+                        }
+                        .setNegativeButton(R.string.close, null)
+                        .show()
+                } else {
                     val modes =
                         arrayOf("AUTO", "DIRECT_PLAY", "REMUX", "TRANSCODE", "EXTERNAL_PLAYER")
                     val labels =
