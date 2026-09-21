@@ -70,5 +70,17 @@ class SettingsViewModel(
     fun savePreferences(mode: String, language: String, failed: (Exception) -> Unit) =
         tasks.run({ repository.savePreferences(mode, language) }, {}, failed)
 
+    fun mediaPreferences(done: (MediaPreferences) -> Unit, failed: (Exception) -> Unit) =
+        tasks.run({ repository.mediaPreferences() }, done, failed)
+
+    fun saveMediaPreferences(
+        value: MediaPreferences,
+        done: () -> Unit,
+        failed: (Exception) -> Unit,
+    ) {
+        require(value.valid())
+        tasks.run({ repository.saveMediaPreferences(value) }, { done() }, failed)
+    }
+
     fun close() = tasks.close()
 }

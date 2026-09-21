@@ -18,10 +18,54 @@ class DiagnosticsDialog(private val activity: Activity, private val model: Diagn
                 Build.MODEL,
                 Build.CPU_ABI,
             )
+        val export =
+            Button(activity).apply {
+                setText(R.string.export_diagnostics)
+                setOnClickListener {
+                    model.export(
+                        { text ->
+                            AlertDialog.Builder(activity)
+                                .setTitle(R.string.export_diagnostics)
+                                .setMessage(text)
+                                .setNegativeButton(R.string.close, null)
+                                .setPositiveButton(R.string.share_report) { _, _ ->
+                                    val intent =
+                                        Intent(Intent.ACTION_SEND)
+                                            .setType("text/plain")
+                                            .putExtra(Intent.EXTRA_TEXT, text)
+                                            .putExtra(
+                                                Intent.EXTRA_SUBJECT,
+                                                activity.getString(R.string.diagnostics),
+                                            )
+                                    if (intent.resolveActivity(activity.packageManager) != null) {
+                                        activity.startActivity(
+                                            Intent.createChooser(
+                                                intent,
+                                                activity.getString(R.string.share_report),
+                                            )
+                                        )
+                                    } else
+                                        Toast.makeText(
+                                                activity,
+                                                R.string.share_unavailable,
+                                                Toast.LENGTH_LONG,
+                                            )
+                                            .show()
+                                }
+                                .show()
+                        },
+                        {
+                            Toast.makeText(activity, R.string.error_request, Toast.LENGTH_LONG)
+                                .show()
+                        },
+                    )
+                }
+            }
         val dialog =
             AlertDialog.Builder(activity)
                 .setTitle(R.string.diagnostics)
                 .setMessage(report)
+                .setView(export)
                 .setNeutralButton(R.string.run_probes) { _, _ ->
                     activity.startActivity(Intent(activity, ProbesActivity::class.java))
                 }

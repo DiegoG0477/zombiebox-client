@@ -4,4 +4,6 @@ import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.model.H
 
 interface DiagnosticsRepository {
     fun scanAndSave(): HardwareReport
+
+    fun exportReport(): String
 }

@@ -148,6 +148,13 @@ class PlaybackConnection(
 
     fun next() = command { it.model.next() }
 
+    fun resumeSaved(missing: () -> Unit) = command {
+        if (visible && it.model.state.plan == null) {
+            it.model.resumeSaved(missing)
+            context.startService(Intent(context, PlaybackService::class.java))
+        }
+    }
+
     fun refreshFocus() = command { it.refreshFocus() }
 
     override fun acquire(): Boolean = service?.focus?.acquire() ?: !closed

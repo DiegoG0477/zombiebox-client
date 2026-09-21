@@ -23,6 +23,7 @@ data class SettingsActions(
     val receiverSettings: () -> Unit,
     val youtubeReceiverSettings: () -> Unit,
     val mediaReceiverSettings: () -> Unit,
+    val resumePlayback: () -> Unit,
 )
 
 /** Dialog inputs/rendering only. Provider JSON and persistence stay behind the ViewModel. */
@@ -115,6 +116,8 @@ class SettingsDialogs(
                     activity.getString(R.string.gateway_services),
                     activity.getString(R.string.youtube_receiver),
                     activity.getString(R.string.media_receiver),
+                    activity.getString(R.string.media_languages),
+                    activity.getString(R.string.resume_previous),
                 )
             ) { _, index ->
                 when (index) {
@@ -128,10 +131,23 @@ class SettingsDialogs(
                     7 -> activity.startActivity(Intent(activity, ServicesActivity::class.java))
                     8 -> actions.youtubeReceiverSettings()
                     9 -> actions.mediaReceiverSettings()
+                    10 -> mediaLanguages()
+                    11 -> actions.resumePlayback()
                 }
             }
             .setNegativeButton(R.string.close, null)
             .show()
+    }
+
+    private fun mediaLanguages() {
+        if (!paired()) {
+            pairing()
+            return
+        }
+        model.mediaPreferences(
+            { value -> MediaLanguageDialog(activity, model, error).show(value) },
+            error,
+        )
     }
 
     fun providers() {
@@ -207,6 +223,16 @@ class SettingsDialogs(
         form.addView(clear)
         val user = if (id == "jellyfin") field(form, R.string.service_user) else null
         val epg = if (id == "iptv") field(form, R.string.epg_url, true) else null
+        val mapping =
+            if (id == "iptv")
+                field(form, R.string.epg_mapping).apply {
+                    setSingleLine(false)
+                    minLines = 2
+                    inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                }
+            else null
+        if (id == "iptv")
+            form.addView(ui.text(activity.getString(R.string.epg_mapping_help), 13f, ui.muted))
         val catalog = if (id == "stremio") field(form, R.string.catalog_id) else null
         val media = if (id == "stremio") field(form, R.string.media_type) else null
         val code = field(form, R.string.operator_code, true)
@@ -226,6 +252,7 @@ class SettingsDialogs(
                         "token" to token,
                         "userId" to user,
                         "epgUrl" to epg,
+                        "epgMappings" to mapping,
                         "catalogId" to catalog,
                         "mediaType" to media,
                     )) {

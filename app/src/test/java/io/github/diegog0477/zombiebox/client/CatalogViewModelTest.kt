@@ -112,4 +112,21 @@ class CatalogViewModelTest {
         model.search("nature", {}, { throw it })
         assertEquals(CatalogLocation("plex", "opaque", "nature", 0), repository.requests.last())
     }
+
+    @Test
+    fun refreshPreservesLocationViewportAndBackHistory() {
+        val repository = Repository(folder)
+        val model = CatalogViewModel(repository, ScreenTasks({ it() }, { it() }))
+        model.open("plex", "", {}, { throw it })
+        model.enter(folder, {}, { throw it })
+        val viewport = CatalogViewport("folder", "folder", -12, -12)
+        model.rememberViewport(viewport)
+        val location = model.screen!!.location
+        model.refresh({}, { throw it })
+        assertEquals(location, model.screen!!.location)
+        assertEquals(viewport, model.screen!!.viewport)
+        model.back {}
+        assertEquals("", model.screen!!.location.parent)
+        assertFalse(model.canBack)
+    }
 }

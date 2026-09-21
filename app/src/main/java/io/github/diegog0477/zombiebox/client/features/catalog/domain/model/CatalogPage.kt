@@ -26,3 +26,11 @@ data class CatalogViewport(
 )
 
 data class CatalogBookmark(val location: CatalogLocation, val viewport: CatalogViewport)
+
+/** The currently visible overlay; its underlying catalog path is saved separately. */
+data class CatalogOverlay(
+    val kind: String = "",
+    val draft: String = "",
+    val guideTime: Long = 0,
+    val selectedChannel: String = "",
+)

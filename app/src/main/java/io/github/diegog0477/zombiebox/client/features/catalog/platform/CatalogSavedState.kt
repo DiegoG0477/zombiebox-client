@@ -5,6 +5,21 @@ import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.*
 
 /** Small semantic bookmarks only; never bitmaps, DTOs, tokens or full pages in Binder. */
 object CatalogSavedState {
+    fun writeOverlay(target: Bundle, value: CatalogOverlay) {
+        target.putString("overlayKind", value.kind.take(24))
+        target.putString("overlayDraft", value.draft.take(256))
+        target.putLong("overlayTime", value.guideTime)
+        target.putString("overlayChannel", value.selectedChannel.take(200))
+    }
+
+    fun readOverlay(source: Bundle?): CatalogOverlay =
+        CatalogOverlay(
+            source?.getString("overlayKind") ?: "",
+            (source?.getString("overlayDraft") ?: "").take(256),
+            source?.getLong("overlayTime") ?: 0,
+            (source?.getString("overlayChannel") ?: "").take(200),
+        )
+
     fun write(target: Bundle, path: List<CatalogBookmark>) {
         val entries = path.takeLast(25)
         target.putInt("catalogCount", entries.size)

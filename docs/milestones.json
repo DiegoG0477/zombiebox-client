@@ -10,7 +10,8 @@
     "Dev.13: Foreground/surface intent, guarded media callbacks, finite compatible retry and fresh external fallback; client versionCode 13. Product exit gates remain open.",
     "Dev.14: Service-owned playback across Activity recreation/background, paged next-content queue, notification controls and retained semantic subtitle selection; client versionCode 14. Product exit gates remain open.",
     "Dev.16: Seven-card Home windows, bounded artwork cache, IPTV time guide, extended diagnostics, native audio-focus health, browser pointer input and service-owned receiver restoration. Client versionCode 16. No product milestone closes.",
-    "Dev.17: GPL-3.0-only licensing, navigation/Hero/guide/receiver and scoped distribution increment. No physical milestone is closed."
+    "Dev.17: GPL-3.0-only licensing, navigation/Hero/guide/receiver and scoped distribution increment. No physical milestone is closed.",
+    "Dev.19: Language settings, explicit process-death queue resume, guide/search restoration, asynchronous decoded image reuse and diagnostic export. Client versionCode 19. Product exit gates remain open."
   ],
   "milestones": [
     {
@@ -84,5 +85,5 @@
       "remoteId": null
     }
   ],
-  "developmentCheckpoint": "v0.1.0-dev.17"
+  "developmentCheckpoint": "v0.1.0-dev.19"
 }

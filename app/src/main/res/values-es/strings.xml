@@ -224,4 +224,29 @@
     <string name="guide_earlier">Anterior</string>
     <string name="guide_later">Siguiente</string>
     <string name="guide_stale">Guía guardada: actualización temporalmente no disponible.</string>
+    <string name="media_languages">Idiomas de audio y subtítulos</string>
+    <string name="audio_language_order">Idiomas de audio, en orden (es, en, ja)</string>
+    <string name="subtitle_language_order">Idiomas de subtítulos, en orden (es, en)</string>
+    <string name="media_language_help">
+        Se aplica a nuevas reproducciones. Usa hasta ocho códigos de idioma separados por comas.
+    </string>
+    <string name="media_language_invalid">
+        Revisa los códigos de idioma y el modo de subtítulos.
+    </string>
+    <string name="subtitle_mode_off">Desactivados</string>
+    <string name="subtitle_mode_forced">Solo forzados</string>
+    <string name="subtitle_mode_auto">Automáticos</string>
+    <string name="subtitle_mode_always">Siempre</string>
+    <string name="resume_previous">Reanudar reproducción anterior</string>
+    <string name="no_saved_playback">No hay una reproducción guardada para este gateway.</string>
+    <string name="epg_mapping">Asignación de canales XMLTV</string>
+    <string name="epg_mapping_help">
+        Opcional: nombre del canal o TVG ID = ID XMLTV, uno por línea. Guardar reemplaza la
+        lista; vacío la conserva.
+    </string>
+    <string name="export_diagnostics">Exportar informe de diagnóstico</string>
+    <string name="share_report">Compartir informe</string>
+    <string name="share_unavailable">
+        No hay una aplicación disponible para compartir este informe.
+    </string>
 </resources>

@@ -7,7 +7,11 @@ class GuideViewModel(val channels: List<MediaItem>, private val start: Long) {
         private set
 
     fun shift(delta: Long) {
-        time = (time + delta).coerceIn(start, start + 24 * 60 * 60)
+        time = (time + delta).coerceIn(start, start + 48 * 60 * 60)
+    }
+
+    fun restore(time: Long) {
+        shift(time - this.time)
     }
 
     fun programme(channel: Int) =

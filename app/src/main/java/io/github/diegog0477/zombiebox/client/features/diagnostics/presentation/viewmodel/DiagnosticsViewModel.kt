@@ -30,6 +30,25 @@ class DiagnosticsViewModel(
         }
     }
 
+    fun export(done: (String) -> Unit, failed: () -> Unit) {
+        if (closed || busy) return
+        busy = true
+        execute {
+            val report =
+                try {
+                    repository.exportReport()
+                } catch (_: Exception) {
+                    null
+                }
+            deliver {
+                busy = false
+                if (!closed) {
+                    if (report != null) done(report) else failed()
+                }
+            }
+        }
+    }
+
     fun close() {
         closed = true
         observer = null

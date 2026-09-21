@@ -11,6 +11,8 @@ class GatewayDiagnosticsRepository(
     private val api: GatewayApi,
     private val source: HardwareSource,
 ) : DiagnosticsRepository {
+    override fun exportReport(): String = api.request("GET", "/v1/diagnostics").toString(2)
+
     override fun scanAndSave(): HardwareReport {
         val result = source.scan()
         val started = System.nanoTime()

@@ -35,6 +35,8 @@ data class HomeActions(
 class HomeView(
     context: Context,
     private val artwork: ArtworkViewModel,
+    private val decoder:
+        io.github.diegog0477.zombiebox.client.features.artwork.platform.ArtworkDecoder,
     private val actions: HomeActions,
 ) : LinearLayout(context) {
     val focus = RemoteFocus()
@@ -318,5 +320,5 @@ class HomeView(
     }
 
     private fun artImage(path: String, hero: Boolean): ImageView =
-        ArtworkImageView(context).apply { bind(artwork, path, hero) }
+        ArtworkImageView(context, decoder).apply { bind(artwork, path, hero) }
 }

@@ -4,6 +4,7 @@ import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.repository.CatalogRepository
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.*
 import io.github.diegog0477.zombiebox.client.features.playback.domain.repository.PlaybackRepository
+import io.github.diegog0477.zombiebox.client.features.playback.domain.repository.PlaybackResumeRepository
 
 /**
  * Service-scoped semantic state, progress and finite paged queue. No Activity/platform references.
@@ -15,6 +16,7 @@ class PlaybackSessionViewModel(
     private val execute: (() -> Unit) -> Unit,
     private val deliver: (() -> Unit) -> Unit,
     private val clock: () -> Long = { System.currentTimeMillis() },
+    private val resumeRepository: PlaybackResumeRepository? = null,
 ) {
     var state = PlaybackSession()
         private set
@@ -46,8 +48,9 @@ class PlaybackSessionViewModel(
                 rest.filter { it.playable && it.browseId.isEmpty() }.take(200),
                 if (items == null) state.cursor else cursor,
                 incoming,
-                subtitleId = if (items == null) state.subtitleId else null,
+                subtitleId = if (items == null) state.subtitleId else plan.subtitleId,
             )
+        checkpoint()
         ended = ""
         reported = 0
         observer?.invoke(state)
@@ -55,6 +58,7 @@ class PlaybackSessionViewModel(
 
     fun subtitle(id: Int?) {
         state = state.copy(subtitleId = id)
+        checkpoint()
     }
 
     fun mediaState(status: String, position: Int, duration: Int) {
@@ -70,6 +74,7 @@ class PlaybackSessionViewModel(
         state = state.copy(progress = value)
         if (!state.incoming && (status != previous || clock() - reported >= 10000)) {
             reported = clock()
+            checkpoint()
             execute {
                 try {
                     repository.progress(plan.sessionId, value)
@@ -234,7 +239,13 @@ class PlaybackSessionViewModel(
         return true
     }
 
-    fun stop(preserveInterrupted: Boolean = false) {
+    fun stop(preserveInterrupted: Boolean = false, preserveResume: Boolean = false) {
+        if (!preserveInterrupted && !preserveResume && resumeRepository != null)
+            execute {
+                try {
+                    resumeRepository.clear()
+                } catch (_: Exception) {}
+            }
         if (!preserveInterrupted) interrupted = null
         generation++
         val previous = state
@@ -263,9 +274,89 @@ class PlaybackSessionViewModel(
         }
     }
 
+    private fun checkpoint() {
+        val persistence = resumeRepository ?: return
+        val current = state
+        val item = current.item ?: return
+        val plan = current.plan ?: return
+        if (current.incoming || current.loading) return
+        if (current.progress.state == "ENDED") {
+            execute {
+                try {
+                    persistence.clear()
+                } catch (_: Exception) {}
+            }
+            return
+        }
+        val bookmark =
+            PlaybackBookmark(
+                item,
+                if (plan.live) 0 else current.progress.positionMs,
+                current.queue,
+                current.cursor,
+                current.subtitleId,
+            )
+        execute {
+            try {
+                persistence.save(bookmark)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun resumeSaved(missing: () -> Unit) {
+        val persistence =
+            resumeRepository
+                ?: run {
+                    missing()
+                    return
+                }
+        if (closed || state.plan != null || state.loading) return
+        val request = ++generation
+        state = state.copy(loading = true, error = false)
+        observer?.invoke(state)
+        execute {
+            try {
+                val bookmark = persistence.load()
+                if (closed || request != generation) return@execute
+                if (bookmark == null) {
+                    deliver {
+                        if (!closed && request == generation) {
+                            state = PlaybackSession()
+                            observer?.invoke(state)
+                            missing()
+                        }
+                    }
+                    return@execute
+                }
+                val plan = repository.start(bookmark.item.id, "AUTO", bookmark.positionMs)
+                deliver {
+                    if (closed || request != generation) execute { discard(plan.sessionId) }
+                    else {
+                        val restored = plan.copy(subtitleId = bookmark.subtitleId)
+                        adopt(
+                            restored,
+                            bookmark.item,
+                            listOf(bookmark.item) + bookmark.queue,
+                            bookmark.cursor,
+                        )
+                        play?.invoke(restored, bookmark.item)
+                    }
+                }
+            } catch (_: Exception) {
+                deliver {
+                    if (!closed && request == generation) {
+                        state = PlaybackSession(error = true)
+                        observer?.invoke(state)
+                    }
+                }
+            }
+        }
+    }
+
     fun close() {
+        checkpoint()
         closed = true
-        stop()
+        stop(preserveResume = true)
         observer = null
         play = null
         stopPlayer = null

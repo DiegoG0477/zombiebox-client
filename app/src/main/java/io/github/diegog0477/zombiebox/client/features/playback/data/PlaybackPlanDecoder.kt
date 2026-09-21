@@ -14,5 +14,6 @@ internal object PlaybackPlanDecoder {
             plan.optInt("timelineOffsetMs"),
             plan.optBoolean("live"),
             plan.optBoolean("seekable", true),
+            if (plan.has("subtitleId")) plan.getInt("subtitleId") else null,
         )
 }

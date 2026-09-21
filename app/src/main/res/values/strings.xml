@@ -214,4 +214,25 @@
     <string name="guide_earlier">Earlier</string>
     <string name="guide_later">Later</string>
     <string name="guide_stale">Cached guide: refresh temporarily unavailable.</string>
+    <string name="media_languages">Audio and subtitle languages</string>
+    <string name="audio_language_order">Audio languages, in order (es, en, ja)</string>
+    <string name="subtitle_language_order">Subtitle languages, in order (es, en)</string>
+    <string name="media_language_help">
+        Applies to new playback sessions. Use up to eight language codes separated by commas.
+    </string>
+    <string name="media_language_invalid">Check the language codes and subtitle mode.</string>
+    <string name="subtitle_mode_off">Off</string>
+    <string name="subtitle_mode_forced">Forced only</string>
+    <string name="subtitle_mode_auto">Automatic</string>
+    <string name="subtitle_mode_always">Always</string>
+    <string name="resume_previous">Resume previous playback</string>
+    <string name="no_saved_playback">No saved playback for this gateway.</string>
+    <string name="epg_mapping">XMLTV channel mappings</string>
+    <string name="epg_mapping_help">
+        Optional: channel name or TVG ID = XMLTV ID, one per line. Saving replaces the mapping
+        list; blank keeps it unchanged.
+    </string>
+    <string name="export_diagnostics">Export diagnostic report</string>
+    <string name="share_report">Share report</string>
+    <string name="share_unavailable">No app is available to share this report.</string>
 </resources>

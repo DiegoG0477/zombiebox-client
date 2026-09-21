@@ -3,6 +3,10 @@ package io.github.diegog0477.zombiebox.client.features.settings.domain.repositor
 import io.github.diegog0477.zombiebox.client.features.settings.domain.model.*
 
 interface SettingsRepository {
+    fun mediaPreferences(): MediaPreferences
+
+    fun saveMediaPreferences(value: MediaPreferences)
+
     fun preferences(): ClientPreferences
 
     fun saveLocalPreferences(value: ClientPreferences)

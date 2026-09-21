@@ -25,8 +25,8 @@ No modern AndroidX/Compose/coroutines/JNI. Guard modern APIs through factories;
 verify Dalvik on physical hardware separately. Home stays green; providers retain
 contextual accents. Keep English defaults and Spanish variants in string resources.
 
-Output: `app/build/outputs/apk/debug/app-debug.apk`. Remote tracks/language automation, complete provider
-navigation, Home virtualization and adaptive health/OEM selection remain unfinished.
+Output: `app/build/outputs/apk/debug/app-debug.apk`. Remote embedded text tracks and language preferences are implemented. Richer provider
+actions, bitmap subtitles and operational OEM backends remain unfinished.
 
 ## Development rules
 
@@ -64,3 +64,5 @@ Dev.16: Seven-card Home windows, bounded artwork cache, IPTV time guide, extende
 ## License
 
 First-party code: [GPL-3.0-only](LICENSE). See [NOTICE](NOTICE) for third-party scope.
+
+Dev.19: Language settings, explicit process-death queue resume, guide/search restoration, asynchronous decoded image reuse and diagnostic export. Client versionCode 19.

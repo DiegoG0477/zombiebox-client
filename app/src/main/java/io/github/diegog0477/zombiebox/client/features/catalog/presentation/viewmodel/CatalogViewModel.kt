@@ -130,6 +130,11 @@ class CatalogViewModel(private val repository: CatalogRepository, private val ta
         )
     }
 
+    fun refresh(done: (CatalogScreen) -> Unit, failed: (Exception) -> Unit) {
+        val current = screen ?: return
+        restorePage(CatalogBookmark(current.location, current.viewport), done, failed)
+    }
+
     fun cancelPending() {
         generation++
     }

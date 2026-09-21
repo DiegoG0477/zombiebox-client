@@ -7,6 +7,7 @@ import io.github.diegog0477.zombiebox.client.R
 import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.core.ui.TvWidgets
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogBookmark
+import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogOverlay
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogScreen
 import io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel.CatalogViewModel
 
@@ -20,21 +21,37 @@ class CatalogDialogs(
 ) {
     private val ui = TvWidgets(activity)
 
-    fun search() {
+    private var overlay: AlertDialog? = null
+    private var overlayCapture: () -> CatalogOverlay = { CatalogOverlay() }
+    private var guide: GuideDialog? = null
+
+    fun overlaySnapshot(): CatalogOverlay =
+        guide?.snapshot()?.takeIf { it.kind.isNotEmpty() }
+            ?: if (overlay?.isShowing == true) overlayCapture() else CatalogOverlay()
+
+    fun search(draft: String = query()) {
         val input = EditText(activity)
         input.setSingleLine(true)
-        AlertDialog.Builder(activity)
-            .setTitle(R.string.search)
-            .setView(input)
-            .setPositiveButton(R.string.search) { _, _ -> searchQuery(input.text.toString()) }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
+        input.setText(draft)
+        overlay?.dismiss()
+        overlayCapture = { CatalogOverlay("home_search", input.text.toString()) }
+        overlay =
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.search)
+                .setView(input)
+                .setPositiveButton(R.string.search) { _, _ -> searchQuery(input.text.toString()) }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
     }
 
     private var browser: AlertDialog? = null
     private var detail: AlertDialog? = null
     val visible: Boolean
-        get() = browser?.isShowing == true || detail?.isShowing == true
+        get() =
+            browser?.isShowing == true ||
+                detail?.isShowing == true ||
+                overlay?.isShowing == true ||
+                guide?.visible == true
 
     var detailItemId: String = ""
         private set
@@ -46,14 +63,27 @@ class CatalogDialogs(
         return model.bookmarks()
     }
 
-    fun restore(path: List<CatalogBookmark>, detailId: String = "", display: Boolean = true) {
-        if (path.isEmpty()) return
+    fun restore(
+        path: List<CatalogBookmark>,
+        detailId: String = "",
+        display: Boolean = true,
+        savedOverlay: CatalogOverlay = CatalogOverlay(),
+    ) {
+        if (path.isEmpty()) {
+            if (display && savedOverlay.kind == "home_search") search(savedOverlay.draft)
+            return
+        }
         val work = {
             model.restore(
                 path,
                 { screen ->
                     if (display) {
                         showPage(screen)
+                        when (savedOverlay.kind) {
+                            "home_search" -> search(savedOverlay.draft)
+                            "provider_search" -> searchPage(screen, savedOverlay.draft)
+                            "guide" -> openGuide(screen, savedOverlay)
+                        }
                         screen.page.items
                             .firstOrNull { it.id == detailId }
                             ?.let { item ->
@@ -75,6 +105,10 @@ class CatalogDialogs(
     }
 
     fun close() {
+        overlay?.dismiss()
+        overlay = null
+        guide?.close()
+        guide = null
         captureViewport = null
         detail?.dismiss()
         detail = null
@@ -136,7 +170,8 @@ class CatalogDialogs(
                 if (provider == "iptv")
                     addView(
                         ui.button(R.string.guide) {
-                            GuideDialog(activity, screen.page.items, play).show()
+                            remember()
+                            openGuide(model.screen ?: screen)
                         }
                     )
                 if (screen.location.query.isNotEmpty())
@@ -182,14 +217,36 @@ class CatalogDialogs(
             }
     }
 
-    private fun searchPage(screen: CatalogScreen) {
+    private fun openGuide(screen: CatalogScreen, saved: CatalogOverlay = CatalogOverlay()) {
+        guide?.close()
+        guide =
+            GuideDialog(
+                    activity,
+                    screen.page.items,
+                    { item ->
+                        browser?.dismiss()
+                        play(item)
+                    },
+                    { updated ->
+                        model.refresh(
+                            { current -> updated(current.page.items) },
+                            { updated(model.screen?.page?.items ?: emptyList()) },
+                        )
+                    },
+                )
+                .also { it.show(saved) }
+    }
+
+    private fun searchPage(screen: CatalogScreen, draft: String = screen.location.query) {
+        overlay?.dismiss()
         browser?.dismiss()
         val input =
             EditText(activity).apply {
                 setSingleLine(true)
-                setText(screen.location.query)
+                setText(draft)
             }
-        browser =
+        overlayCapture = { CatalogOverlay("provider_search", input.text.toString()) }
+        overlay =
             AlertDialog.Builder(activity)
                 .setTitle(
                     activity.getString(

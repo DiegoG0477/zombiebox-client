@@ -8,6 +8,9 @@ data class ImageBudget(val lowMemory: Boolean) {
     val encodedBytes: Int
         get() = if (lowMemory) 2 * 1024 * 1024 else 4 * 1024 * 1024
 
+    val decodedBytes: Long
+        get() = if (lowMemory) 4L * 1024 * 1024 else 8L * 1024 * 1024
+
     val heroWidth: Int
         get() = if (lowMemory) 640 else 960
 

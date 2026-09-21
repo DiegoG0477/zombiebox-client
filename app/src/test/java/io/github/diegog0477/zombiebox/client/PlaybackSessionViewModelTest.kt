@@ -5,6 +5,7 @@ import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.Catal
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.repository.CatalogRepository
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.*
 import io.github.diegog0477.zombiebox.client.features.playback.domain.repository.PlaybackRepository
+import io.github.diegog0477.zombiebox.client.features.playback.domain.repository.PlaybackResumeRepository
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel.PlaybackSessionViewModel
 import org.junit.Assert.*
 import org.junit.Test
@@ -49,6 +50,85 @@ class PlaybackSessionViewModelTest {
         assertEquals(listOf("next"), vm.state.queue.map { it.id })
         assertTrue(repository.events.contains("start:original:12000"))
         assertFalse(vm.restoreInterrupted())
+    }
+
+    private class Resume : PlaybackResumeRepository {
+        var bookmark: PlaybackBookmark? = null
+
+        override fun load() = bookmark
+
+        override fun save(value: PlaybackBookmark) {
+            bookmark = value
+        }
+
+        override fun clear() {
+            bookmark = null
+        }
+    }
+
+    @Test
+    fun processRestartRequiresExplicitResumeAndKeepsQueuePositionAndSubtitleOff() {
+        val repository = Repository()
+        val saved = Resume()
+        val original =
+            PlaybackSessionViewModel(
+                repository,
+                repository,
+                {},
+                { it() },
+                { it() },
+                resumeRepository = saved,
+            )
+        original.adopt(plan("old").copy(subtitleId = 3), item("a"), listOf(item("a"), item("b")))
+        original.subtitle(null)
+        original.mediaState("PAUSED", 42000, 100000)
+        original.close()
+        assertEquals(42000, saved.bookmark?.positionMs)
+        assertNull(saved.bookmark?.subtitleId)
+        val restored =
+            PlaybackSessionViewModel(
+                repository,
+                repository,
+                {},
+                { it() },
+                { it() },
+                resumeRepository = saved,
+            )
+        assertNull(restored.state.plan)
+        var played = false
+        restored.play = { _, _ -> played = true }
+        restored.resumeSaved { fail("checkpoint missing") }
+        assertTrue(played)
+        assertTrue(repository.events.contains("start:a:42000"))
+        assertEquals(listOf("b"), restored.state.queue.map { it.id })
+        assertNull(restored.state.subtitleId)
+        restored.stop()
+        assertNull(saved.bookmark)
+    }
+
+    @Test
+    fun cancelledResumeRevokesLatePlanAndIncomingMediaNeverOverwritesCheckpoint() {
+        val repository = Repository()
+        val saved = Resume()
+        val vm =
+            PlaybackSessionViewModel(
+                repository,
+                repository,
+                {},
+                { it() },
+                { it() },
+                resumeRepository = saved,
+            )
+        vm.adopt(plan("original"), item("a"), listOf(item("a"), item("b")))
+        vm.mediaState("PAUSED", 12000, 60000)
+        vm.adopt(plan("receiver"), item("cast"), emptyList(), incoming = true)
+        vm.mediaState("PLAYING", 0, 0)
+        assertEquals("a", saved.bookmark?.item?.id)
+        vm.stop(preserveResume = true)
+        repository.onStart = { vm.stop() }
+        vm.resumeSaved { fail("checkpoint missing") }
+        assertNull(vm.state.plan)
+        assertTrue(repository.events.contains("stop:a"))
     }
 
     private fun item(id: String) = MediaItem(id, "plex", id)

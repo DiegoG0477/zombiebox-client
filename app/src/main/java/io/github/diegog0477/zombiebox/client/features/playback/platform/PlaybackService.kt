@@ -12,6 +12,7 @@ import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.features.catalog.data.GatewayCatalogRepository
 import io.github.diegog0477.zombiebox.client.features.mirroring.data.GatewayReceiverRepository
 import io.github.diegog0477.zombiebox.client.features.playback.data.GatewayPlaybackRepository
+import io.github.diegog0477.zombiebox.client.features.playback.data.LocalPlaybackResumeRepository
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.*
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel.PlaybackSessionViewModel
 import io.github.diegog0477.zombiebox.shared.GatewayApi
@@ -164,6 +165,7 @@ class PlaybackService : Service() {
                 { id -> GatewayReceiverRepository(api).stop(id) },
                 { work -> worker.execute { work() } },
                 { work -> handler.post { work() } },
+                resumeRepository = LocalPlaybackResumeRepository(applicationContext, api),
             )
         model.play = ::playPlan
         model.stopPlayer = { player.stop() }
@@ -321,7 +323,7 @@ class PlaybackService : Service() {
             "next" -> model.next()
             "toggle" -> toggle()
         }
-        if (model.state.plan == null) stopSelf(startId)
+        if (model.state.plan == null && !model.state.loading) stopSelf(startId)
         return START_NOT_STICKY
     }
 

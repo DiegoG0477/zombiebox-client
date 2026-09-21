@@ -2,6 +2,7 @@ package io.github.diegog0477.zombiebox.client.features.catalog.presentation.ui
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.os.Handler
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -12,6 +13,7 @@ import android.widget.TextView
 import io.github.diegog0477.zombiebox.client.R
 import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.core.ui.TvWidgets
+import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogOverlay
 import io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel.GuideViewModel
 import java.text.DateFormat
 import java.util.Date
@@ -19,12 +21,31 @@ import java.util.Date
 /** Recycled channel rows; left/right navigate a shared time slice, up/down select channels. */
 class GuideDialog(
     private val activity: Activity,
-    private val channels: List<MediaItem>,
+    private var channels: List<MediaItem>,
     private val play: (MediaItem) -> Unit,
+    private val reload: (((List<MediaItem>) -> Unit) -> Unit)? = null,
 ) {
-    fun show() {
+    private val handler = Handler()
+    private var refreshing = false
+    private var tick: Runnable? = null
+    private var dialog: AlertDialog? = null
+    private var capture: () -> CatalogOverlay = { CatalogOverlay() }
+    val visible: Boolean
+        get() = dialog?.isShowing == true
+
+    fun snapshot(): CatalogOverlay = if (visible) capture() else CatalogOverlay()
+
+    fun close() {
+        tick?.let { handler.removeCallbacks(it) }
+        tick = null
+        dialog?.dismiss()
+        dialog = null
+    }
+
+    fun show(saved: CatalogOverlay = CatalogOverlay()) {
         val ui = TvWidgets(activity) { activity.resources.getColor(R.color.accent_iptv) }
-        val model = GuideViewModel(channels, System.currentTimeMillis() / 1000)
+        var model = GuideViewModel(channels, System.currentTimeMillis() / 1000)
+        if (saved.guideTime > 0) model.restore(saved.guideTime)
         val header = ui.text("", 18f)
         val list = ListView(activity)
         val adapter =
@@ -83,18 +104,55 @@ class GuideDialog(
                     }
                 )
             }
-        val dialog =
+        val current =
             AlertDialog.Builder(activity)
                 .setTitle(R.string.guide)
                 .setView(content)
                 .setNegativeButton(R.string.close, null)
                 .create()
         list.setOnItemClickListener { _, _, index, _ ->
-            dialog.dismiss()
+            current.dismiss()
             play(channels[index])
         }
         shift(0)
-        dialog.show()
+        dialog = current
+        capture = {
+            CatalogOverlay(
+                "guide",
+                guideTime = model.time,
+                selectedChannel = channels.getOrNull(list.selectedItemPosition)?.id ?: "",
+            )
+        }
+        tick =
+            object : Runnable {
+                override fun run() {
+                    if (dialog !== current || !current.isShowing) return
+                    if (!refreshing && reload != null) {
+                        refreshing = true
+                        reload.invoke { fresh ->
+                            refreshing = false
+                            if (dialog === current && current.isShowing) {
+                                val selectedID = channels.getOrNull(list.selectedItemPosition)?.id
+                                val time = model.time
+                                channels = fresh
+                                model = GuideViewModel(channels, System.currentTimeMillis() / 1000)
+                                model.restore(time)
+                                shift(0)
+                                channels
+                                    .indexOfFirst { it.id == selectedID }
+                                    .takeIf { it >= 0 }
+                                    ?.let { list.setSelection(it) }
+                            }
+                        }
+                    }
+                    handler.postDelayed(this, 60000)
+                }
+            }
+        current.setOnDismissListener { tick?.let { handler.removeCallbacks(it) } }
+        current.show()
+        tick?.let { handler.postDelayed(it, 60000) }
+        val selected = channels.indexOfFirst { it.id == saved.selectedChannel }
+        if (selected >= 0) list.setSelection(selected)
         list.requestFocus()
     }
 }

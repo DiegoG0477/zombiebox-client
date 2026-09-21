@@ -9,6 +9,7 @@ data class PlaybackPlan(
     val timelineOffsetMs: Int = 0,
     val live: Boolean = false,
     val seekable: Boolean = true,
+    val subtitleId: Int? = null,
 )
 
 data class PlaybackProgress(val state: String, val positionMs: Int, val durationMs: Int)

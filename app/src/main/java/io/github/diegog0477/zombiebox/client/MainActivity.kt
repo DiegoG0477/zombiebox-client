@@ -81,6 +81,7 @@ class MainActivity : Activity() {
     private fun render() {
         val scope = api.base + "\n" + api.token
         artwork.reset(clearCache = artworkScope != scope)
+        if (artworkScope != scope) artworkDecoder.clear()
         artworkScope = scope
         imageWorker.queue.clear()
         content.render(snapshot, homeViewModel.state.scope, isTV(), bottom, full)
@@ -140,6 +141,12 @@ class MainActivity : Activity() {
                 ::receiverSettings,
                 ::youtubeReceiverSettings,
                 ::mediaReceiverSettings,
+                {
+                    player.configure(api.base, api.device, api.token)
+                    player.resumeSaved {
+                        Toast.makeText(this, R.string.no_saved_playback, Toast.LENGTH_LONG).show()
+                    }
+                },
             ),
         )
     }
@@ -202,6 +209,15 @@ class MainActivity : Activity() {
             java.util.concurrent.TimeUnit.MILLISECONDS,
             java.util.concurrent.ArrayBlockingQueue<Runnable>(24),
         )
+    private val artworkDecoder by lazy {
+        io.github.diegog0477.zombiebox.client.features.artwork.platform.ArtworkDecoder(
+            io.github.diegog0477.zombiebox.client.features.artwork.platform.ImageBudget.discover(
+                this
+            ),
+            { work -> imageWorker.execute { work() } },
+            { work -> handler.post { work() } },
+        )
+    }
     private val artwork by lazy {
         ArtworkViewModel(
             GatewayArtworkRepository(api),
@@ -283,6 +299,7 @@ class MainActivity : Activity() {
             HomeView(
                 this,
                 artwork,
+                artworkDecoder,
                 HomeActions(
                     navigate = { provider, query -> refresh(provider, query) },
                     play = { item -> startPlayback(item) },
@@ -401,6 +418,7 @@ class MainActivity : Activity() {
                     CatalogSavedState.read(state),
                     state?.getString("catalogDetail") ?: "",
                     state?.getBoolean("catalogVisible") ?: true,
+                    CatalogSavedState.readOverlay(state),
                 )
             }
         } else handler.post { pairing() }
@@ -694,7 +712,7 @@ class MainActivity : Activity() {
                 setPadding(ui.dp(16), ui.dp(16), ui.dp(16), ui.dp(16))
             }
         viewport.addView(receiverInfo, FrameLayout.LayoutParams(-1, -1))
-        receiverArtwork = ArtworkImageView(this).apply { visibility = View.GONE }
+        receiverArtwork = ArtworkImageView(this, artworkDecoder).apply { visibility = View.GONE }
         viewport.addView(
             receiverArtwork,
             FrameLayout.LayoutParams(ui.dp(80), ui.dp(80), Gravity.LEFT or Gravity.TOP),
@@ -783,8 +801,7 @@ class MainActivity : Activity() {
             currentItem = state.item
             itemTitle = state.item?.title ?: getString(R.string.screen_mirroring)
             now.text = itemTitle
-            tracksModel.attach(session)
-            state.subtitleId?.let { tracksModel.subtitles(it, {}, ::error) }
+            attachTracks(plan, state.subtitleId)
             if (state.incoming) {
                 val receiver =
                     ReceiverPlan(
@@ -801,6 +818,13 @@ class MainActivity : Activity() {
             lastPosition = state.progress.positionMs
             lastDuration = state.progress.durationMs
             setFullscreen(if (wasPlaying) full else restoreFullscreen)
+        }
+    }
+
+    private fun attachTracks(plan: PlaybackPlan, subtitleId: Int? = plan.subtitleId) {
+        tracksModel.attach(plan.sessionId)
+        if (subtitleId != null) {
+            tracksModel.subtitles(subtitleId, { player.subtitle(tracksModel.subtitleId) }, {})
         }
     }
 
@@ -904,7 +928,7 @@ class MainActivity : Activity() {
                     return@start
                 }
                 adoptPlan(plan)
-                tracksModel.attach(session)
+                attachTracks(plan)
                 currentItem = item
                 player.configure(api.base, api.device, api.token)
                 player.adopt(plan, item, queue, if (remote == null) cursor else null)
@@ -963,7 +987,7 @@ class MainActivity : Activity() {
                 playbackPending = false
                 adoptPlan(plan)
                 retainPlan(plan)
-                tracksModel.attach(session)
+                attachTracks(plan)
                 lastPosition = plan.resumePositionMs + plan.timelineOffsetMs
                 lastReport = 0
                 lastState = ""
@@ -997,7 +1021,7 @@ class MainActivity : Activity() {
                 playbackPending = false
                 adoptPlan(plan)
                 retainPlan(plan)
-                tracksModel.attach(session)
+                attachTracks(plan)
                 if (foreground) external()
             },
             { failure ->
@@ -1158,6 +1182,7 @@ class MainActivity : Activity() {
         outState.putString("homeQuery", homeViewModel.state.scope.query)
         outState.putString("homeFocus", content.focus.selectedKey)
         CatalogSavedState.write(outState, catalogDialogs.snapshot())
+        CatalogSavedState.writeOverlay(outState, catalogDialogs.overlaySnapshot())
         outState.putString("catalogDetail", catalogDialogs.detailItemId)
         outState.putBoolean("catalogVisible", catalogDialogs.visible)
         super.onSaveInstanceState(outState)
@@ -1184,6 +1209,7 @@ class MainActivity : Activity() {
         youtubeReceiver.close()
         receiverWorker.shutdown()
         artwork.close()
+        artworkDecoder.close()
         imageWorker.shutdownNow()
         receiverViewModel.close()
         homeViewModel.close()

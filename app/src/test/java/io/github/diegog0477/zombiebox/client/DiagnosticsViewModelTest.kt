@@ -14,6 +14,8 @@ class DiagnosticsViewModelTest {
         var updates = 0
         val repository =
             object : DiagnosticsRepository {
+                override fun exportReport() = "redacted fixture"
+
                 override fun scanAndSave(): HardwareReport {
                     calls++
                     throw IllegalStateException("offline")
@@ -35,6 +37,8 @@ class DiagnosticsViewModelTest {
         var failed = false
         val repository =
             object : DiagnosticsRepository {
+                override fun exportReport() = "redacted fixture"
+
                 override fun scanAndSave(): HardwareReport = throw IllegalStateException("offline")
             }
         val model = DiagnosticsViewModel(repository, { tasks.add(it) }, { it() })
