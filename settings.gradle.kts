@@ -18,8 +18,15 @@ rootProject.name = "zombie-client"
 
 include(":app")
 
-include(":shared", ":cast")
+include(":shared")
 
-project(":shared").projectDir = file("../android-shared")
+val protocolDir =
+    System.getenv("ZOMBIE_PROTOCOL_DIR")?.let { file(it) }
+        ?: file("../zombiebox-protocol").takeIf { it.isDirectory }
+        ?: file(".deps/zombiebox-protocol")
 
-project(":cast").projectDir = file("../zombie-aircast-android")
+require(protocolDir.resolve("android-shared").isDirectory) {
+    "Restore zombiebox-protocol with make deps or set ZOMBIE_PROTOCOL_DIR"
+}
+
+project(":shared").projectDir = protocolDir.resolve("android-shared")

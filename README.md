@@ -1,13 +1,39 @@
-# Android client
+# zombiebox-client
 
-From the root: `make android-build && make android-audit`. Output: `app/build/outputs/apk/debug/app-debug.apk`.
+Legacy-first Android TV/handheld client; one stable client APK.
 
-One Kotlin APK uses native Views, MediaPlayer/SurfaceView and HttpURLConnection. No AndroidX, Compose or native libraries. The initial Home follows the near-black/green reference with navigation, hero, media rows, service state and a bottom player. It supports pairing, service credential submission, basic diagnostics, local EN/ES preferences, catalog pages, IPTV programme details, fullscreen/miniplayer, playback controls and an external-player intent.
+This is an independent repository in the Zombie Box workspace. Remotes and hosted
+releases are not configured yet; local commits/tags and dependency pins are real.
 
-IntelliJ can edit the project; Gradle Wrapper is the build reference. JDK 21 and the Android SDK are selected by the repository helper. Android Studio and emulators are not required. Enter a real gateway LAN address in Settings; there is no emulator-specific default address.
+Application ID: `io.github.diegog0477.zombiebox.client`; experimental minSdk9.
 
-Provider credentials are transient form input, sent only to the gateway and never persisted in Android preferences. Only gateway/device credentials and presentation preferences are stored locally; backups are disabled. See [configuration](../docs/development/services-and-credentials.md).
+```sh
+make deps-check  # ../zombiebox-protocol or ZOMBIE_PROTOCOL_DIR
+make build test
+```
 
-Build/lint/DEX success is not API 9/10/13 runtime validation. Codec probes, subtitles/audio selection, image delivery, refined handheld layout, interruption/device lifecycle validation and physical focus/surface behavior still need implementation or device verification. No real provider/device playback has been claimed.
+Android SDK35/build-tools35.0.0 and JDK21 are the current candidate toolchain.
+Android Studio is optional. The independent Gradle build includes `:app` and the
+shared library from the pinned protocol repository; it does not include Cast.
+`make deps` can restore `.deps/zombiebox-protocol` after a remote is configured.
 
-Dev.4 adds opt-in screen receiving, active-session recovery through long polling, and local playback strategy overrides under Advanced. Incoming streams reuse the embedded player; remote stop restores the interrupted playback context. The separate Cast APK shares `android-shared/` transport only. MediaProjection and API 29 audio capture are absent from the legacy client DEX. See [mirroring](../docs/development/mirroring.md).
+Features use `domain/model`, `domain/repository`, `data`, `presentation/viewmodel`,
+`presentation/ui` and isolated `platform` classes where needed. ViewModels consume
+semantic values and injected repositories; UI never decodes JSON/calls HTTP.
+Views/XML, MediaPlayer/SurfaceView and manual DI preserve the legacy contract.
+No modern AndroidX/Compose/coroutines/JNI. Guard modern APIs through factories;
+verify Dalvik on physical hardware separately. Home stays green; providers retain
+contextual accents. Keep English defaults and Spanish variants in string resources.
+
+Output: `app/build/outputs/apk/debug/app-debug.apk`. Tracks/subtitles, nested provider
+navigation, virtualization and adaptive health/OEM selection remain unfinished.
+
+## Development rules
+
+Run `make format` and `make format-check`. Formatters are pinned and downloaded
+on first use. See [AGENTS.md](AGENTS.md), [history provenance](docs/history.md),
+[component work](docs/PLANNING.md) and [local milestone registry](docs/milestones.json).
+The central workspace owns product-wide ADRs, the original specification, the UI
+reference, M0–M11 exit gates and the complete development/validation gap audit.
+Physical devices over USB/ADB are the default; automated checks do not establish
+legacy runtime or end-to-end account/media compatibility.
