@@ -201,4 +201,9 @@
     <string name="catalog_empty">No items found. Try another search or go back.</string>
     <string name="catalog_folder">Open collection</string>
     <string name="media_receiver">Receive Spotify / AirPlay</string>
+    <string name="playback_failed">Playback interrupted</string>
+    <string name="playback_recovery_help">
+        Retry with a more compatible stream, or open this item in another player.
+    </string>
+    <string name="retry_compatible">Retry compatible</string>
 </resources>

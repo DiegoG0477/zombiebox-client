@@ -23,3 +23,8 @@ No product milestone or physical/account gate is completed by this checkpoint.
 ## dev.12 increment
 
 Foreground media-receiver selection, metadata updates, audio panel, interrupted-playback restoration and bounded reconnect. Rich artwork, complete screen stack and background ownership remain open.
+
+## dev.13 increment
+
+Foreground/surface intent, guarded media callbacks, finite compatible retry and fresh external fallback; client versionCode 13.
+No product milestone or physical/account gate closes with this checkpoint.

@@ -1,6 +1,7 @@
 package io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel
 
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.*
+import io.github.diegog0477.zombiebox.client.features.playback.domain.policy.PlaybackRecovery
 import io.github.diegog0477.zombiebox.client.features.playback.domain.repository.PlaybackRepository
 
 /** Owns pending playback requests and releases plans abandoned by a newer screen action. */
@@ -11,6 +12,23 @@ class PlaybackViewModel(
 ) {
     @Volatile private var closed = false
     @Volatile private var generation = 0
+    private val recovery = PlaybackRecovery()
+
+    fun adopt(plan: PlaybackPlan) = recovery.adopt(plan)
+
+    fun canRetry(positionMs: Int): Boolean = recovery.next(positionMs) != null
+
+    fun retry(
+        itemId: String,
+        sessionId: String,
+        progress: PlaybackProgress,
+        done: (PlaybackPlan) -> Unit,
+        failed: (Exception) -> Unit,
+    ) {
+        val mode = recovery.next(progress.positionMs) ?: return
+        recovery.attempted(mode)
+        request(itemId, mode, progress.positionMs, sessionId, progress, done, failed)
+    }
 
     fun start(
         itemId: String,
@@ -18,18 +36,40 @@ class PlaybackViewModel(
         done: (PlaybackPlan) -> Unit,
         failed: (Exception) -> Unit,
     ) {
+        request(itemId, mode, null, "", null, done, failed)
+    }
+
+    private fun request(
+        itemId: String,
+        mode: String,
+        positionMs: Int?,
+        oldSession: String,
+        progress: PlaybackProgress?,
+        done: (PlaybackPlan) -> Unit,
+        failed: (Exception) -> Unit,
+    ) {
         if (closed) return
         val request = ++generation
         execute {
             try {
-                val plan = repository.start(itemId, mode)
+                if (oldSession.isNotEmpty()) {
+                    try {
+                        if (progress != null) repository.progress(oldSession, progress)
+                    } catch (_: Exception) {} finally {
+                        discard(oldSession)
+                    }
+                }
+                if (closed || request != generation) return@execute
+                val plan = repository.start(itemId, mode, positionMs)
                 if (closed || request != generation) {
                     discard(plan.sessionId)
                     return@execute
                 }
                 deliver {
-                    if (!closed && request == generation) done(plan)
-                    else execute { discard(plan.sessionId) }
+                    if (!closed && request == generation) {
+                        recovery.adopt(plan)
+                        done(plan)
+                    } else execute { discard(plan.sessionId) }
                 }
             } catch (error: Exception) {
                 deliver { if (!closed && request == generation) failed(error) }

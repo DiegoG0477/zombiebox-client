@@ -51,6 +51,7 @@ import io.github.diegog0477.zombiebox.client.features.playback.domain.model.Play
 import io.github.diegog0477.zombiebox.client.features.playback.platform.AudioFocusController
 import io.github.diegog0477.zombiebox.client.features.playback.platform.AudioFocusFactory
 import io.github.diegog0477.zombiebox.client.features.playback.platform.EmbeddedPlayer
+import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.PlaybackFailureDialog
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.TracksDialog
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.VideoSurface
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel.PlaybackViewModel
@@ -219,6 +220,9 @@ class MainActivity : Activity() {
     private var stream = ""
     private var mime = "video/mp4"
     private var itemTitle = ""
+    private val playbackFailure by lazy { PlaybackFailureDialog(this) }
+    private var playbackPending = false
+    private var playbackLive = false
     private var receiverState = ""
     private var receiverSuspended = false
     private lateinit var receiverInfo: TextView
@@ -293,6 +297,7 @@ class MainActivity : Activity() {
                 status,
                 position,
                 duration ->
+                if (playbackPending) return@EmbeddedPlayer
                 if (::receiverViewModel.isInitialized && receiverViewModel.activeSession == session)
                     receiverViewModel.playbackState(status)
                 lastPosition = position + timelineOffset
@@ -323,6 +328,15 @@ class MainActivity : Activity() {
                 if (status == "PLAYING")
                     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                if (
+                    status == "FAILED" &&
+                        lastState != "FAILED" &&
+                        foreground &&
+                        receiverViewModel.activeSession.isEmpty() &&
+                        session.isNotEmpty()
+                ) {
+                    showPlaybackFailure()
+                }
                 val time = System.currentTimeMillis()
                 if (session.isNotEmpty() && (status != lastState || time - lastReport > 10000)) {
                     lastState = status
@@ -585,7 +599,8 @@ class MainActivity : Activity() {
             }
             is ReceiverChange.Reconnect -> {
                 updateReceiver(change.plan)
-                if (audioController.acquire()) player.play(stream, 0)
+                if (audioController.acquire())
+                    player.play(stream, 0, video = change.plan.fullscreen, seekable = false)
             }
             is ReceiverChange.Begin -> {
                 youtubeReceiver.disable()
@@ -598,7 +613,8 @@ class MainActivity : Activity() {
                 lastState = ""
                 setSeekable(false)
                 setFullscreen(change.plan.fullscreen)
-                if (audioController.acquire()) player.play(stream, 0)
+                if (audioController.acquire())
+                    player.play(stream, 0, video = change.plan.fullscreen, seekable = false)
             }
             null -> Unit
         }
@@ -695,6 +711,8 @@ class MainActivity : Activity() {
     }
 
     private fun adoptPlan(plan: PlaybackPlan) {
+        playbackModel.adopt(plan)
+        playbackLive = plan.live
         session = plan.sessionId
         stream = plan.url
         mime = plan.mime
@@ -726,8 +744,13 @@ class MainActivity : Activity() {
                                 { plan ->
                                     adoptPlan(plan)
                                     lastReport = 0
-                                    player.play(stream, plan.resumePositionMs)
-                                    if (paused || !foreground) player.pause()
+                                    player.play(
+                                        stream,
+                                        plan.resumePositionMs,
+                                        !paused,
+                                        currentItem?.kind != "audio",
+                                        playbackSeekable,
+                                    )
                                 },
                                 ::error,
                             )
@@ -763,10 +786,12 @@ class MainActivity : Activity() {
     ) {
         if (remote == null) youtubeReceiver.disable()
         stopPlayback()
+        playbackPending = true
         playbackModel.start(
             item.id,
             if (remote != null) "AUTO" else prefs.getString("playbackMode", "AUTO") ?: "AUTO",
             { plan ->
+                playbackPending = false
                 adoptPlan(plan)
                 tracksModel.attach(session)
                 currentItem = item
@@ -774,7 +799,7 @@ class MainActivity : Activity() {
                 now.text = itemTitle
                 lastState = ""
                 lastReport = 0
-                lastPosition = 0
+                lastPosition = plan.resumePositionMs + plan.timelineOffsetMs
                 lastDuration = 0
                 setFullscreen(fullscreen)
                 if (plan.mode == "EXTERNAL_PLAYER") {
@@ -785,12 +810,82 @@ class MainActivity : Activity() {
                     return@start
                 }
                 if (audioController.acquire()) {
-                    player.play(stream, remote?.positionMs ?: plan.resumePositionMs)
-                    if (!foreground || !autoplay) player.pause()
+                    player.play(
+                        stream,
+                        remote?.positionMs ?: plan.resumePositionMs,
+                        autoplay,
+                        item.kind != "audio",
+                        playbackSeekable,
+                    )
                 } else if (remote != null) youtubeReceiver.complete(false, remote.id)
             },
             failed = { failure ->
+                playbackPending = false
                 if (remote != null) youtubeReceiver.complete(false, remote.id)
+                error(failure)
+            },
+        )
+    }
+
+    private fun showPlaybackFailure() {
+        val expected = session
+        playbackFailure.show(
+            playbackModel.canRetry(if (playbackLive) 0 else lastPosition),
+            { if (session == expected) retryPlayback() },
+            { if (session == expected) replaceWithExternal() },
+        )
+    }
+
+    private fun retryPlayback() {
+        val item = currentItem ?: return
+        val progress =
+            PlaybackProgress("FAILED", if (playbackLive) 0 else lastPosition, lastDuration)
+        playbackPending = true
+        player.stop()
+        playbackModel.retry(
+            item.id,
+            session,
+            progress,
+            { plan ->
+                playbackPending = false
+                adoptPlan(plan)
+                tracksModel.attach(session)
+                lastPosition = plan.resumePositionMs + plan.timelineOffsetMs
+                lastReport = 0
+                lastState = ""
+                if (audioController.acquire())
+                    player.play(
+                        stream,
+                        plan.resumePositionMs,
+                        video = item.kind != "audio",
+                        seekable = playbackSeekable,
+                    )
+            },
+            { failure ->
+                playbackPending = false
+                error(failure)
+                if (foreground) showPlaybackFailure()
+            },
+        )
+    }
+
+    private fun replaceWithExternal() {
+        val item = currentItem ?: return
+        val position = lastPosition
+        playbackPending = true
+        player.stop()
+        playbackModel.stop(session, PlaybackProgress("FAILED", position, lastDuration))
+        playbackModel.start(
+            item.id,
+            "EXTERNAL_PLAYER",
+            { plan ->
+                playbackPending = false
+                adoptPlan(plan)
+                tracksModel.attach(session)
+                if (foreground) external()
+            },
+            { failure ->
+                playbackPending = false
                 error(failure)
             },
         )
@@ -815,6 +910,8 @@ class MainActivity : Activity() {
     }
 
     private fun stopPlayback(keepReceiver: Boolean = false) {
+        playbackFailure.dismiss()
+        playbackPending = false
         if (!keepReceiver && receiverViewModel.activeSession.isNotEmpty())
             receiverViewModel.dismiss(receiverViewModel.activeSession)
         currentItem = null
@@ -848,6 +945,7 @@ class MainActivity : Activity() {
     private fun external() {
         if (stream.isEmpty()) return
         player.pause()
+        audioController.release()
         try {
             startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(stream), mime))
         } catch (_: Exception) {
@@ -920,19 +1018,33 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         foreground = true
+        if (::player.isInitialized) {
+            if (session.isNotEmpty() && !audioController.acquire()) player.pause()
+            player.foreground(true)
+        }
         if (::receiverViewModel.isInitialized && api.token.isNotEmpty())
             receiverViewModel.resumeForeground()
+        if (
+            !playbackPending &&
+                lastState == "FAILED" &&
+                session.isNotEmpty() &&
+                receiverViewModel.activeSession.isEmpty()
+        )
+            showPlaybackFailure()
     }
 
     override fun onPause() {
         foreground = false
         receiverSuspended = receiverViewModel.activeSession.isNotEmpty()
         youtubeReceiver.disable()
-        player.pause()
+        playbackFailure.dismiss()
+        player.foreground(false)
+        audioController.release()
         super.onPause()
     }
 
     override fun onDestroy() {
+        playbackFailure.dismiss()
         audioController.release()
         closed = true
         events.close()

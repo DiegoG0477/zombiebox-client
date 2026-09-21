@@ -23,6 +23,7 @@ object MediaItemDecoder {
             item.optInt("durationMs"),
             item.optString("browseId"),
             item.optBoolean("playable", true),
+            item.optString("kind"),
         )
     }
 }

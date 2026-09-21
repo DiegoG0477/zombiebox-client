@@ -51,3 +51,5 @@ Dev.12 adds foreground Spotify/AirPlay selection, automatic active-stream recept
 metadata updates, bounded receiver reconnect and interrupted-playback restoration.
 The audio panel is an initial semantic Now Playing view; artwork and seamless
 cross-Activity music remain open.
+
+Dev.13: Foreground/surface intent, guarded media callbacks, finite compatible retry and fresh external fallback; client versionCode 13.

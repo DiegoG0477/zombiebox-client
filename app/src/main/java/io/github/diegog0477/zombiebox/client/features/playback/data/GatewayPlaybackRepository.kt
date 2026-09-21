@@ -6,13 +6,10 @@ import io.github.diegog0477.zombiebox.shared.GatewayApi
 import org.json.JSONObject
 
 class GatewayPlaybackRepository(private val api: GatewayApi) : PlaybackRepository {
-    override fun start(itemId: String, mode: String): PlaybackPlan {
-        val plan =
-            api.request(
-                "POST",
-                "/v1/playback",
-                JSONObject().put("itemId", itemId).put("mode", mode),
-            )
+    override fun start(itemId: String, mode: String, positionMs: Int?): PlaybackPlan {
+        val request = JSONObject().put("itemId", itemId).put("mode", mode)
+        if (positionMs != null) request.put("positionMs", positionMs)
+        val plan = api.request("POST", "/v1/playback", request)
         return PlaybackPlanDecoder.decode(api.base, plan)
     }
 

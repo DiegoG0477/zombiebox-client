@@ -6,8 +6,9 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
 import android.view.SurfaceHolder
+import io.github.diegog0477.zombiebox.client.features.playback.domain.policy.PlaybackIntent
 
-/** All MediaPlayer calls share a looper; navigation never creates a second player. */
+/** One media looper and one decoder. Callbacks belong to a specific playback generation. */
 class EmbeddedPlayer(
     private val sizeChanged: (Int, Int) -> Unit,
     private val changed: (String, Int, Int) -> Unit,
@@ -15,16 +16,22 @@ class EmbeddedPlayer(
     private val thread = HandlerThread("zombie-player").apply { start() }
     private val handler = Handler(thread.looper)
     private val main = Handler(Looper.getMainLooper())
+    private val intent = PlaybackIntent()
     private var player: MediaPlayer? = null
     private var holder: SurfaceHolder? = null
     private var prepared = false
-    private var resume = 0
-    private var wantPlay = false
+    private var seekable = true
+    private var seeking = false
+    private var buffering = false
+    private var position = 0
+    private var duration = 0
     private var volumeGain = 1f
     private var prepareTimeout: Runnable? = null
+    private var bufferingTimeout: Runnable? = null
     private var state = "STOPPED"
     @Volatile private var closed = false
     @Volatile private var epoch = 0
+    private var activeEpoch = 0
     private val tick =
         object : Runnable {
             override fun run() {
@@ -34,160 +41,236 @@ class EmbeddedPlayer(
         }
 
     private fun report() {
-        var position = 0
-        var duration = 0
-        if (prepared)
+        if (prepared && !seeking) {
             try {
-                position = player?.currentPosition ?: 0
-                duration = (player?.duration ?: 0).coerceAtLeast(0)
+                position = (player?.currentPosition ?: position).coerceAtLeast(0)
+                duration = (player?.duration ?: duration).coerceAtLeast(0)
             } catch (_: IllegalStateException) {}
+        }
         val current = state
-        val reportEpoch = epoch
-        main.post { if (!closed && reportEpoch == epoch) changed(current, position, duration) }
-    }
-
-    fun surface(value: SurfaceHolder?) {
-        handler.post {
-            holder = value
-            player?.setDisplay(value)
+        val currentPosition = position
+        val currentDuration = duration
+        val reportEpoch = activeEpoch
+        main.post {
+            if (!closed && reportEpoch == epoch) changed(current, currentPosition, currentDuration)
         }
     }
 
-    fun play(url: String, position: Int) {
+    private fun command(work: () -> Unit) {
+        if (closed) return
+        val request = epoch
         handler.post {
-            dispose()
-            resume = position
-            wantPlay = true
-            state = "BUFFERING"
-            report()
-            val media = MediaPlayer()
-            player = media
-            media.setAudioStreamType(AudioManager.STREAM_MUSIC)
-            media.setVolume(volumeGain, volumeGain)
-            media.setDisplay(holder)
-            media.setOnVideoSizeChangedListener { _, width, height ->
-                main.post { if (!closed) sizeChanged(width, height) }
-            }
-            media.setOnPreparedListener {
-                if (player === it) {
-                    prepared = true
-                    if (resume > 0 && it.duration > 0) it.seekTo(resume.coerceAtMost(it.duration))
-                    if (wantPlay) {
-                        it.start()
-                        state = "PLAYING"
-                    } else state = "PAUSED"
-                    tick.run()
+            if (!closed && request == activeEpoch) {
+                try {
+                    work()
+                } catch (_: Exception) {
+                    fail()
                 }
             }
-            media.setOnCompletionListener {
+        }
+    }
+
+    fun surface(value: SurfaceHolder?) {
+        if (closed) return
+        handler.post {
+            if (!closed) {
+                holder = value
+                intent.surfaceAvailable = value != null
+                try {
+                    // Suspend video before detaching its output; audio does not need a surface.
+                    if (value == null) applyIntent()
+                    player?.setDisplay(value)
+                    applyIntent()
+                } catch (_: Exception) {
+                    fail()
+                }
+            }
+        }
+    }
+
+    fun play(
+        url: String,
+        position: Int,
+        autoplay: Boolean = true,
+        video: Boolean = true,
+        seekable: Boolean = true,
+    ) {
+        if (closed) return
+        val request = ++epoch
+        handler.post {
+            if (closed || request != epoch) return@post
+            dispose()
+            activeEpoch = request
+            this.position = position.coerceAtLeast(0)
+            duration = 0
+            this.seekable = seekable
+            intent.begin(autoplay, video)
+            state = "BUFFERING"
+            report()
+            try {
+                prepare(url)
+            } catch (_: Exception) {
+                fail()
+            }
+        }
+    }
+
+    private fun isCurrent(source: MediaPlayer): Boolean =
+        !closed && player === source && activeEpoch == epoch
+
+    private fun prepare(url: String) {
+        val media = MediaPlayer()
+        player = media
+        media.setAudioStreamType(AudioManager.STREAM_MUSIC)
+        media.setVolume(volumeGain, volumeGain)
+        media.setDisplay(holder)
+        media.setOnVideoSizeChangedListener { source, width, height ->
+            if (isCurrent(source)) {
+                val request = activeEpoch
+                main.post { if (!closed && request == epoch) sizeChanged(width, height) }
+            }
+        }
+        media.setOnPreparedListener { source ->
+            if (isCurrent(source)) {
+                try {
+                    prepared = true
+                    prepareTimeout?.let { handler.removeCallbacks(it) }
+                    prepareTimeout = null
+                    duration = source.duration.coerceAtLeast(0)
+                    if (seekable && position > 0 && duration > 0) {
+                        seekPosition(position.coerceAtMost(duration))
+                    }
+                    applyIntent()
+                    tick.run()
+                } catch (_: Exception) {
+                    fail()
+                }
+            }
+        }
+        media.setOnSeekCompleteListener { source ->
+            if (isCurrent(source)) {
+                seeking = false
+                prepareTimeout?.let { handler.removeCallbacks(it) }
+                prepareTimeout = null
+                try {
+                    applyIntent()
+                } catch (_: Exception) {
+                    fail()
+                }
+            }
+        }
+        media.setOnInfoListener { source, what, _ ->
+            if (isCurrent(source)) {
+                when (what) {
+                    MediaPlayer.MEDIA_INFO_BUFFERING_START -> buffering = true
+                    MediaPlayer.MEDIA_INFO_BUFFERING_END -> buffering = false
+                }
+                try {
+                    applyIntent()
+                } catch (_: Exception) {
+                    fail()
+                }
+            }
+            false
+        }
+        media.setOnCompletionListener { source ->
+            if (isCurrent(source)) {
+                intent.pause()
                 state = "ENDED"
                 report()
                 handler.removeCallbacks(tick)
             }
-            media.setOnErrorListener { _, _, _ ->
-                dispose()
-                state = "FAILED"
-                report()
-                true
+        }
+        media.setOnErrorListener { source, _, _ ->
+            if (isCurrent(source)) fail()
+            true
+        }
+        media.setDataSource(url)
+        media.prepareAsync()
+        prepareTimeout = Runnable { if (player === media && !prepared) fail() }
+        handler.postDelayed(prepareTimeout!!, 20000)
+    }
+
+    private fun applyIntent() {
+        if (!prepared || state == "ENDED") return
+        val media = player ?: return
+        if (intent.canPlay && !seeking) {
+            if (!media.isPlaying) media.start()
+            state = if (buffering) "BUFFERING" else "PLAYING"
+            if (buffering && bufferingTimeout == null) {
+                bufferingTimeout = Runnable {
+                    if (isCurrent(media) && buffering && intent.canPlay) fail()
+                }
+                handler.postDelayed(bufferingTimeout!!, 20000)
             }
+        } else {
+            if (media.isPlaying) media.pause()
+            state = if (seeking && intent.canPlay) "BUFFERING" else "PAUSED"
+        }
+        if (!buffering || !intent.canPlay) {
+            bufferingTimeout?.let { handler.removeCallbacks(it) }
+            bufferingTimeout = null
+        }
+        report()
+    }
+
+    fun foreground(value: Boolean) {
+        if (closed) return
+        handler.post {
+            intent.foreground = value
             try {
-                media.setDataSource(url)
-                media.prepareAsync()
-                prepareTimeout = Runnable {
-                    if (player === media && !prepared) {
-                        dispose()
-                        state = "FAILED"
-                        report()
-                    }
-                }
-                handler.postDelayed(prepareTimeout!!, 20000)
+                applyIntent()
             } catch (_: Exception) {
-                dispose()
-                state = "FAILED"
-                report()
+                fail()
             }
         }
     }
 
-    fun toggle() {
-        handler.post {
-            if (prepared)
-                try {
-                    val media = player ?: return@post
-                    if (media.isPlaying) {
-                        media.pause()
-                        wantPlay = false
-                        state = "PAUSED"
-                    } else {
-                        media.start()
-                        wantPlay = true
-                        state = "PLAYING"
-                    }
-                    report()
-                } catch (_: IllegalStateException) {
-                    state = "FAILED"
-                    report()
-                }
-        }
+    fun toggle() = command {
+        intent.toggle()
+        if (state == "ENDED" && intent.wantsPlayback) state = "PAUSED"
+        applyIntent()
     }
 
-    fun resume() {
-        handler.post {
-            wantPlay = true
-            if (prepared && state == "PAUSED")
-                try {
-                    player?.start()
-                    state = "PLAYING"
-                    report()
-                } catch (_: IllegalStateException) {
-                    state = "FAILED"
-                    report()
-                }
-        }
+    fun resume() = command {
+        intent.resume()
+        if (state == "ENDED") state = "PAUSED"
+        applyIntent()
     }
 
-    fun pause() {
-        handler.post {
-            wantPlay = false
-            if (prepared && state == "PLAYING") {
-                player?.pause()
-                state = "PAUSED"
-                report()
-            }
-        }
+    fun pause() = command {
+        intent.pause()
+        applyIntent()
     }
 
-    fun seek(delta: Int) {
-        handler.post {
-            if (prepared)
-                try {
-                    val media = player ?: return@post
-                    if (media.duration > 0)
-                        media.seekTo((media.currentPosition + delta).coerceIn(0, media.duration))
-                } catch (_: IllegalStateException) {}
-        }
+    fun seek(delta: Int) = command {
+        if (prepared && seekable && duration > 0)
+            seekPosition((position.toLong() + delta).coerceIn(0, duration.toLong()).toInt())
     }
 
-    fun seekTo(position: Int) {
-        handler.post {
-            if (prepared)
-                try {
-                    player?.seekTo(position.coerceAtLeast(0))
-                } catch (_: Exception) {}
-        }
+    fun seekTo(position: Int) = command {
+        if (prepared && seekable && duration > 0) seekPosition(position.coerceIn(0, duration))
+    }
+
+    private fun seekPosition(value: Int) {
+        position = value
+        seeking = true
+        val media = player ?: return
+        media.seekTo(value)
+        prepareTimeout?.let { handler.removeCallbacks(it) }
+        prepareTimeout = Runnable { if (isCurrent(media) && seeking) fail() }
+        handler.postDelayed(prepareTimeout!!, 20000)
+        applyIntent()
     }
 
     fun volume(level: Int, muted: Boolean, done: (Boolean) -> Unit) {
+        if (closed) return
         handler.post {
             val success =
                 try {
-                    val media = player
-                    if (media == null) false
-                    else {
-                        volumeGain = if (muted) 0f else level.coerceIn(0, 100) / 100f
-                        media.setVolume(volumeGain, volumeGain)
-                        true
-                    }
+                    volumeGain = if (muted) 0f else level.coerceIn(0, 100) / 100f
+                    player?.setVolume(volumeGain, volumeGain)
+                    player != null
                 } catch (_: Exception) {
                     false
                 }
@@ -195,26 +278,48 @@ class EmbeddedPlayer(
         }
     }
 
+    private fun fail() {
+        // Keep the last known position instead of overwriting progress with zero after release.
+        dispose()
+        state = "FAILED"
+        report()
+    }
+
     fun stop() {
+        if (closed) return
+        val request = ++epoch
         handler.post {
+            if (closed || request != epoch) return@post
             dispose()
+            activeEpoch = request
+            intent.pause()
+            position = 0
+            duration = 0
             state = "STOPPED"
             report()
         }
     }
 
     private fun dispose() {
-        epoch++
         handler.removeCallbacks(tick)
+        bufferingTimeout?.let { handler.removeCallbacks(it) }
+        bufferingTimeout = null
         prepareTimeout?.let { handler.removeCallbacks(it) }
         prepareTimeout = null
         prepared = false
-        player?.release()
+        seeking = false
+        buffering = false
+        val old = player
         player = null
+        try {
+            old?.release()
+        } catch (_: Exception) {}
     }
 
     fun close() {
+        if (closed) return
         closed = true
+        epoch++
         handler.post {
             dispose()
             thread.quit()

@@ -10,13 +10,23 @@ import org.junit.Test
 class PlaybackViewModelTest {
     private class Repository : PlaybackRepository {
         val stopped = mutableListOf<String>()
+        val events = mutableListOf<String>()
+        var failProgress = false
+        var onStart: (() -> Unit)? = null
 
-        override fun start(itemId: String, mode: String) =
-            PlaybackPlan(itemId, "/stream", "video/mp4", mode, 0)
+        override fun start(itemId: String, mode: String, positionMs: Int?): PlaybackPlan {
+            events.add("start:$mode:$positionMs")
+            onStart?.invoke()
+            return PlaybackPlan(itemId, "/stream", "video/mp4", mode, positionMs ?: 0)
+        }
 
-        override fun progress(sessionId: String, progress: PlaybackProgress) {}
+        override fun progress(sessionId: String, progress: PlaybackProgress) {
+            events.add("progress:${progress.positionMs}")
+            if (failProgress) throw IllegalStateException("offline")
+        }
 
         override fun stop(sessionId: String) {
+            events.add("stop:$sessionId")
             stopped.add(sessionId)
         }
     }
@@ -47,7 +57,53 @@ class PlaybackViewModelTest {
         model.close()
         background.removeAt(0)()
         model.start("ignored", "AUTO", { fail("started after close") }, { throw it })
-        assertEquals(listOf("pending"), repository.stopped)
+        assertTrue(repository.stopped.isEmpty())
+        assertTrue(repository.events.isEmpty())
         assertTrue(background.isEmpty())
+    }
+
+    @Test
+    fun compatibleRetryRetainsPositionEvenIfHistoryWriteFails() {
+        val repository = Repository().apply { failProgress = true }
+        val model = PlaybackViewModel(repository, { it() }, { it() })
+        model.adopt(PlaybackPlan("old", "/stream", "video/mp4", "DIRECT_PLAY", 0))
+        var replacement: PlaybackPlan? = null
+        model.retry(
+            "movie",
+            "old",
+            PlaybackProgress("FAILED", 42000, 120000),
+            { replacement = it },
+            { throw it },
+        )
+        assertEquals(
+            listOf("progress:42000", "stop:old", "start:TRANSCODE:42000"),
+            repository.events,
+        )
+        assertEquals(42000, replacement?.resumePositionMs)
+        assertFalse(model.canRetry(42000))
+    }
+
+    @Test
+    fun eachFailedCompatibleRequestAdvancesWithoutLooping() {
+        val repository = Repository()
+        val model = PlaybackViewModel(repository, { it() }, { it() })
+        model.adopt(PlaybackPlan("old", "/stream", "video/mp4", "DIRECT_PLAY", 0))
+        model.retry("movie", "old", PlaybackProgress("FAILED", 0, 0), {}, { throw it })
+        assertTrue(model.canRetry(0))
+        model.retry("movie", "movie", PlaybackProgress("FAILED", 0, 0), {}, { throw it })
+        assertFalse(model.canRetry(0))
+        assertEquals(
+            listOf("start:REMUX:0", "start:TRANSCODE:0"),
+            repository.events.filter { it.startsWith("start:") },
+        )
+    }
+
+    @Test
+    fun closingWhileRequestIsInFlightDiscardsItsNewSession() {
+        val repository = Repository()
+        val model = PlaybackViewModel(repository, { it() }, { it() })
+        repository.onStart = { model.close() }
+        model.start("late", "AUTO", { fail("late delivery") }, { throw it })
+        assertEquals(listOf("late"), repository.stopped)
     }
 }

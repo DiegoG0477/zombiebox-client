@@ -3,7 +3,7 @@ package io.github.diegog0477.zombiebox.client.features.playback.domain.repositor
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.*
 
 interface PlaybackRepository {
-    fun start(itemId: String, mode: String): PlaybackPlan
+    fun start(itemId: String, mode: String, positionMs: Int? = null): PlaybackPlan
 
     fun progress(sessionId: String, progress: PlaybackProgress)
 
