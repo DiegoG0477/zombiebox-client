@@ -134,4 +134,9 @@
     <string name="probe_pass">Passed</string>
     <string name="probe_fail">Failed</string>
     <string name="probe_unknown">Unknown</string>
+    <string name="youtube_receiver_detail">Enable this TV to receive YouTube commands. DIAL is advertised only while this screen remains active. Link from YouTube with the TV code.</string>
+    <string name="youtube_tv_code">YouTube TV code: %1$s</string>
+    <string name="rescan_hardware">Rescan hardware</string>
+    <string name="diagnostics_report">API %1$d · %2$s %3$s · %4$s</string>
+    <string name="hardware_report">ABI: %1$s\nCPU cores: %2$d · RAM: %3$d MB · Free: %4$d MB\nNetwork: %5$s · Gateway: %6$d ms\nDeclared decoders: %7$d · External players: %8$d\nNative DIAL, CEC and multicast: unverified. Codec declarations are hints; run playback probes.</string>
 </resources>

@@ -1,0 +1,10 @@
+<resources>
+    <color name="accent_zombie">#4CEF69</color>
+    <color name="accent_youtube">#FF5252</color>
+    <color name="accent_plex">#FFA726</color>
+    <color name="accent_stremio">#AA77FF</color>
+    <color name="accent_jellyfin">#26C6DA</color>
+    <color name="accent_iptv">#42A5F5</color>
+    <color name="accent_spotify">#1ED760</color>
+    <color name="accent_airplay">#CBD5E1</color>
+</resources>

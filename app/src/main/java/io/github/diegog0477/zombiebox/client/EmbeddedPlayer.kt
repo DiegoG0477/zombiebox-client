@@ -17,9 +17,11 @@ class EmbeddedPlayer(private val sizeChanged: (Int, Int) -> Unit, private val ch
     private var prepared = false
     private var resume = 0
     private var wantPlay = false
+    private var volumeGain = 1f
     private var prepareTimeout: Runnable? = null
     private var state = "STOPPED"
     @Volatile private var closed = false
+    @Volatile private var epoch = 0
     private val tick = object : Runnable {
         override fun run() {
             report()
@@ -34,7 +36,8 @@ class EmbeddedPlayer(private val sizeChanged: (Int, Int) -> Unit, private val ch
             duration = (player?.duration ?: 0).coerceAtLeast(0)
         } catch (_: IllegalStateException) { }
         val current = state
-        main.post { if (!closed) changed(current, position, duration) }
+        val reportEpoch = epoch
+        main.post { if (!closed && reportEpoch == epoch) changed(current, position, duration) }
     }
     fun surface(value: SurfaceHolder?) { handler.post { holder = value; player?.setDisplay(value) } }
     fun play(url: String, position: Int) { handler.post {
@@ -46,6 +49,7 @@ class EmbeddedPlayer(private val sizeChanged: (Int, Int) -> Unit, private val ch
         val media = MediaPlayer()
         player = media
         media.setAudioStreamType(AudioManager.STREAM_MUSIC)
+        media.setVolume(volumeGain,volumeGain)
         media.setDisplay(holder)
         media.setOnVideoSizeChangedListener { _, width, height -> main.post { if (!closed) sizeChanged(width, height) } }
         media.setOnPreparedListener {
@@ -86,8 +90,14 @@ class EmbeddedPlayer(private val sizeChanged: (Int, Int) -> Unit, private val ch
             if (media.duration > 0) media.seekTo((media.currentPosition + delta).coerceIn(0, media.duration))
         } catch (_: IllegalStateException) { }
     } }
+    fun seekTo(position: Int) { handler.post { if(prepared) try { player?.seekTo(position.coerceAtLeast(0)) } catch (_: Exception) { } } }
+    fun volume(level: Int, muted: Boolean, done: (Boolean) -> Unit) { handler.post {
+        val success = try { val media = player; if(media==null) false else {volumeGain=if(muted)0f else level.coerceIn(0,100)/100f;media.setVolume(volumeGain,volumeGain);true} } catch (_: Exception) { false }
+        main.post { if(!closed) done(success) }
+    } }
     fun stop() { handler.post { dispose(); state = "STOPPED"; report() } }
     private fun dispose() {
+        epoch++
         handler.removeCallbacks(tick)
         prepareTimeout?.let { handler.removeCallbacks(it) }; prepareTimeout = null
         prepared = false

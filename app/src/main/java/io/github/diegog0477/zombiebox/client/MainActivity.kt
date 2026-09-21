@@ -45,6 +45,11 @@ import java.util.concurrent.Executors
 @Suppress("DEPRECATION")
 class MainActivity : Activity() {
     private val worker = Executors.newSingleThreadExecutor()
+    private val receiverWorker = Executors.newSingleThreadExecutor()
+    private lateinit var youtubeReceiver: io.github.diegog0477.zombiebox.client.presentation.YouTubeReceiverViewModel
+    private var diagnosticsModel:io.github.diegog0477.zombiebox.client.presentation.DiagnosticsViewModel?=null
+    private var youtubeDialog: AlertDialog? = null
+    private val youtubeTick = object: Runnable { override fun run() { if(!closed) { if(foreground && ::youtubeReceiver.isInitialized) youtubeReceiver.tick();handler.postDelayed(this,1000) } } }
     private val poller = Executors.newSingleThreadExecutor()
     private val api = GatewayApi()
     private val handler = Handler()
@@ -83,7 +88,7 @@ class MainActivity : Activity() {
     private var playbackGeneration = 0
     @Volatile private var closed = false
     @Volatile private var foreground = false
-    private val green = Color.rgb(76, 239, 105)
+    private val green get() = resources.getColor(R.color.accent_zombie)
     private val background = Color.rgb(10, 15, 16)
     private val panel = Color.rgb(24, 31, 33)
     private val muted = Color.rgb(167, 180, 186)
@@ -117,6 +122,7 @@ class MainActivity : Activity() {
         createPlayer()
         player = EmbeddedPlayer({ width, height -> videoSurface.setVideoSize(width, height) }) { status, position, duration ->
             lastPosition = position; lastDuration = duration
+            if (::youtubeReceiver.isInitialized && (currentItem?.provider == "youtube" || status == "STOPPED")) youtubeReceiver.playerState(status,position,duration)
             playerStatus.text = getString(R.string.player_status, localizedState(status), formatTime(position), formatTime(duration))
             if (session.isNotEmpty()) now.text = itemTitle
             if (status == "PLAYING") window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -129,6 +135,11 @@ class MainActivity : Activity() {
             }
         }
         audioController = AudioFocusFactory.create(Build.VERSION.SDK_INT, getSystemService(AUDIO_SERVICE) as AudioManager, audioFocus, prefs.getBoolean("audioFocusCompatibility", false))
+        youtubeReceiver = io.github.diegog0477.zombiebox.client.presentation.YouTubeReceiverViewModel(
+            io.github.diegog0477.zombiebox.client.data.GatewayYouTubeReceiverRepository(api), { work -> receiverWorker.execute { work() } }, { work -> handler.post { work() } })
+        youtubeReceiver.command = { command -> receiveYouTube(command) }
+        youtubeReceiver.observer = { youtubeDialog?.setMessage(youtubeReceiverMessage()) }
+        handler.post(youtubeTick)
         val backgroundExecutor = worker
         val uiHandler = handler
         homeViewModel = HomeViewModel(GatewayHomeRepository(api), { work -> backgroundExecutor.execute { work() } }, { done -> uiHandler.post { done() } })
@@ -164,18 +175,18 @@ class MainActivity : Activity() {
     private fun box(color: Int, stroke: Int = Color.rgb(48, 60, 63)) = GradientDrawable().apply {
         setColor(color); cornerRadius = dp(8).toFloat(); setStroke(dp(1), stroke)
     }
-    private fun focusBackground(): StateListDrawable = StateListDrawable().apply {
-        addState(intArrayOf(android.R.attr.state_focused), box(Color.rgb(25, 66, 40), green))
-        addState(intArrayOf(android.R.attr.state_pressed), box(Color.rgb(25, 66, 40), green))
+    private fun focusBackground(accent: Int = contextAccent()): StateListDrawable = StateListDrawable().apply {
+        addState(intArrayOf(android.R.attr.state_focused), box(Color.rgb(32, 39, 42), accent))
+        addState(intArrayOf(android.R.attr.state_pressed), box(Color.rgb(32, 39, 42), accent))
         addState(intArrayOf(), box(panel))
     }
-    private fun action(label: String, click: () -> Unit) = Button(this).apply {
+    private fun action(label: String, accent: Int = contextAccent(), click: () -> Unit) = Button(this).apply {
         text = label; textSize = 14f; setTextColor(Color.WHITE); isFocusable = true
-        setPadding(dp(12), dp(7), dp(12), dp(7)); setBackgroundDrawable(focusBackground()); tag = "action:$label"
+        setPadding(dp(12), dp(7), dp(12), dp(7)); setBackgroundDrawable(focusBackground(accent)); tag = "action:$label"
         setOnClickListener { click() }
         layoutParams = LinearLayout.LayoutParams(-2, dp(44)).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }
     }
-    private fun button(label: Int, click: () -> Unit) = action(getString(label), click).apply { tag = "button:$label" }
+    private fun button(label: Int, click: () -> Unit) = action(getString(label), click = click).apply { tag = "button:$label" }
     private fun horizontal(parent: LinearLayout, id: String = ""): LinearLayout {
         val scroll = HorizontalScrollView(this); scroll.isHorizontalScrollBarEnabled = false
         val line = row(); scroll.addView(line); parent.addView(scroll)
@@ -191,7 +202,7 @@ class MainActivity : Activity() {
         nav.addView(text(getString(R.string.brand), 25f, green).apply { typeface = Typeface.DEFAULT_BOLD; setPadding(0, 0, dp(24), 0) })
         nav.addView(button(R.string.home) { refresh("", "") })
         for (id in arrayOf("youtube", "plex", "stremio", "spotify", "iptv", "airplay")) {
-            nav.addView(action(serviceTitle(id)) { refresh(id, "") }.apply { tag = "nav:$id" })
+            nav.addView(action(serviceTitle(id), providerAccent(id)) { refresh(id, "") }.apply { tag = "nav:$id" })
         }
         nav.addView(button(R.string.search) { search() })
         nav.addView(button(R.string.settings) { settings() })
@@ -205,7 +216,7 @@ class MainActivity : Activity() {
             hero.setBackgroundDrawable(GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.argb(240,10,15,16),Color.argb(100,10,15,16))))
         }
         heroFrame.addView(hero, FrameLayout.LayoutParams(-1,-2))
-        hero.addView(text(getString(R.string.tagline), 12f, green))
+        hero.addView(text(getString(R.string.tagline), 12f, contextAccent()))
         hero.addView(text(featured?.title ?: getString(R.string.welcome), 32f).apply { typeface = Typeface.DEFAULT_BOLD; maxLines = 2 })
         hero.addView(text(featured?.description?.takeIf { it.isNotEmpty() } ?: getString(R.string.welcome_detail), 16f, muted).apply { maxLines = 2 })
         val heroActions = row()
@@ -213,6 +224,7 @@ class MainActivity : Activity() {
             heroActions.addView(button(R.string.play) { startPlayback(featured) })
             heroActions.addView(button(R.string.more_info) { details(featured) })
         } else heroActions.addView(button(R.string.configure_services) { settings() })
+        if (homeViewModel.state.scope.provider == "youtube") heroActions.addView(button(R.string.youtube_receiver) { youtubeReceiverSettings() })
         focusRows.add(Pair("hero", heroActions))
         hero.addView(heroActions)
         content.addView(heroFrame, LinearLayout.LayoutParams(-1, dp(240)).apply { setMargins(0, dp(14), 0, dp(4)) })
@@ -227,8 +239,8 @@ class MainActivity : Activity() {
                     cardContent.setBackgroundDrawable(GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, intArrayOf(Color.argb(240,10,15,16),Color.argb(90,10,15,16))))
                 }
                 card.addView(cardContent, FrameLayout.LayoutParams(-1,-1))
-                card.setPadding(dp(12), dp(12), dp(12), dp(12)); card.setBackgroundDrawable(focusBackground()); card.isFocusable = true; card.isClickable = true
-                cardContent.addView(text(serviceTitle(item.provider), 12f, green))
+                card.setPadding(dp(12), dp(12), dp(12), dp(12)); card.setBackgroundDrawable(focusBackground(providerAccent(item.provider))); card.isFocusable = true; card.isClickable = true
+                cardContent.addView(text(serviceTitle(item.provider), 12f, providerAccent(item.provider)))
                 cardContent.addView(text(item.title, 19f).apply { maxLines = 2; typeface = Typeface.DEFAULT_BOLD })
                 if (item.subtitle.isNotEmpty()) cardContent.addView(text(item.subtitle, 12f, muted).apply { maxLines = 1 })
                 if (item.positionMs > 0) cardContent.addView(text(getString(R.string.resume_at, formatTime(item.positionMs)), 12f, muted))
@@ -242,7 +254,7 @@ class MainActivity : Activity() {
         for (module in snapshot.modules) {
             val id = module.id
             val label = serviceTitle(id) + "\n" + localizedState(module.state)
-            services.addView(action(label) { if(id=="android_mirror") receiverSettings() else if (module.state == "DISABLED") providerList() else refresh(id, "") }.apply {
+            services.addView(action(label, providerAccent(id)) { if(id=="android_mirror") receiverSettings() else if (module.state == "DISABLED") providerList() else refresh(id, "") }.apply {
                 tag = "service:$id"
                 layoutParams = LinearLayout.LayoutParams(dp(165), dp(66)).apply { setMargins(dp(3), dp(3), dp(6), dp(3)) }
             })
@@ -331,8 +343,8 @@ class MainActivity : Activity() {
             .put("memory", JSONObject().put("memoryClassMb", memory.memoryClass).put("physicalMb", io.github.diegog0477.zombiebox.client.platform.HardwareMemory.physicalMb()))
     }
     private fun settings() {
-        AlertDialog.Builder(this).setTitle(R.string.settings).setItems(arrayOf(getString(R.string.connect_gateway), getString(R.string.configure_services), getString(R.string.diagnostics), getString(R.string.language), getString(R.string.presentation_mode), getString(R.string.advanced), getString(R.string.receive_cast), getString(R.string.gateway_services))) { _, index ->
-            when (index) { 0 -> pairing(); 1 -> providerList(); 2 -> diagnostics(); 3 -> language(); 4 -> mode(); 5 -> advanced(); 6 -> receiverSettings(); 7 -> startActivity(Intent(this, ServicesActivity::class.java)) }
+        AlertDialog.Builder(this).setTitle(R.string.settings).setItems(arrayOf(getString(R.string.connect_gateway), getString(R.string.configure_services), getString(R.string.diagnostics), getString(R.string.language), getString(R.string.presentation_mode), getString(R.string.advanced), getString(R.string.receive_cast), getString(R.string.gateway_services), getString(R.string.youtube_receiver))) { _, index ->
+            when (index) { 0 -> pairing(); 1 -> providerList(); 2 -> diagnostics(); 3 -> language(); 4 -> mode(); 5 -> advanced(); 6 -> receiverSettings(); 7 -> startActivity(Intent(this, ServicesActivity::class.java)); 8 -> youtubeReceiverSettings() }
         }.setNegativeButton(R.string.close, null).show()
     }
     private fun providerList() {
@@ -392,9 +404,20 @@ class MainActivity : Activity() {
             }.setNegativeButton(R.string.close, null).show()
     }
     private fun diagnostics() {
-        val report = getString(R.string.device_report, Build.MANUFACTURER, Build.MODEL, Build.VERSION.SDK_INT, Build.CPU_ABI, (getSystemService(ACTIVITY_SERVICE) as ActivityManager).memoryClass)
-        AlertDialog.Builder(this).setTitle(R.string.diagnostics).setMessage(report).setNeutralButton(R.string.run_probes) { _, _ -> startActivity(Intent(this, ProbesActivity::class.java)) }.setPositiveButton(R.string.close, null).show()
+        val report=getString(R.string.diagnostics_report,Build.VERSION.SDK_INT,Build.MANUFACTURER,Build.MODEL,Build.CPU_ABI)
+        val model=io.github.diegog0477.zombiebox.client.presentation.DiagnosticsViewModel(
+            io.github.diegog0477.zombiebox.client.data.GatewayDiagnosticsRepository(api,io.github.diegog0477.zombiebox.client.platform.HardwareScanner(applicationContext)),
+            {work->worker.execute{work()}},{work->handler.post{work()}})
+        diagnosticsModel?.close();diagnosticsModel=model
+        val dialog=AlertDialog.Builder(this).setTitle(R.string.diagnostics).setMessage(report)
+            .setNeutralButton(R.string.run_probes){_,_->startActivity(Intent(this,ProbesActivity::class.java))}
+            .setNegativeButton(R.string.rescan_hardware,null).setPositiveButton(R.string.close,null).create()
+        model.observer={hardware,failed->dialog.setMessage(if(failed)getString(R.string.error_request) else if(hardware==null)report else getString(R.string.hardware_report,hardware.abis.joinToString(", "),hardware.cores,hardware.memoryMb,hardware.storageFreeMb,hardware.network,hardware.latencyMs,hardware.decoders.size,hardware.externalPlayers.size))}
+        dialog.setOnDismissListener{model.close();if(diagnosticsModel===model)diagnosticsModel=null}
+        dialog.setOnShowListener{dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener{dialog.setMessage(getString(R.string.loading));model.scan()}}
+        dialog.show()
     }
+
     private fun language() { AlertDialog.Builder(this).setTitle(R.string.language).setItems(arrayOf("English", "Español")) { _, which ->
         prefs.edit().putString("language", if (which == 0) "en" else "es").commit()
         savePreferences(); Toast.makeText(this, R.string.restart_language, Toast.LENGTH_LONG).show()
@@ -407,6 +430,34 @@ class MainActivity : Activity() {
         val payload = JSONObject().put("mode", prefs.getString("mode", "AUTO")).put("uiLanguage", prefs.getString("language", "en"))
             .put("audioLanguages", JSONArray().put("en").put("es")).put("subtitleLanguages", JSONArray().put("en").put("es")).put("subtitleMode", "auto")
         async({ val current=api.request("GET", "/v1/device/preferences"); payload.put("allowCasting",current.optBoolean("allowCasting")); api.request("PUT", "/v1/device/preferences", payload) }, {})
+    }
+    private fun youtubeReceiverMessage(): String {
+        val value=youtubeReceiver.receiver
+        return when { youtubeReceiver.failed -> getString(R.string.unavailable)
+            value==null -> getString(R.string.youtube_receiver_detail)
+            value.code.isEmpty() -> getString(R.string.loading)
+            else -> getString(R.string.youtube_tv_code,value.code) }
+    }
+    private fun youtubeReceiverSettings() {
+        if(api.token.isEmpty()){pairing();return}
+        val dialog=AlertDialog.Builder(this).setTitle(R.string.youtube_receiver).setMessage(youtubeReceiverMessage())
+            .setPositiveButton(R.string.enable) { _,_ -> youtubeReceiver.open();youtubeReceiverSettings() }
+            .setNeutralButton(R.string.disable) { _,_ -> youtubeReceiver.disable() }
+            .setNegativeButton(R.string.close,null).create()
+        youtubeDialog=dialog;dialog.setOnDismissListener { if(youtubeDialog===dialog)youtubeDialog=null };dialog.show()
+    }
+    private fun receiveYouTube(command:YouTubeCommand) {
+        if(!foreground || receiverViewModel.activeSession.isNotEmpty()){youtubeReceiver.complete(false,command.id);return}
+        if(session.isEmpty() && command.action !in listOf("play","stop")){youtubeReceiver.complete(false,command.id);return}
+        when(command.action){
+            "play" -> startPlayback(MediaItem(command.itemId,"youtube",getString(R.string.youtube)),remote=command)
+            "pause" -> player.pause()
+            "resume" -> if(audioController.acquire())player.resume() else youtubeReceiver.complete(false,command.id)
+            "stop" -> stopPlayback()
+            "seek" -> player.seekTo(command.positionMs)
+            "volume" -> player.volume(command.volume,command.muted){ok->youtubeReceiver.volumeApplied(command.id,command.volume,command.muted,ok)}
+            else -> youtubeReceiver.complete(false,command.id)
+        }
     }
     private fun receiverSettings() {
         if(api.token.isEmpty()){pairing();return}
@@ -425,6 +476,7 @@ class MainActivity : Activity() {
                 change.previous?.let { previous -> previous.item?.let { startPlayback(it,previous.fullscreen,previous.playing) } }
             }
             is ReceiverChange.Begin -> {
+                youtubeReceiver.disable()
                 stopPlayback(keepReceiver=true)
                 session=change.plan.sessionId;stream=api.base+change.plan.path;mime=change.plan.mime
                 itemTitle=getString(R.string.screen_mirroring);lastReport=0;lastState="";setFullscreen(true)
@@ -485,10 +537,11 @@ class MainActivity : Activity() {
         root.addView(playerLayer, FrameLayout.LayoutParams(-1, -1))
     }
     private fun togglePlayback() { if (session.isNotEmpty() && foreground && audioController.acquire()) player.toggle() }
-    private fun startPlayback(item: MediaItem, fullscreen:Boolean=true,autoplay:Boolean=true) {
+    private fun startPlayback(item: MediaItem, fullscreen:Boolean=true,autoplay:Boolean=true, remote:YouTubeCommand?=null) {
+        if(remote==null)youtubeReceiver.disable()
         stopPlayback()
         val generation = playbackGeneration
-        async({ api.request("POST", "/v1/playback", JSONObject().put("itemId", item.id).put("mode",prefs.getString("playbackMode","AUTO"))) }, { plan ->
+        async({ api.request("POST", "/v1/playback", JSONObject().put("itemId", item.id).put("mode",if(remote!=null)"AUTO" else prefs.getString("playbackMode","AUTO"))) }, { plan ->
             if (generation != playbackGeneration) {
                 val abandoned = plan.getString("sessionId")
                 async({ api.request("DELETE", "/v1/playback/$abandoned") }, {}, false)
@@ -497,12 +550,12 @@ class MainActivity : Activity() {
             session = plan.getString("sessionId"); stream = api.base + plan.getString("url"); mime = plan.optString("mimeType", "video/mp4")
             currentItem=item; itemTitle = item.title; now.text = itemTitle; lastState = ""; lastReport = 0; lastPosition = 0; lastDuration = 0
             setFullscreen(fullscreen)
-            if(plan.optString("mode")=="EXTERNAL_PLAYER"){external();return@async}
+            if(plan.optString("mode")=="EXTERNAL_PLAYER"){if(remote!=null){youtubeReceiver.complete(false,remote.id);stopPlayback()}else external();return@async}
             if (audioController.acquire()) {
-                player.play(stream, plan.optInt("resumePositionMs"))
+                player.play(stream, remote?.positionMs ?: plan.optInt("resumePositionMs"))
                 if (!foreground || !autoplay) player.pause()
-            }
-        })
+            } else if(remote!=null) youtubeReceiver.complete(false,remote.id)
+        }, onError = { if(remote!=null) youtubeReceiver.complete(false,remote.id) })
     }
     private fun setFullscreen(value: Boolean) {
         full = value; playerLayer.visibility = View.VISIBLE
@@ -534,6 +587,12 @@ class MainActivity : Activity() {
         catch (_: Exception) { Toast.makeText(this, R.string.no_external_player, Toast.LENGTH_LONG).show() }
     }
     private fun formatTime(ms: Int): String { val seconds = ms.coerceAtLeast(0) / 1000; return String.format(Locale.US, "%d:%02d", seconds / 60, seconds % 60) }
+    private fun contextAccent(): Int = providerAccent(if (::homeViewModel.isInitialized) homeViewModel.state.scope.provider else "")
+    private fun providerAccent(id: String): Int = resources.getColor(when(id) {
+        "youtube" -> R.color.accent_youtube; "plex" -> R.color.accent_plex; "stremio" -> R.color.accent_stremio
+        "jellyfin" -> R.color.accent_jellyfin; "iptv" -> R.color.accent_iptv; "spotify" -> R.color.accent_spotify
+        "airplay" -> R.color.accent_airplay; else -> R.color.accent_zombie
+    })
     private fun serviceTitle(id: String): String = getString(when (id) {
         "local" -> R.string.local_library; "youtube" -> R.string.youtube; "plex" -> R.string.plex; "jellyfin" -> R.string.jellyfin; "stremio" -> R.string.stremio
         "spotify" -> R.string.spotify; "iptv" -> R.string.iptv; "airplay" -> R.string.airplay; "android_mirror" -> R.string.android_mirror; "rebrowser" -> R.string.browser
@@ -579,9 +638,9 @@ class MainActivity : Activity() {
     }
     override fun onBackPressed() { if (full) setFullscreen(false) else if (session.isNotEmpty()) stopPlayback() else super.onBackPressed() }
     override fun onResume() { super.onResume(); foreground = true; if(::receiverViewModel.isInitialized && api.token.isNotEmpty())receiverViewModel.refresh() }
-    override fun onPause() { foreground = false; player.pause(); super.onPause() }
+    override fun onPause() { foreground = false; youtubeReceiver.disable(); player.pause(); super.onPause() }
     override fun onDestroy() {
         audioController.release()
-        closed = true; artwork.close(); imageWorker.shutdownNow(); receiverViewModel.close(); homeViewModel.close(); foreground = false; handler.removeCallbacksAndMessages(null); api.close(); player.close(); worker.shutdownNow(); poller.shutdownNow(); super.onDestroy()
+        closed = true; diagnosticsModel?.close(); youtubeReceiver.close(); receiverWorker.shutdown(); artwork.close(); imageWorker.shutdownNow(); receiverViewModel.close(); homeViewModel.close(); foreground = false; handler.removeCallbacksAndMessages(null); api.close(); player.close(); worker.shutdownNow(); poller.shutdownNow(); super.onDestroy()
     }
 }

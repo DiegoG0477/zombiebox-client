@@ -134,4 +134,9 @@
     <string name="probe_pass">Correcto</string>
     <string name="probe_fail">Falló</string>
     <string name="probe_unknown">Desconocido</string>
+    <string name="youtube_receiver_detail">Activa esta TV para recibir órdenes de YouTube. DIAL se anuncia mientras el cliente sigue activo. Vincula desde YouTube con el código de TV.</string>
+    <string name="youtube_tv_code">Código de TV de YouTube: %1$s</string>
+    <string name="rescan_hardware">Volver a escanear hardware</string>
+    <string name="diagnostics_report">API %1$d · %2$s %3$s · %4$s</string>
+    <string name="hardware_report">ABI: %1$s\nNúcleos: %2$d · RAM: %3$d MB · Libre: %4$d MB\nRed: %5$s · Gateway: %6$d ms\nDecodificadores declarados: %7$d · Reproductores externos: %8$d\nDIAL nativo, CEC y multicast: sin verificar. Los códecs declarados son indicios; ejecuta las pruebas de reproducción.</string>
 </resources>
