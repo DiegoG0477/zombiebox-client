@@ -10,4 +10,6 @@ data class MediaItem(
     val programmes: List<Programme> = emptyList(),
     val imageUrl: String = "",
     val durationMs: Int = 0,
+    val browseId: String = "",
+    val playable: Boolean = true,
 )

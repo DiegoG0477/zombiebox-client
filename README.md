@@ -25,8 +25,8 @@ No modern AndroidX/Compose/coroutines/JNI. Guard modern APIs through factories;
 verify Dalvik on physical hardware separately. Home stays green; providers retain
 contextual accents. Keep English defaults and Spanish variants in string resources.
 
-Output: `app/build/outputs/apk/debug/app-debug.apk`. Tracks/subtitles, nested provider
-navigation, virtualization and adaptive health/OEM selection remain unfinished.
+Output: `app/build/outputs/apk/debug/app-debug.apk`. Remote tracks/language automation, complete provider
+navigation, Home virtualization and adaptive health/OEM selection remain unfinished.
 
 ## Development rules
 
@@ -42,3 +42,7 @@ Dev.10 adds [playback tracks and refined Home navigation](docs/playback-tracks.m
 Local audio/text-subtitle controls use feature MVVM and the shared gateway transport;
 active section selection is independent of remote focus. Physical visual and media
 validation remains pending.
+
+Dev.11 adds [provider navigation](docs/provider-navigation.md) with recycled native
+rows, scoped search, bounded history and stable focus/scroll snapshots. Deep browse
+is available from “View all”; broader Home virtualization and rich layouts remain open.

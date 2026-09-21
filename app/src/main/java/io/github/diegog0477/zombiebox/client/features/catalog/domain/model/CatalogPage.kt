@@ -2,4 +2,25 @@ package io.github.diegog0477.zombiebox.client.features.catalog.domain.model
 
 import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 
-data class CatalogPage(val items: List<MediaItem>, val nextOffset: Int)
+data class CatalogPage(val items: List<MediaItem>, val nextOffset: Int, val title: String = "")
+
+data class CatalogLocation(
+    val provider: String,
+    val parent: String = "",
+    val query: String = "",
+    val offset: Int = 0,
+)
+
+data class CatalogScreen(
+    val location: CatalogLocation,
+    val page: CatalogPage,
+    val viewport: CatalogViewport = CatalogViewport(),
+)
+
+/** Only semantic IDs and scroll geometry survive a screen transition; never Views/bitmaps. */
+data class CatalogViewport(
+    val selectedId: String = "",
+    val firstVisibleId: String = "",
+    val firstTop: Int = 0,
+    val selectedTop: Int? = null,
+)

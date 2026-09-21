@@ -196,4 +196,8 @@
     <string name="track_number">Track %1$d</string>
     <string name="language_unknown">Unknown language</string>
     <string name="track_forced">Forced</string>
+    <string name="back">Back</string>
+    <string name="catalog_scope">Search scope: %1$s</string>
+    <string name="catalog_empty">No items found. Try another search or go back.</string>
+    <string name="catalog_folder">Open collection</string>
 </resources>

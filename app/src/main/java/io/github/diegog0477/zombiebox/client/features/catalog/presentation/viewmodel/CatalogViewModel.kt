@@ -1,30 +1,104 @@
 package io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel
 
+import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.core.presentation.ScreenTasks
-import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogPage
+import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.*
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.repository.CatalogRepository
 
-/** A newer catalog request supersedes any result still queued for delivery. */
+/** Owns bounded navigation snapshots, page offsets and stable return focus. */
 class CatalogViewModel(private val repository: CatalogRepository, private val tasks: ScreenTasks) {
     private var generation = 0
+    private val history = ArrayList<CatalogScreen>()
+    var screen: CatalogScreen? = null
+        private set
 
-    fun page(
+    val canBack: Boolean
+        get() = history.isNotEmpty()
+
+    fun open(
         provider: String,
         query: String,
-        offset: Int,
-        done: (CatalogPage) -> Unit,
+        done: (CatalogScreen) -> Unit,
+        failed: (Exception) -> Unit,
+    ) {
+        history.clear()
+        screen = null
+        load(CatalogLocation(provider, query = query), false, done, failed)
+    }
+
+    fun rememberViewport(viewport: CatalogViewport) {
+        screen = screen?.copy(viewport = viewport)
+    }
+
+    fun enter(item: MediaItem, done: (CatalogScreen) -> Unit, failed: (Exception) -> Unit) {
+        val current = screen ?: return
+        if (item.browseId.isNotEmpty())
+            load(
+                current.location.copy(parent = item.browseId, offset = 0, query = ""),
+                true,
+                done,
+                failed,
+            )
+    }
+
+    fun next(done: (CatalogScreen) -> Unit, failed: (Exception) -> Unit) {
+        val current = screen ?: return
+        if (current.page.nextOffset >= 0)
+            load(current.location.copy(offset = current.page.nextOffset), true, done, failed)
+    }
+
+    fun back(done: (CatalogScreen) -> Unit): Boolean {
+        generation++
+        if (history.isEmpty()) return false
+        screen = history.removeAt(history.lastIndex)
+        done(screen!!)
+        return true
+    }
+
+    fun search(query: String, done: (CatalogScreen) -> Unit, failed: (Exception) -> Unit) {
+        val current = screen ?: return
+        load(current.location.copy(query = query, offset = 0), true, done, failed)
+    }
+
+    private fun load(
+        location: CatalogLocation,
+        remember: Boolean,
+        done: (CatalogScreen) -> Unit,
         failed: (Exception) -> Unit,
     ) {
         val request = ++generation
+        val previous = screen
         tasks.run(
-            { repository.page(provider, query, offset) },
-            { if (request == generation) done(it) },
+            {
+                repository.page(location.provider, location.query, location.offset, location.parent)
+            },
+            { page ->
+                if (request == generation) {
+                    if (remember && previous != null) {
+                        if (history.size == 24) history.removeAt(0)
+                        history.add(previous)
+                    }
+                    val next = CatalogScreen(location, page)
+                    screen = next
+                    done(next)
+                }
+            },
             { if (request == generation) failed(it) },
         )
     }
 
-    fun close() {
+    fun cancelPending() {
         generation++
+    }
+
+    fun dismiss() {
+        generation++
+        history.clear()
+        screen = null
+    }
+
+    fun close() {
+        dismiss()
         tasks.close()
     }
 }

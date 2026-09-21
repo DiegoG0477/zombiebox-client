@@ -21,6 +21,8 @@ object MediaItemDecoder {
             },
             item.optString("imageUrl"),
             item.optInt("durationMs"),
+            item.optString("browseId"),
+            item.optBoolean("playable", true),
         )
     }
 }
