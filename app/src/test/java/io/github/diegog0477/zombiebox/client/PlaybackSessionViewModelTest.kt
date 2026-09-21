@@ -28,6 +28,29 @@ class PlaybackSessionViewModelTest {
         assertNull(vm.state.subtitleId)
     }
 
+    @Test
+    fun receiverEndRestoresQueuePositionPauseAndSubtitleWithoutActivity() {
+        val repository = Repository()
+        val vm = model(repository)
+        vm.adopt(plan("original"), item("original"), listOf(item("original"), item("next")))
+        vm.mediaState("PAUSED", 12000, 60000)
+        vm.subtitle(2)
+        vm.rememberInterruption()
+        vm.stop(preserveInterrupted = true)
+        vm.adopt(plan("incoming"), item("incoming"), emptyList(), incoming = true)
+        var played = false
+        vm.play = { _, _ -> played = true }
+        assertTrue(vm.restoreInterrupted())
+        assertTrue(played)
+        assertFalse(vm.state.incoming)
+        assertEquals("original", vm.state.item?.id)
+        assertEquals("PAUSED", vm.state.progress.state)
+        assertEquals(2, vm.state.subtitleId)
+        assertEquals(listOf("next"), vm.state.queue.map { it.id })
+        assertTrue(repository.events.contains("start:original:12000"))
+        assertFalse(vm.restoreInterrupted())
+    }
+
     private fun item(id: String) = MediaItem(id, "plex", id)
 
     private fun plan(id: String) = PlaybackPlan(id, "/stream/$id", "video/mp4", "REMUX", 0)

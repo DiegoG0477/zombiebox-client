@@ -7,21 +7,38 @@ import io.github.diegog0477.zombiebox.shared.GatewayApi
 import org.json.JSONArray
 import org.json.JSONObject
 
-class GatewayProbeRepository(private val api: GatewayApi) : ProbeRepository {
+class GatewayProbeRepository(
+    private val api: GatewayApi,
+    private val refreshInventory: () -> Unit = {},
+) : ProbeRepository {
+    private var cacheKey = ""
+    private var suiteVersion = 1
+
     override fun assets(): List<ProbeAsset> {
-        val data = api.request("GET", "/v1/probes").getJSONArray("probes")
+        refreshInventory()
+        val manifest = api.request("GET", "/v1/probes?suite=2")
+        cacheKey = manifest.optString("cacheKey")
+        suiteVersion = manifest.optInt("suiteVersion", 1)
+        val data = manifest.getJSONArray("probes")
         return (0 until data.length().coerceAtMost(32)).map {
             val item = data.getJSONObject(it)
             val path = item.getString("url")
             require(path.startsWith("/v1/probes/") && !path.contains(".."))
-            ProbeAsset(item.getString("id"), api.base + path, item.getBoolean("video"))
+            ProbeAsset(
+                item.getString("id"),
+                api.base + path,
+                item.getBoolean("video"),
+                item.optString("kind", "playback"),
+            )
         }
     }
 
     override fun save(results: List<ProbeResult>) {
+        val capabilities = api.request("GET", "/v1/device").getJSONObject("capabilities")
         val previous =
-            api.request("GET", "/v1/device").getJSONObject("capabilities").optJSONArray("probes")
-                ?: JSONArray()
+            if (capabilities.optString("cacheKey") == cacheKey)
+                capabilities.optJSONArray("probes") ?: JSONArray()
+            else JSONArray()
         val replaced = results.map { it.id }.toSet()
         val values = JSONArray()
         for (i in 0 until previous.length()) if (
@@ -46,6 +63,12 @@ class GatewayProbeRepository(private val api: GatewayApi) : ProbeRepository {
             JSONObject()
                 .put("capabilitiesVersion", 1)
                 .put("deviceId", api.device)
+                .apply {
+                    if (cacheKey.isNotEmpty()) {
+                        put("cacheKey", cacheKey)
+                        put("suiteVersion", suiteVersion)
+                    }
+                }
                 .put("probes", values),
         )
     }

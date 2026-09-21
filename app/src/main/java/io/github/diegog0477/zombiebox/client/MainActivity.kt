@@ -23,6 +23,7 @@ import io.github.diegog0477.zombiebox.client.core.presentation.ScreenTasks
 import io.github.diegog0477.zombiebox.client.core.ui.RemoteFocus
 import io.github.diegog0477.zombiebox.client.core.ui.TvWidgets
 import io.github.diegog0477.zombiebox.client.features.artwork.data.GatewayArtworkRepository
+import io.github.diegog0477.zombiebox.client.features.artwork.presentation.ui.ArtworkImageView
 import io.github.diegog0477.zombiebox.client.features.artwork.presentation.viewmodel.ArtworkViewModel
 import io.github.diegog0477.zombiebox.client.features.browser.presentation.ui.BrowserActivity
 import io.github.diegog0477.zombiebox.client.features.catalog.data.GatewayCatalogRepository
@@ -228,6 +229,7 @@ class MainActivity : Activity() {
     private var playbackLive = false
     private var receiverState = ""
     private lateinit var receiverInfo: TextView
+    private lateinit var receiverArtwork: ArtworkImageView
     private var full = false
     private val homeFocus
         get() = content.focus
@@ -551,6 +553,7 @@ class MainActivity : Activity() {
     private fun updateReceiver(plan: ReceiverPlan) {
         currentItem = plan.item
         receiverState = plan.state
+        player.receiverStatus(plan.item, plan.state)
         itemTitle = plan.item?.title ?: getString(R.string.screen_mirroring)
         now.text =
             listOf(itemTitle, plan.item?.subtitle ?: "")
@@ -561,6 +564,10 @@ class MainActivity : Activity() {
                 .filter { it.isNotEmpty() }
                 .joinToString("\n")
         receiverInfo.visibility = if (plan.fullscreen) View.GONE else View.VISIBLE
+        receiverArtwork.visibility =
+            if (!plan.fullscreen && !plan.item?.imageUrl.isNullOrEmpty()) View.VISIBLE
+            else View.GONE
+        receiverArtwork.bind(artwork, if (plan.fullscreen) "" else plan.item?.imageUrl ?: "")
     }
 
     private fun receiveCast(plan: ReceiverPlan?) {
@@ -574,9 +581,13 @@ class MainActivity : Activity() {
         ) {
             is ReceiverChange.Restore -> {
                 stopPlayback(keepReceiver = true)
-                change.previous?.let { previous ->
-                    previous.item?.let { startPlayback(it, previous.fullscreen, previous.playing) }
-                }
+                restoreFullscreen = change.previous?.fullscreen ?: false
+                if (!player.restoreInterrupted())
+                    change.previous?.let { previous ->
+                        previous.item?.let {
+                            startPlayback(it, previous.fullscreen, previous.playing)
+                        }
+                    }
             }
             is ReceiverChange.Update -> {
                 updateReceiver(change.plan)
@@ -587,6 +598,7 @@ class MainActivity : Activity() {
                     player.play(stream, 0, video = change.plan.fullscreen, seekable = false)
             }
             is ReceiverChange.Begin -> {
+                player.rememberInterruption()
                 youtubeReceiver.disable()
                 stopPlayback(keepReceiver = true)
                 session = change.plan.sessionId
@@ -662,6 +674,11 @@ class MainActivity : Activity() {
                 setPadding(ui.dp(16), ui.dp(16), ui.dp(16), ui.dp(16))
             }
         viewport.addView(receiverInfo, FrameLayout.LayoutParams(-1, -1))
+        receiverArtwork = ArtworkImageView(this).apply { visibility = View.GONE }
+        viewport.addView(
+            receiverArtwork,
+            FrameLayout.LayoutParams(ui.dp(80), ui.dp(80), Gravity.LEFT or Gravity.TOP),
+        )
         subtitleText =
             ui.text("", 22f).apply {
                 gravity = Gravity.CENTER
@@ -997,6 +1014,8 @@ class MainActivity : Activity() {
         currentItem = null
         receiverState = ""
         receiverInfo.visibility = View.GONE
+        receiverArtwork.visibility = View.GONE
+        receiverArtwork.bind(artwork, "")
         videoSurface.visibility = View.VISIBLE
         audioController.release()
         // Cancel pending Activity requests; the service owns session progress and revocation.
@@ -1008,7 +1027,7 @@ class MainActivity : Activity() {
         subtitleText.visibility = View.GONE
         timelineOffset = 0
         full = false
-        if (endSession) player.end()
+        if (endSession) player.end(preserveInterrupted = keepReceiver)
         playerLayer.visibility = View.GONE
         now.setText(R.string.nothing_playing)
         content.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS

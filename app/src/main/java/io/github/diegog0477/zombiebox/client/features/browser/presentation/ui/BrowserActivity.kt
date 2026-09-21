@@ -77,6 +77,26 @@ class BrowserActivity : Activity() {
                 isFocusableInTouchMode = true
                 contentDescription = getString(R.string.browser_page)
             }
+        image.setOnTouchListener { _, event ->
+            if (event.action == android.view.MotionEvent.ACTION_UP && image.drawable != null) {
+                val inverse = android.graphics.Matrix()
+                if (image.imageMatrix.invert(inverse)) {
+                    val point =
+                        floatArrayOf(event.x - image.paddingLeft, event.y - image.paddingTop)
+                    inverse.mapPoints(point)
+                    val drawable = image.drawable
+                    val width = drawable.intrinsicWidth.toFloat()
+                    val height = drawable.intrinsicHeight.toFloat()
+                    if (point[0] >= 0 && point[0] < width && point[1] >= 0 && point[1] < height)
+                        model.click(
+                            (point[0] * 960 / width).toInt(),
+                            (point[1] * 540 / height).toInt(),
+                        )
+                    image.performClick()
+                }
+            }
+            true
+        }
         image.setOnKeyListener { _, key, event ->
             val value =
                 when (key) {

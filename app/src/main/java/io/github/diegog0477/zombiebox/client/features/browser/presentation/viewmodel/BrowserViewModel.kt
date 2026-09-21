@@ -1,6 +1,7 @@
 package io.github.diegog0477.zombiebox.client.features.browser.presentation.viewmodel
 
 import io.github.diegog0477.zombiebox.client.features.browser.domain.repository.BrowserRepository
+import io.github.diegog0477.zombiebox.client.features.browser.domain.repository.BrowserSessionExpired
 
 class BrowserViewModel(
     private val repository: BrowserRepository,
@@ -64,9 +65,13 @@ class BrowserViewModel(
 
     fun refresh() = update(null, "")
 
+    fun click(x: Int, y: Int) {
+        if (x in 0 until 960 && y in 0 until 540) update("click", "", x, y)
+    }
+
     fun input(action: String, text: String = "") = update(action, text)
 
-    private fun update(action: String?, text: String) {
+    private fun update(action: String?, text: String, x: Int? = null, y: Int? = null) {
         if (closed || state.loading || state.session.isEmpty()) return
         val previous = state
         state = state.copy(loading = true, failed = false)
@@ -74,12 +79,15 @@ class BrowserViewModel(
         execute {
             val next =
                 try {
-                    if (action != null) repository.input(previous.session, action, text)
+                    if (action != null) repository.input(previous.session, action, text, x, y)
                     previous.copy(
                         frame = repository.frame(previous.session),
                         loading = false,
                         failed = false,
                     )
+                } catch (_: BrowserSessionExpired) {
+                    synchronized(lifetime) { if (activeID == previous.session) activeID = "" }
+                    BrowserState(failed = true)
                 } catch (_: Exception) {
                     previous.copy(loading = false, failed = true)
                 }

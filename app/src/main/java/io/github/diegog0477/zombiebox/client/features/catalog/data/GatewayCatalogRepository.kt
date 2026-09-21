@@ -9,7 +9,8 @@ import java.net.URLEncoder
 class GatewayCatalogRepository(private val api: GatewayApi) : CatalogRepository {
     override fun page(provider: String, query: String, offset: Int, parent: String): CatalogPage {
         val endpoint =
-            if (provider in listOf("plex", "jellyfin", "stremio")) "/v1/browse" else "/v1/catalog"
+            if (provider in listOf("plex", "jellyfin", "stremio", "youtube")) "/v1/browse"
+            else "/v1/catalog"
         val result =
             api.request(
                 "GET",

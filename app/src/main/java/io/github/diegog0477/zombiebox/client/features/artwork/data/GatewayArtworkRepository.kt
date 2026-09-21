@@ -8,10 +8,11 @@ class GatewayArtworkRepository(private val api: GatewayApi) : ArtworkRepository 
         require(
             path.startsWith("/v1/artwork/") &&
                 !path.contains("..") &&
-                !path.contains('?') &&
+                ('?' !in path || path.substringAfter('?').matches(Regex("rev=[a-f0-9]{16}"))) &&
                 !path.contains('#')
         )
-        val bytes = api.frame(path + if (hero) "?size=hero" else "")
+        val bytes =
+            api.frame(path + if (hero) (if ('?' in path) "&size=hero" else "?size=hero") else "")
         require(bytes.size <= 256 * 1024)
         return bytes
     }

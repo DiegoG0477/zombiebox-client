@@ -41,6 +41,11 @@ class PlaybackService : Service() {
     private var notificationKey = ""
     private var closed = false
     private var refreshing = false
+    private var receiverAttempts = 0
+    private var receiverRetryAt = 0L
+    private var receiverSession = ""
+    private var receiverPlaybackState = ""
+    private var receiverHealthySince = 0L
     var visible = false
         private set
 
@@ -71,8 +76,9 @@ class PlaybackService : Service() {
                                         !visible &&
                                         model.state.plan?.sessionId == plan.sessionId
                                 ) {
-                                    if (received == null) model.stop()
-                                    else if (received.sessionId != plan.sessionId) {
+                                    if (received == null) {
+                                        if (!model.restoreInterrupted()) model.stop()
+                                    } else if (received.sessionId != plan.sessionId) {
                                         received.item?.let { item ->
                                             val replacement =
                                                 PlaybackPlan(
@@ -91,6 +97,35 @@ class PlaybackService : Service() {
                                                 incoming = true,
                                             )
                                             playPlan(replacement, item)
+                                        }
+                                    } else {
+                                        receiverStatus(received.item, received.state)
+                                        if (receiverSession != plan.sessionId) {
+                                            receiverSession = plan.sessionId
+                                            receiverAttempts = 0
+                                            receiverRetryAt = 0
+                                            receiverHealthySince = 0
+                                        }
+                                        val now = android.os.SystemClock.elapsedRealtime()
+                                        if (model.state.progress.state == "PLAYING") {
+                                            if (receiverHealthySince == 0L)
+                                                receiverHealthySince = now
+                                            if (now - receiverHealthySince >= 60000)
+                                                receiverAttempts = 0
+                                        } else receiverHealthySince = 0
+                                        if (
+                                            model.state.progress.state in
+                                                listOf("FAILED", "ENDED") &&
+                                                received.state == "PLAYING" &&
+                                                receiverAttempts < 3 &&
+                                                now >= receiverRetryAt
+                                        ) {
+                                            receiverAttempts++
+                                            receiverRetryAt = now + (2000L shl receiverAttempts)
+                                            received.item?.let { item ->
+                                                model.mediaState("BUFFERING", 0, 0)
+                                                playPlan(plan, item)
+                                            }
                                         }
                                     }
                                 }
@@ -147,6 +182,14 @@ class PlaybackService : Service() {
 
     fun refreshFocus() {
         if (::focus.isInitialized) focus.release()
+        val preferences = getSharedPreferences("strategy-health", MODE_PRIVATE)
+        val identity =
+            Build.FINGERPRINT +
+                ":" +
+                packageManager.getPackageInfo(packageName, 0).versionName +
+                ":focus-1"
+        if (preferences.getString("identity", "") != identity)
+            preferences.edit().clear().putString("identity", identity).apply()
         focus =
             AudioFocusFactory.create(
                 Build.VERSION.SDK_INT,
@@ -154,6 +197,19 @@ class PlaybackService : Service() {
                 AudioManager.OnAudioFocusChangeListener { if (it <= 0) player.pause() },
                 getSharedPreferences("zombie", MODE_PRIVATE)
                     .getBoolean("audioFocusCompatibility", false),
+                {
+                    StrategyHealth(
+                        preferences.getInt("focusFailures", 0),
+                        preferences.getLong("focusRetryAfter", 0),
+                    )
+                },
+                { health ->
+                    preferences
+                        .edit()
+                        .putInt("focusFailures", health.failures)
+                        .putLong("focusRetryAfter", health.retryAfter)
+                        .apply()
+                },
             )
     }
 
@@ -197,6 +253,7 @@ class PlaybackService : Service() {
             player.play(
                 plan.url,
                 plan.resumePositionMs,
+                autoplay = model.state.progress.state != "PAUSED",
                 video = item.kind != "audio",
                 seekable = plan.seekable && !plan.live,
             )
@@ -212,9 +269,15 @@ class PlaybackService : Service() {
         }
     }
 
+    fun receiverStatus(item: MediaItem?, status: String) {
+        receiverPlaybackState = status
+        item?.let { model.metadata(it) }
+        updateNotification(model.state)
+    }
+
     fun toggle() {
         if (model.state.incoming && model.state.item?.provider == "spotify") {
-            val action = if (model.state.progress.state == "PAUSED") "resume" else "pause"
+            val action = if (receiverPlaybackState == "PAUSED") "resume" else "pause"
             worker.execute {
                 try {
                     GatewayReceiverRepository(api).command(action)
@@ -225,6 +288,7 @@ class PlaybackService : Service() {
 
     private fun updateNotification(state: PlaybackSession) {
         if (state.plan == null) {
+            if (state.loading) return
             notificationKey = ""
             if (wake.isHeld) wake.release()
             focus.release()
@@ -232,7 +296,11 @@ class PlaybackService : Service() {
             stopSelf()
             return
         }
-        val active = state.progress.state == "PLAYING" || state.progress.state == "BUFFERING"
+        val remotePaused =
+            state.incoming && state.item?.provider == "spotify" && receiverPlaybackState == "PAUSED"
+        val active =
+            !remotePaused &&
+                (state.progress.state == "PLAYING" || state.progress.state == "BUFFERING")
         if (active && !wake.isHeld) wake.acquire(6 * 60 * 60 * 1000L)
         if (!active && wake.isHeld) wake.release()
         val key = "${state.item?.title}:$active"

@@ -30,6 +30,10 @@ class MediaProbePlayback : ProbePlayback {
             val media = MediaPlayer()
             player = media
             var finished = false
+            var operationStarted = false
+            var operationComplete = asset.kind in listOf("playback", "hls")
+            var operationPosition = 0
+            var advancedAfterOperation = false
             fun finish(status: String, completed: Boolean = false, stalled: Boolean = false) {
                 if (finished || run != generation) return
                 finished = true
@@ -51,8 +55,74 @@ class MediaProbePlayback : ProbePlayback {
                     override fun run() {
                         if (finished || run != generation) return
                         try {
-                            positionMs = maxOf(positionMs, media.currentPosition)
-                        } catch (_: Exception) {}
+                            val current = media.currentPosition
+                            positionMs = maxOf(positionMs, current)
+                            if (operationComplete && current >= operationPosition + 500) {
+                                advancedAfterOperation = true
+                            }
+                            if (
+                                !operationStarted &&
+                                    current >= (if (asset.kind == "seek") 800 else 300) &&
+                                    !operationComplete
+                            ) {
+                                operationStarted = true
+                                when (asset.kind) {
+                                    "seek" -> media.seekTo(0)
+                                    "pause-resume" -> {
+                                        media.pause()
+                                        val pausedAt = media.currentPosition
+                                        handler.postDelayed(
+                                            {
+                                                if (finished || run != generation)
+                                                    return@postDelayed
+                                                try {
+                                                    if (
+                                                        media.isPlaying ||
+                                                            kotlin.math.abs(
+                                                                media.currentPosition - pausedAt
+                                                            ) > 200
+                                                    ) {
+                                                        finish("FAIL")
+                                                    } else {
+                                                        operationPosition = media.currentPosition
+                                                        operationComplete = true
+                                                        media.start()
+                                                    }
+                                                } catch (_: Exception) {
+                                                    finish("UNKNOWN")
+                                                }
+                                            },
+                                            300,
+                                        )
+                                    }
+                                    "surface-reattach" -> {
+                                        media.setDisplay(null)
+                                        handler.postDelayed(
+                                            {
+                                                if (finished || run != generation)
+                                                    return@postDelayed
+                                                try {
+                                                    val holder = surface
+                                                    if (holder == null || !holder.surface.isValid) {
+                                                        finish("UNKNOWN")
+                                                    } else {
+                                                        media.setDisplay(holder)
+                                                        operationPosition = media.currentPosition
+                                                        operationComplete = true
+                                                    }
+                                                } catch (_: Exception) {
+                                                    finish("UNKNOWN")
+                                                }
+                                            },
+                                            200,
+                                        )
+                                    }
+                                    else -> finish("UNKNOWN")
+                                }
+                            }
+                        } catch (_: Exception) {
+                            finish("UNKNOWN")
+                        }
                         handler.postDelayed(this, 100)
                     }
                 }
@@ -72,7 +142,7 @@ class MediaProbePlayback : ProbePlayback {
                         media.start()
                         handler.post(tick)
                     } catch (_: Exception) {
-                        finish("FAIL")
+                        finish("UNKNOWN")
                     }
                 }
                 media.setOnInfoListener { _, what, _ ->
@@ -81,8 +151,26 @@ class MediaProbePlayback : ProbePlayback {
                         firstFrameMs = (SystemClock.elapsedRealtime() - started).toInt()
                     false
                 }
+                media.setOnSeekCompleteListener {
+                    if (
+                        !finished && run == generation && asset.kind == "seek" && operationStarted
+                    ) {
+                        try {
+                            val current = media.currentPosition
+                            // Completion alone is insufficient: validate the target and
+                            // advancement.
+                            if (current in 0..350) {
+                                operationPosition = current
+                                operationComplete = true
+                            } else finish("FAIL")
+                        } catch (_: Exception) {
+                            finish("UNKNOWN")
+                        }
+                    }
+                }
                 media.setOnCompletionListener {
-                    finish(if (positionMs >= 500) "PASS" else "UNKNOWN", completed = true)
+                    val passed = operationComplete && advancedAfterOperation
+                    finish(if (passed) "PASS" else "UNKNOWN", completed = true)
                 }
                 media.setOnErrorListener { _, what, extra ->
                     finish(if (extra == -1010 || extra == -1007) "FAIL" else "UNKNOWN")
@@ -90,10 +178,7 @@ class MediaProbePlayback : ProbePlayback {
                 }
                 media.setDataSource(asset.url)
                 media.prepareAsync()
-                handler.postDelayed(
-                    { finish(if (prepareMs > 0) "FAIL" else "UNKNOWN", stalled = prepareMs > 0) },
-                    12000,
-                )
+                handler.postDelayed({ finish("UNKNOWN", stalled = prepareMs > 0) }, 12000)
             } catch (_: Exception) {
                 finish("UNKNOWN")
             }

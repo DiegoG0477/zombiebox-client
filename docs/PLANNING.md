@@ -33,3 +33,8 @@ No product milestone or physical/account gate closes with this checkpoint.
 
 Service-owned playback across Activity recreation/background, paged next-content queue, notification controls and retained semantic subtitle selection; client versionCode 14.
 The four requested block-1 changes are implemented; physical acceptance and broader product gates remain open.
+
+## dev.16 increment
+
+Seven-card Home windows, bounded artwork cache, IPTV time guide, extended diagnostics, native audio-focus health, browser pointer input and service-owned receiver restoration. Client versionCode 16.
+Product exit gates and physical/account acceptance remain open.

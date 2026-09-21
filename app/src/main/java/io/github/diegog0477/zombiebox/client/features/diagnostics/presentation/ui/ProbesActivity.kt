@@ -8,7 +8,9 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.widget.*
 import io.github.diegog0477.zombiebox.client.R
+import io.github.diegog0477.zombiebox.client.features.diagnostics.data.GatewayDiagnosticsRepository
 import io.github.diegog0477.zombiebox.client.features.diagnostics.data.GatewayProbeRepository
+import io.github.diegog0477.zombiebox.client.features.diagnostics.platform.HardwareScanner
 import io.github.diegog0477.zombiebox.client.features.diagnostics.platform.MediaProbePlayback
 import io.github.diegog0477.zombiebox.client.features.diagnostics.presentation.viewmodel.ProbeViewModel
 import io.github.diegog0477.zombiebox.shared.GatewayApi
@@ -29,9 +31,10 @@ class ProbesActivity : Activity() {
             prefs.getString("device", "")!!,
             prefs.getString("token", "")!!,
         )
+        val diagnostics = GatewayDiagnosticsRepository(api, HardwareScanner(applicationContext))
         model =
             ProbeViewModel(
-                GatewayProbeRepository(api),
+                GatewayProbeRepository(api) { diagnostics.scanAndSave() },
                 playback,
                 { work -> executor.execute { work() } },
                 { work -> handler.post { work() } },

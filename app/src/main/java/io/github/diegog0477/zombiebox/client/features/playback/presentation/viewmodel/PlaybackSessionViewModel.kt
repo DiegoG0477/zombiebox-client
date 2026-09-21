@@ -27,6 +27,7 @@ class PlaybackSessionViewModel(
     @Volatile private var closed = false
     private var reported = 0L
     private var ended = ""
+    private var interrupted: PlaybackSession? = null
 
     fun adopt(
         plan: PlaybackPlan,
@@ -164,7 +165,77 @@ class PlaybackSessionViewModel(
         } catch (_: Exception) {}
     }
 
-    fun stop() {
+    fun rememberInterruption() {
+        if (!state.incoming && state.plan != null) interrupted = state
+    }
+
+    fun metadata(item: MediaItem) {
+        if (!state.incoming || state.item == item) return
+        state = state.copy(item = item)
+        observer?.invoke(state)
+    }
+
+    fun restoreInterrupted(): Boolean {
+        val previous = interrupted ?: return false
+        val item = previous.item ?: return false
+        interrupted = null
+        val incoming = state.plan
+        val request = ++generation
+        state = state.copy(loading = true)
+        stopPlayer?.invoke()
+        observer?.invoke(state)
+        execute {
+            try {
+                incoming?.let {
+                    try {
+                        stopIncoming(it.sessionId)
+                    } catch (_: Exception) {}
+                }
+                val plan =
+                    repository.start(
+                        item.id,
+                        "AUTO",
+                        if (previous.plan?.live == true) 0 else previous.progress.positionMs,
+                    )
+                deliver {
+                    if (closed || request != generation) {
+                        execute { discard(plan.sessionId) }
+                    } else {
+                        state =
+                            PlaybackSession(
+                                plan = plan,
+                                item = item,
+                                queue = previous.queue,
+                                cursor = previous.cursor,
+                                subtitleId = previous.subtitleId,
+                                progress =
+                                    PlaybackProgress(
+                                        if (previous.progress.state == "PAUSED") "PAUSED"
+                                        else "BUFFERING",
+                                        plan.resumePositionMs + plan.timelineOffsetMs,
+                                        previous.progress.durationMs,
+                                    ),
+                            )
+                        reported = 0
+                        ended = ""
+                        observer?.invoke(state)
+                        play?.invoke(plan, item)
+                    }
+                }
+            } catch (_: Exception) {
+                deliver {
+                    if (!closed && request == generation) {
+                        state = PlaybackSession(error = true)
+                        observer?.invoke(state)
+                    }
+                }
+            }
+        }
+        return true
+    }
+
+    fun stop(preserveInterrupted: Boolean = false) {
+        if (!preserveInterrupted) interrupted = null
         generation++
         val previous = state
         state = PlaybackSession()

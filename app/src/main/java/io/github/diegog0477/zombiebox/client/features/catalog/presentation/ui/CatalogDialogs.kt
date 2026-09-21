@@ -79,6 +79,12 @@ class CatalogDialogs(
                         ui.providerAccent(provider),
                     )
                 )
+                if (provider == "iptv")
+                    addView(
+                        ui.button(R.string.guide) {
+                            GuideDialog(activity, screen.page.items, play).show()
+                        }
+                    )
                 if (screen.location.query.isNotEmpty())
                     addView(ui.text(screen.location.query, 14f, ui.muted))
                 if (screen.page.items.isEmpty())

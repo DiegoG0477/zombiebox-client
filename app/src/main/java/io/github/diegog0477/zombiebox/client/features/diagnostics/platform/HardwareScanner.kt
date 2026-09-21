@@ -124,9 +124,14 @@ class HardwareScanner(context: Context) : HardwareSource {
         val fingerprint =
             MessageDigest.getInstance("SHA-256")
                 .digest(
-                    (Build.FINGERPRINT + "|" + abis.joinToString(",") + "|scanner-1").toByteArray(
-                        Charsets.UTF_8
-                    )
+                    (Build.FINGERPRINT +
+                            "|" +
+                            abis.joinToString(",") +
+                            "|scanner-2|" +
+                            context.packageManager
+                                .getPackageInfo(context.packageName, 0)
+                                .versionName)
+                        .toByteArray(Charsets.UTF_8)
                 )
                 .joinToString("") { "%02x".format(it.toInt() and 255) }
         return HardwareReport(

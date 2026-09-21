@@ -208,4 +208,9 @@
     <string name="retry_compatible">Retry compatible</string>
     <string name="next_item">Next</string>
     <string name="next_failed">Could not start the next item. Try Next again.</string>
+    <string name="guide">Programme guide</string>
+    <string name="guide_no_programme">No programme information for this time</string>
+    <string name="guide_help">Left/right: time · Up/down: channel · Select: watch live</string>
+    <string name="guide_earlier">Earlier</string>
+    <string name="guide_later">Later</string>
 </resources>

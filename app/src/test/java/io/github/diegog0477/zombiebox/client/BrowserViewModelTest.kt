@@ -13,7 +13,7 @@ class BrowserViewModelTest {
 
         override fun frame(id: String) = byteArrayOf(1)
 
-        override fun input(id: String, action: String, text: String) {}
+        override fun input(id: String, action: String, text: String, x: Int?, y: Int?) {}
 
         override fun stop(id: String) {
             stopped.add(id)

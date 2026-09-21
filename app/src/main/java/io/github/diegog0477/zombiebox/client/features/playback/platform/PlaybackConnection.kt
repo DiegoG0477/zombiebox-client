@@ -121,6 +121,10 @@ class PlaybackConnection(
 
     fun toggle() = command { it.toggle() }
 
+    fun receiverStatus(item: MediaItem?, status: String) = command {
+        it.receiverStatus(item, status)
+    }
+
     fun seek(delta: Int) = command { it.player.seek(delta) }
 
     fun seekTo(position: Int) = command { it.player.seekTo(position) }
@@ -134,7 +138,11 @@ class PlaybackConnection(
 
     fun failed() = command { it.model.replacementFailed() }
 
-    fun end() = command { it.model.stop() }
+    fun end(preserveInterrupted: Boolean = false) = command { it.model.stop(preserveInterrupted) }
+
+    fun rememberInterruption() = command { it.model.rememberInterruption() }
+
+    fun restoreInterrupted(): Boolean = service?.model?.restoreInterrupted() ?: false
 
     fun subtitle(id: Int?) = command { it.model.subtitle(id) }
 

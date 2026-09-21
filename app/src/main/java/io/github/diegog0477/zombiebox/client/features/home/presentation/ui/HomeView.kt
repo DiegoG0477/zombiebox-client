@@ -1,8 +1,6 @@
 package io.github.diegog0477.zombiebox.client.features.home.presentation.ui
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -13,6 +11,8 @@ import io.github.diegog0477.zombiebox.client.R
 import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.core.ui.RemoteFocus
 import io.github.diegog0477.zombiebox.client.core.ui.TvWidgets
+import io.github.diegog0477.zombiebox.client.core.ui.WindowedRow
+import io.github.diegog0477.zombiebox.client.features.artwork.presentation.ui.ArtworkImageView
 import io.github.diegog0477.zombiebox.client.features.artwork.presentation.viewmodel.ArtworkViewModel
 import io.github.diegog0477.zombiebox.client.features.home.domain.model.HomeScope
 import io.github.diegog0477.zombiebox.client.features.home.domain.model.HomeSnapshot
@@ -166,62 +166,106 @@ class HomeView(
                 if (section.id == "continue") context.getString(R.string.continue_watching)
                 else ui.serviceTitle(section.id)
             )
-            val line = horizontal(content, "section:" + section.id)
-            for (item in section.items) {
-                val card = FrameLayout(context).apply { tag = "item:" + section.id + ":" + item.id }
-                val cardContent = ui.column()
-                if (item.imageUrl.isNotEmpty()) {
-                    card.addView(artImage(item.imageUrl, false), FrameLayout.LayoutParams(-1, -1))
-                    cardContent.setBackgroundDrawable(
-                        GradientDrawable(
-                            GradientDrawable.Orientation.BOTTOM_TOP,
-                            intArrayOf(Color.argb(240, 10, 15, 16), Color.argb(90, 10, 15, 16)),
+            val keys =
+                section.items.map { "item:" + section.id + ":" + it.id } +
+                    if (section.id != "continue") listOf("all:" + section.id) else emptyList()
+            val line =
+                WindowedRow(context, keys) { index ->
+                    if (index == section.items.size) {
+                        ui.button(R.string.view_all) { actions.catalog(section.id) }
+                    } else {
+                        val item = section.items[index]
+                        val card =
+                            FrameLayout(context).apply {
+                                tag = "item:" + section.id + ":" + item.id
+                            }
+                        val cardContent = ui.column()
+                        if (item.imageUrl.isNotEmpty()) {
+                            card.addView(
+                                artImage(item.imageUrl, false),
+                                FrameLayout.LayoutParams(-1, -1),
+                            )
+                            cardContent.setBackgroundDrawable(
+                                GradientDrawable(
+                                    GradientDrawable.Orientation.BOTTOM_TOP,
+                                    intArrayOf(
+                                        Color.argb(240, 10, 15, 16),
+                                        Color.argb(90, 10, 15, 16),
+                                    ),
+                                )
+                            )
+                        }
+                        card.addView(cardContent, FrameLayout.LayoutParams(-1, -1))
+                        card.setPadding(ui.dp(2), ui.dp(2), ui.dp(2), ui.dp(2))
+                        cardContent.setPadding(ui.dp(8), ui.dp(6), ui.dp(8), ui.dp(6))
+                        cardContent.gravity = Gravity.BOTTOM
+                        card.setBackgroundDrawable(
+                            ui.focusBackground(ui.providerAccent(item.provider))
                         )
-                    )
-                }
-                card.addView(cardContent, FrameLayout.LayoutParams(-1, -1))
-                card.setPadding(ui.dp(2), ui.dp(2), ui.dp(2), ui.dp(2))
-                cardContent.setPadding(ui.dp(8), ui.dp(6), ui.dp(8), ui.dp(6))
-                cardContent.gravity = Gravity.BOTTOM
-                card.setBackgroundDrawable(ui.focusBackground(ui.providerAccent(item.provider)))
-                card.isFocusable = true
-                card.isClickable = true
-                cardContent.addView(
-                    ui.text(ui.serviceTitle(item.provider), 12f, ui.providerAccent(item.provider))
-                )
-                cardContent.addView(
-                    ui.text(item.title, 19f).apply {
-                        maxLines = 2
-                        typeface = Typeface.DEFAULT_BOLD
+                        card.isFocusable = true
+                        card.isClickable = true
+                        cardContent.addView(
+                            ui.text(
+                                ui.serviceTitle(item.provider),
+                                12f,
+                                ui.providerAccent(item.provider),
+                            )
+                        )
+                        cardContent.addView(
+                            ui.text(item.title, 19f).apply {
+                                maxLines = 2
+                                typeface = Typeface.DEFAULT_BOLD
+                            }
+                        )
+                        if (item.subtitle.isNotEmpty())
+                            cardContent.addView(
+                                ui.text(item.subtitle, 12f, ui.muted).apply { maxLines = 1 }
+                            )
+                        if (item.positionMs > 0)
+                            cardContent.addView(
+                                ui.text(
+                                    context.getString(
+                                        R.string.resume_at,
+                                        ui.formatTime(item.positionMs),
+                                    ),
+                                    12f,
+                                    ui.muted,
+                                )
+                            )
+                        if (item.positionMs > 0 && item.durationMs > 0) {
+                            cardContent.addView(ui.progress(item.positionMs, item.durationMs))
+                        }
+                        card.setOnClickListener { actions.details(item) }
+                        card.layoutParams =
+                            LinearLayout.LayoutParams(ui.dp(230), ui.dp(130)).apply {
+                                setMargins(ui.dp(3), ui.dp(3), ui.dp(8), ui.dp(3))
+                            }
+                        card
                     }
-                )
-                if (item.subtitle.isNotEmpty())
-                    cardContent.addView(
-                        ui.text(item.subtitle, 12f, ui.muted).apply { maxLines = 1 }
-                    )
-                if (item.positionMs > 0)
-                    cardContent.addView(
-                        ui.text(
-                            context.getString(R.string.resume_at, ui.formatTime(item.positionMs)),
-                            12f,
-                            ui.muted,
-                        )
-                    )
-                if (item.positionMs > 0 && item.durationMs > 0) {
-                    cardContent.addView(ui.progress(item.positionMs, item.durationMs))
                 }
-                card.setOnClickListener { actions.details(item) }
-                line.addView(
-                    card,
-                    LinearLayout.LayoutParams(ui.dp(230), ui.dp(130)).apply {
-                        setMargins(ui.dp(3), ui.dp(3), ui.dp(8), ui.dp(3))
-                    },
-                )
-            }
-            if (section.id != "continue")
-                line.addView(
-                    ui.button(R.string.view_all) { actions.catalog(section.id) }
-                        .apply { tag = "all:" + section.id }
+            content.addView(
+                HorizontalScrollView(context).apply {
+                    isHorizontalScrollBarEnabled = false
+                    addView(line)
+                }
+            )
+            focusRows.add(Pair("section:" + section.id, line))
+            if (!tv && keys.size > 7)
+                content.addView(
+                    ui.row().apply {
+                        addView(
+                            ui.button(R.string.previous_page) {
+                                line.page(false)
+                                (line.parent as? HorizontalScrollView)?.scrollTo(0, 0)
+                            }
+                        )
+                        addView(
+                            ui.button(R.string.next_page) {
+                                line.page(true)
+                                (line.parent as? HorizontalScrollView)?.scrollTo(0, 0)
+                            }
+                        )
+                    }
                 )
             if (section.id == "continue") renderServices(snapshot)
         }
@@ -273,32 +317,6 @@ class HomeView(
             services.addView(ui.button(R.string.connect_gateway) { actions.pair() })
     }
 
-    private fun artImage(path: String, hero: Boolean): ImageView {
-        val image =
-            ImageView(context).apply {
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                isFocusable = false
-            }
-        artwork.load(path, hero) { bytes ->
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-            if (bounds.outWidth in 1..960 && bounds.outHeight in 1..540) {
-                try {
-                    image.setImageBitmap(
-                        BitmapFactory.decodeByteArray(
-                            bytes,
-                            0,
-                            bytes.size,
-                            BitmapFactory.Options().apply {
-                                inPreferredConfig = Bitmap.Config.RGB_565
-                            },
-                        )
-                    )
-                } catch (_: OutOfMemoryError) {
-                    image.setImageDrawable(null)
-                }
-            }
-        }
-        return image
-    }
+    private fun artImage(path: String, hero: Boolean): ImageView =
+        ArtworkImageView(context).apply { bind(artwork, path, hero) }
 }

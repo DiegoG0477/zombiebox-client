@@ -216,4 +216,11 @@
     <string name="next_failed">
         No se pudo iniciar el siguiente contenido. Intenta Siguiente de nuevo.
     </string>
+    <string name="guide">Guía de programación</string>
+    <string name="guide_no_programme">Sin información para esta hora</string>
+    <string name="guide_help">
+        Izquierda/derecha: hora · Arriba/abajo: canal · Seleccionar: ver en vivo
+    </string>
+    <string name="guide_earlier">Anterior</string>
+    <string name="guide_later">Siguiente</string>
 </resources>

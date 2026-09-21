@@ -5,7 +5,9 @@ interface BrowserRepository {
 
     fun frame(id: String): ByteArray
 
-    fun input(id: String, action: String, text: String)
+    fun input(id: String, action: String, text: String, x: Int?, y: Int?)
 
     fun stop(id: String)
 }
+
+class BrowserSessionExpired : Exception()

@@ -17,7 +17,11 @@ object MediaItemDecoder {
             item.optInt("positionMs"),
             (0 until programmes.length()).map {
                 val programme = programmes.getJSONObject(it)
-                Programme(programme.optString("title"), programme.optLong("start"))
+                Programme(
+                    programme.optString("title"),
+                    programme.optLong("start"),
+                    programme.optLong("end"),
+                )
             },
             item.optString("imageUrl"),
             item.optInt("durationMs"),
