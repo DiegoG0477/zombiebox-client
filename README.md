@@ -86,3 +86,7 @@ No product or physical acceptance gate closes.
 
 Gateway-generated QR display, local six-digit consent/revocation and guarded discrete remote input for Home/player/catalog. API9 thin-client/no-native boundary remains; APK versionCode 24.
 Full visual/capture policy, extended Remote, HEVC/4K and other product gates remain open; physical acceptance stays deferred.
+
+## dev.25 increment
+
+Isolated API21 decoder candidate discovery and prerequisite-gated extended diagnostics with measurement timestamps. No native libraries; display/encoder/Advanced and physical gates remain open.

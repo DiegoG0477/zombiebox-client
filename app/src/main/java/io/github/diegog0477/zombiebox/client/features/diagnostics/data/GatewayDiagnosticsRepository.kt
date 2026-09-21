@@ -23,7 +23,12 @@ class GatewayDiagnosticsRepository(
             )
         val codecs = JSONArray()
         report.decoders.forEach {
-            codecs.put(JSONObject().put("name", it.name).put("types", JSONArray(it.types)))
+            codecs.put(
+                JSONObject()
+                    .put("name", it.name)
+                    .put("types", JSONArray(it.types))
+                    .put("probeCandidates", JSONArray(it.probeCandidates))
+            )
         }
         val value =
             JSONObject()

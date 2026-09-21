@@ -63,6 +63,14 @@ class ProbeViewModel(
             }
             return
         }
+        val prerequisite = assets[index].requires
+        if (
+            prerequisite.isNotEmpty() &&
+                results.none { it.id == prerequisite && it.status == "PASS" && !it.stalled }
+        ) {
+            next(run, assets, index + 1, results + ProbeResult(assets[index].id, "UNKNOWN"))
+            return
+        }
         publish(ProbeState(running = true, current = assets[index].id, results = results))
         playback.start(assets[index]) { result ->
             deliver { next(run, assets, index + 1, results + result) }

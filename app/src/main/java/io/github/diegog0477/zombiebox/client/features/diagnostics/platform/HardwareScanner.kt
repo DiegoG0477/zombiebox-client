@@ -52,7 +52,9 @@ class HardwareScanner(context: Context) : HardwareSource {
             if (Build.VERSION.SDK_INT >= 16)
                 try {
                     (Class.forName(
-                                "io.github.diegog0477.zombiebox.client.features.diagnostics.platform.Api16CodecDiscovery"
+                                "io.github.diegog0477.zombiebox.client.features.diagnostics.platform." +
+                                    if (Build.VERSION.SDK_INT >= 21) "Api21CodecDiscovery"
+                                    else "Api16CodecDiscovery"
                             )
                             .getConstructor()
                             .newInstance() as CodecDiscovery)
@@ -127,7 +129,7 @@ class HardwareScanner(context: Context) : HardwareSource {
                     (Build.FINGERPRINT +
                             "|" +
                             abis.joinToString(",") +
-                            "|scanner-2|" +
+                            "|scanner-3|" +
                             context.packageManager
                                 .getPackageInfo(context.packageName, 0)
                                 .versionName)

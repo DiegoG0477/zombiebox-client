@@ -10,6 +10,43 @@ import org.junit.Test
 
 class ProbeViewModelTest {
     @Test
+    fun extendedProbeSkipsFailedPrerequisiteWithoutInventingDecoderFailure() {
+        val started = ArrayList<String>()
+        var saved = emptyList<ProbeResult>()
+        val repository =
+            object : ProbeRepository {
+                override fun assets() =
+                    listOf(
+                        ProbeAsset("hevc-1080-main", "http://fixture", true),
+                        ProbeAsset(
+                            "hevc-2160-main",
+                            "http://fixture",
+                            true,
+                            requires = "hevc-1080-main",
+                        ),
+                    )
+
+                override fun save(results: List<ProbeResult>) {
+                    saved = results
+                }
+            }
+        val player =
+            object : ProbePlayback {
+                override fun start(asset: ProbeAsset, result: (ProbeResult) -> Unit) {
+                    started.add(asset.id)
+                    result(ProbeResult(asset.id, "UNKNOWN"))
+                }
+
+                override fun cancel() {}
+            }
+        val model = ProbeViewModel(repository, player, { it() }, { it() })
+        model.start()
+        assertEquals(listOf("hevc-1080-main"), started)
+        assertEquals("UNKNOWN", saved.last().status)
+        assertTrue(model.state.saved)
+    }
+
+    @Test
     fun cancellationDiscardsLateDecoderResultAndDoesNotSavePartialRun() {
         var saved = false
         var callback: ((ProbeResult) -> Unit)? = null

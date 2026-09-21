@@ -18,7 +18,7 @@ class GatewayProbeRepository(
 
     override fun assets(): List<ProbeAsset> {
         refreshInventory()
-        val manifest = api.request("GET", "/v1/probes?suite=2")
+        val manifest = api.request("GET", "/v1/probes?suite=2&extended=1")
         cacheKey = manifest.optString("cacheKey")
         suiteVersion = manifest.optInt("suiteVersion", 1)
         val data = manifest.getJSONArray("probes")
@@ -32,6 +32,7 @@ class GatewayProbeRepository(
                     api.base + path,
                     item.getBoolean("video"),
                     item.optString("kind", "playback"),
+                    item.optString("requires"),
                 )
             }
         val texture =
@@ -63,6 +64,7 @@ class GatewayProbeRepository(
                     .put("positionMs", it.positionMs)
                     .put("completed", it.completed)
                     .put("droppedOrStalled", it.stalled)
+                    .put("testedAt", System.currentTimeMillis() / 1000L)
             )
         }
         api.request(

@@ -5,4 +5,5 @@ data class ProbeAsset(
     val url: String,
     val video: Boolean,
     val kind: String = "playback",
+    val requires: String = "",
 )
