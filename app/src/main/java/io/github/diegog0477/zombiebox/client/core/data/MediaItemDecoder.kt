@@ -28,6 +28,7 @@ object MediaItemDecoder {
             item.optString("browseId"),
             item.optBoolean("playable", true),
             item.optString("kind"),
+            item.optString("guideState"),
         )
     }
 }

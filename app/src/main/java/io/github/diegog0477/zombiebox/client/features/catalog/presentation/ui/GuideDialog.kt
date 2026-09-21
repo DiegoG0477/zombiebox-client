@@ -72,6 +72,8 @@ class GuideDialog(
         val content =
             ui.column().apply {
                 addView(header)
+                if (channels.any { it.guideState == "STALE" })
+                    addView(ui.text(activity.getString(R.string.guide_stale), 13f, ui.muted))
                 addView(ui.text(activity.getString(R.string.guide_help), 13f, ui.muted))
                 addView(list, LinearLayout.LayoutParams(-1, ui.dp(320)))
                 addView(

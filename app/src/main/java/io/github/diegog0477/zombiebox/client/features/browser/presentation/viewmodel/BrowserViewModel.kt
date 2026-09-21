@@ -63,6 +63,13 @@ class BrowserViewModel(
         }
     }
 
+    fun restore(session: String) {
+        if (closed || state.session.isNotEmpty() || !session.matches(Regex("[a-f0-9]{32}"))) return
+        synchronized(lifetime) { activeID = session }
+        state = BrowserState(session = session)
+        refresh()
+    }
+
     fun refresh() = update(null, "")
 
     fun click(x: Int, y: Int) {
@@ -100,7 +107,7 @@ class BrowserViewModel(
         }
     }
 
-    fun close() {
+    fun close(preserveSession: Boolean = false) {
         if (closed) return
         val id =
             synchronized(lifetime) {
@@ -111,7 +118,7 @@ class BrowserViewModel(
             }
         state = BrowserState()
         observer = null
-        if (id.isNotEmpty())
+        if (id.isNotEmpty() && !preserveSession)
             execute {
                 try {
                     repository.stop(id)

@@ -28,4 +28,32 @@ class ArtworkViewModelTest {
         model.load("/v1/artwork/closed", false) { shown++ }
         assertEquals(1, work.size)
     }
+
+    @Test
+    fun navigationReusesCacheButExpiryAndConnectionResetRefetch() {
+        var calls = 0
+        var clock = 0L
+        val repository =
+            object : ArtworkRepository {
+                override fun image(path: String, hero: Boolean): ByteArray {
+                    calls++
+                    return byteArrayOf(1)
+                }
+            }
+        val model = ArtworkViewModel(repository, { it() }, { it() }, 2, { clock })
+        model.load("/v1/artwork/a", false) {}
+        model.reset(clearCache = false)
+        model.load("/v1/artwork/a", false) {}
+        assertEquals(1, calls)
+        clock = 300001
+        model.load("/v1/artwork/a", false) {}
+        assertEquals(2, calls)
+        model.reset()
+        model.load("/v1/artwork/a", false) {}
+        assertEquals(3, calls)
+        model.load("/v1/artwork/b", false) {}
+        model.load("/v1/artwork/c", false) {}
+        model.load("/v1/artwork/a", false) {}
+        assertEquals(6, calls)
+    }
 }

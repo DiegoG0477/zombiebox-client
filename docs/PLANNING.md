@@ -38,3 +38,12 @@ The four requested block-1 changes are implemented; physical acceptance and broa
 
 Seven-card Home windows, bounded artwork cache, IPTV time guide, extended diagnostics, native audio-focus health, browser pointer input and service-owned receiver restoration. Client versionCode 16.
 Product exit gates and physical/account acceptance remain open.
+
+## dev.17 increment
+
+Restores Home/catalog/browser navigation, adds memory-tier images, local multicast diagnostics and integration hints. APK code 17 includes GPL notices.
+
+No product milestone or physical gate is closed.
+
+Artwork encoded caching now survives Home rerenders, expires after five minutes
+and clears on connection changes. Physical scroll/bitmap-memory evidence remains open.

@@ -6,6 +6,7 @@ import android.widget.*
 import io.github.diegog0477.zombiebox.client.R
 import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.core.ui.TvWidgets
+import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogBookmark
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogScreen
 import io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel.CatalogViewModel
 
@@ -31,6 +32,55 @@ class CatalogDialogs(
     }
 
     private var browser: AlertDialog? = null
+    private var detail: AlertDialog? = null
+    val visible: Boolean
+        get() = browser?.isShowing == true || detail?.isShowing == true
+
+    var detailItemId: String = ""
+        private set
+
+    private var captureViewport: (() -> Unit)? = null
+
+    fun snapshot(): List<CatalogBookmark> {
+        captureViewport?.invoke()
+        return model.bookmarks()
+    }
+
+    fun restore(path: List<CatalogBookmark>, detailId: String = "", display: Boolean = true) {
+        if (path.isEmpty()) return
+        val work = {
+            model.restore(
+                path,
+                { screen ->
+                    if (display) {
+                        showPage(screen)
+                        screen.page.items
+                            .firstOrNull { it.id == detailId }
+                            ?.let { item ->
+                                browser?.dismiss()
+                                showDetails(item) { model.screen?.let(::showPage) }
+                            }
+                    }
+                },
+                { failure -> if (display) loadFailed(failure) },
+            )
+        }
+        if (display) load(work) else work()
+    }
+
+    fun resume(): Boolean {
+        val current = model.screen ?: return false
+        showPage(current)
+        return true
+    }
+
+    fun close() {
+        captureViewport = null
+        detail?.dismiss()
+        detail = null
+        browser?.dismiss()
+        browser = null
+    }
 
     fun page(provider: String) {
         load { model.open(provider, query(), ::showPage, ::loadFailed) }
@@ -62,12 +112,16 @@ class CatalogDialogs(
     }
 
     private fun showPage(screen: CatalogScreen) {
+        detailItemId = ""
+        detail?.dismiss()
+        detail = null
         browser?.dismiss()
         val provider = screen.location.provider
         val list = CatalogListView(activity, screen, ui.providerAccent(provider))
         fun remember() {
             model.rememberViewport(list.viewport())
         }
+        captureViewport = ::remember
         val content =
             ui.column().apply {
                 setPadding(ui.dp(12), ui.dp(8), ui.dp(12), ui.dp(8))
@@ -117,10 +171,12 @@ class CatalogDialogs(
                 load { model.next(::showPage, ::loadFailed) }
             }
         if (model.canBack)
-            builder.setNeutralButton(R.string.back) { _, _ -> model.back(::showPage) }
+            builder.setNeutralButton(R.string.back) { _, _ -> model.back(::showPage, ::loadFailed) }
         browser =
             builder.create().also { dialog ->
-                dialog.setOnCancelListener { if (!model.back(::showPage)) model.dismiss() }
+                dialog.setOnCancelListener {
+                    if (!model.back(::showPage, ::loadFailed)) model.dismiss()
+                }
                 dialog.show()
                 list.restoreViewport()
             }
@@ -156,6 +212,8 @@ class CatalogDialogs(
     fun details(item: MediaItem) = showDetails(item, null)
 
     private fun showDetails(item: MediaItem, closed: (() -> Unit)?) {
+        detail?.dismiss()
+        detailItemId = item.id
         val description =
             StringBuilder(
                 item.description.takeIf { it.isNotEmpty() } ?: ui.serviceTitle(item.provider)
@@ -173,6 +231,7 @@ class CatalogDialogs(
                 .setNegativeButton(R.string.close) { _, _ -> closed?.invoke() }
         if (item.playable) builder.setPositiveButton(R.string.play) { _, _ -> play(item) }
         val dialog = builder.create()
+        detail = dialog
         dialog.setOnCancelListener { closed?.invoke() }
         dialog.show()
     }

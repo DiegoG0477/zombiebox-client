@@ -47,12 +47,55 @@ class CatalogViewModel(private val repository: CatalogRepository, private val ta
             load(current.location.copy(offset = current.page.nextOffset), true, done, failed)
     }
 
-    fun back(done: (CatalogScreen) -> Unit): Boolean {
+    fun back(done: (CatalogScreen) -> Unit): Boolean = back(done, {})
+
+    fun back(done: (CatalogScreen) -> Unit, failed: (Exception) -> Unit): Boolean {
         generation++
         if (history.isEmpty()) return false
         screen = history.removeAt(history.lastIndex)
-        done(screen!!)
+        val target = screen!!
+        if (target.page.items.isEmpty())
+            restorePage(CatalogBookmark(target.location, target.viewport), done, failed)
+        else done(target)
         return true
+    }
+
+    fun bookmarks(): List<CatalogBookmark> =
+        (history + listOfNotNull(screen)).takeLast(25).map {
+            CatalogBookmark(it.location, it.viewport)
+        }
+
+    fun restore(
+        bookmarks: List<CatalogBookmark>,
+        done: (CatalogScreen) -> Unit,
+        failed: (Exception) -> Unit,
+    ) {
+        dismiss()
+        val path = bookmarks.takeLast(25)
+        if (path.isEmpty()) return
+        history.addAll(
+            path.dropLast(1).map {
+                CatalogScreen(it.location, CatalogPage(emptyList(), -1), it.viewport)
+            }
+        )
+        restorePage(path.last(), done, failed)
+    }
+
+    private fun restorePage(
+        bookmark: CatalogBookmark,
+        done: (CatalogScreen) -> Unit,
+        failed: (Exception) -> Unit,
+    ) {
+        load(
+            bookmark.location,
+            false,
+            { loaded ->
+                val restored = loaded.copy(viewport = bookmark.viewport)
+                screen = restored
+                done(restored)
+            },
+            failed,
+        )
     }
 
     fun search(query: String, done: (CatalogScreen) -> Unit, failed: (Exception) -> Unit) {

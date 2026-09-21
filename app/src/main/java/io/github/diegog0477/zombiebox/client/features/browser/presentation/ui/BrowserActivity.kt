@@ -19,6 +19,7 @@ class BrowserActivity : Activity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val handler = Handler()
     private lateinit var model: BrowserViewModel
+    private lateinit var addressField: EditText
     private val poll =
         object : Runnable {
             override fun run() {
@@ -56,6 +57,8 @@ class BrowserActivity : Activity() {
                 setSingleLine(true)
                 inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             }
+        addressField = address
+        address.setText(saved?.getString("address") ?: "")
         toolbar.addView(address, LinearLayout.LayoutParams(0, -2, 1f))
         toolbar.addView(
             Button(this).apply {
@@ -168,6 +171,13 @@ class BrowserActivity : Activity() {
                 }
             }
         }
+        model.restore(saved?.getString("browserSession") ?: "")
+    }
+
+    override fun onSaveInstanceState(state: Bundle) {
+        state.putString("browserSession", model.state.session)
+        state.putString("address", addressField.text.toString().take(2048))
+        super.onSaveInstanceState(state)
     }
 
     override fun onResume() {
@@ -181,7 +191,7 @@ class BrowserActivity : Activity() {
     }
 
     override fun onDestroy() {
-        model.close()
+        model.close(preserveSession = changingConfigurations != 0 && !isFinishing)
         executor.execute { api.close() }
         executor.shutdown()
         handler.removeCallbacksAndMessages(null)

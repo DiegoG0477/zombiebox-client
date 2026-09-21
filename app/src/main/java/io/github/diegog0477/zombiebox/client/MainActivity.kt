@@ -27,6 +27,7 @@ import io.github.diegog0477.zombiebox.client.features.artwork.presentation.ui.Ar
 import io.github.diegog0477.zombiebox.client.features.artwork.presentation.viewmodel.ArtworkViewModel
 import io.github.diegog0477.zombiebox.client.features.browser.presentation.ui.BrowserActivity
 import io.github.diegog0477.zombiebox.client.features.catalog.data.GatewayCatalogRepository
+import io.github.diegog0477.zombiebox.client.features.catalog.platform.CatalogSavedState
 import io.github.diegog0477.zombiebox.client.features.catalog.presentation.ui.CatalogDialogs
 import io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel.CatalogViewModel
 import io.github.diegog0477.zombiebox.client.features.diagnostics.data.GatewayDiagnosticsRepository
@@ -75,8 +76,12 @@ import java.util.concurrent.Executors
 class MainActivity : Activity() {
     private val ui by lazy { TvWidgets(this) { contextAccent() } }
 
+    private var artworkScope = ""
+
     private fun render() {
-        artwork.reset()
+        val scope = api.base + "\n" + api.token
+        artwork.reset(clearCache = artworkScope != scope)
+        artworkScope = scope
         imageWorker.queue.clear()
         content.render(snapshot, homeViewModel.state.scope, isTV(), bottom, full)
     }
@@ -197,12 +202,17 @@ class MainActivity : Activity() {
             java.util.concurrent.TimeUnit.MILLISECONDS,
             java.util.concurrent.ArrayBlockingQueue<Runnable>(24),
         )
-    private val artwork =
+    private val artwork by lazy {
         ArtworkViewModel(
             GatewayArtworkRepository(api),
             { work -> imageWorker.execute { work() } },
             { work -> handler.post { work() } },
+            io.github.diegog0477.zombiebox.client.features.artwork.platform.ImageBudget.discover(
+                    this
+                )
+                .encodedBytes,
         )
+    }
     private val prefs by lazy { getSharedPreferences("zombie", MODE_PRIVATE) }
     private lateinit var root: FrameLayout
     private lateinit var content: HomeView
@@ -383,7 +393,17 @@ class MainActivity : Activity() {
         }
         setContentView(root)
         render()
-        if (api.token.isNotEmpty()) refresh() else handler.post { pairing() }
+        content.focus.remember(state?.getString("homeFocus"))
+        if (api.token.isNotEmpty()) {
+            refresh(state?.getString("homeProvider") ?: "", state?.getString("homeQuery") ?: "")
+            handler.post {
+                catalogDialogs.restore(
+                    CatalogSavedState.read(state),
+                    state?.getString("catalogDetail") ?: "",
+                    state?.getBoolean("catalogVisible") ?: true,
+                )
+            }
+        } else handler.post { pairing() }
         events.start { changed ->
             if (!closed && foreground) {
                 receiverViewModel.refresh()
@@ -1107,7 +1127,10 @@ class MainActivity : Activity() {
 
     override fun onBackPressed() {
         if (full) setFullscreen(false)
-        else if (session.isNotEmpty()) stopPlayback() else super.onBackPressed()
+        else if (session.isNotEmpty()) {
+            stopPlayback()
+            catalogDialogs.resume()
+        } else if (catalogModel.screen != null) catalogDialogs.resume() else super.onBackPressed()
     }
 
     override fun onResume() {
@@ -1131,6 +1154,12 @@ class MainActivity : Activity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean("playbackFullscreen", full)
+        outState.putString("homeProvider", homeViewModel.state.scope.provider)
+        outState.putString("homeQuery", homeViewModel.state.scope.query)
+        outState.putString("homeFocus", content.focus.selectedKey)
+        CatalogSavedState.write(outState, catalogDialogs.snapshot())
+        outState.putString("catalogDetail", catalogDialogs.detailItemId)
+        outState.putBoolean("catalogVisible", catalogDialogs.visible)
         super.onSaveInstanceState(outState)
     }
 
@@ -1147,6 +1176,7 @@ class MainActivity : Activity() {
         closed = true
         events.close()
         settingsModel.close()
+        catalogDialogs.close()
         catalogModel.close()
         playbackModel.close()
         tracksModel.close()

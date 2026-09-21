@@ -35,6 +35,26 @@ class CatalogViewModelTest {
     }
 
     @Test
+    fun recreationReloadsSemanticPathAndBackViewport() {
+        val repository = Repository(folder)
+        val first = CatalogViewModel(repository, ScreenTasks({ it() }, { it() }))
+        first.open("plex", "", {}, { throw it })
+        first.rememberViewport(CatalogViewport("folder", "folder", -22))
+        first.enter(folder, {}, { throw it })
+        first.next({}, { throw it })
+        val bookmarks = first.bookmarks()
+        first.close()
+        val restored = CatalogViewModel(repository, ScreenTasks({ it() }, { it() }))
+        restored.restore(bookmarks, {}, { throw it })
+        assertEquals(80, restored.screen!!.location.offset)
+        restored.back({}, { throw it })
+        assertEquals("opaque", restored.screen!!.location.parent)
+        restored.back({}, { throw it })
+        assertEquals(-22, restored.screen!!.viewport.firstTop)
+        assertFalse(restored.canBack)
+    }
+
+    @Test
     fun nestedBackRestoresStableFocusAndScrollWithoutFetchingAgain() {
         val repository = Repository(folder)
         val model = CatalogViewModel(repository, ScreenTasks({ it() }, { it() }))

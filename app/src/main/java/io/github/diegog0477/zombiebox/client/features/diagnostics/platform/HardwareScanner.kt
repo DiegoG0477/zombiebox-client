@@ -148,6 +148,28 @@ class HardwareScanner(context: Context) : HardwareSource {
             network,
             codecs,
             players,
+            integrationHints = integrationHints(),
         )
+    }
+
+    private fun integrationHints(): List<String> {
+        val hints = ArrayList<String>()
+        try {
+            context.packageManager.systemAvailableFeatures?.forEach { feature ->
+                val name = feature.name ?: return@forEach
+                if (
+                    listOf("dial", "dlna", "hdmi", "cec", "television", "leanback").any {
+                        name.contains(it, ignoreCase = true)
+                    }
+                )
+                    hints.add("feature:" + name.take(150))
+            }
+        } catch (_: Exception) {}
+        if (Build.VERSION.SDK_INT >= 21)
+            try {
+                if (context.getSystemService("hdmi_control") != null)
+                    hints.add("service:hdmi_control")
+            } catch (_: Exception) {} catch (_: LinkageError) {}
+        return hints.distinct().take(32)
     }
 }

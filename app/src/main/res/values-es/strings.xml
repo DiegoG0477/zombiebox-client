@@ -223,4 +223,5 @@
     </string>
     <string name="guide_earlier">Anterior</string>
     <string name="guide_later">Siguiente</string>
+    <string name="guide_stale">Guía guardada: actualización temporalmente no disponible.</string>
 </resources>

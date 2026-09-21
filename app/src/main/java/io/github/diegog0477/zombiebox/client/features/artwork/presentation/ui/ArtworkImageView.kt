@@ -8,6 +8,10 @@ import io.github.diegog0477.zombiebox.client.features.artwork.presentation.viewm
 
 /** Gateway-sized derivatives only; a replaced binding never displays an old response. */
 class ArtworkImageView(context: Context) : ImageView(context) {
+    private val budget =
+        io.github.diegog0477.zombiebox.client.features.artwork.platform.ImageBudget.discover(
+            context
+        )
     private var request = 0
     private var bound = ""
 
@@ -35,6 +39,8 @@ class ArtworkImageView(context: Context) : ImageView(context) {
                             bytes.size,
                             BitmapFactory.Options().apply {
                                 inPreferredConfig = Bitmap.Config.RGB_565
+                                val target = if (hero) budget.heroWidth else budget.cardWidth
+                                while (bounds.outWidth / inSampleSize > target) inSampleSize *= 2
                             },
                         )
                     )

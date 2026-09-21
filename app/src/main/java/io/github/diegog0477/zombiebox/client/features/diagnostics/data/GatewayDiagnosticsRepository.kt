@@ -40,6 +40,7 @@ class GatewayDiagnosticsRepository(
                 .put("gatewayLatencyMs", report.latencyMs)
                 .put("decoders", codecs)
                 .put("externalPlayers", JSONArray(report.externalPlayers))
+                .put("integrationHints", JSONArray(report.integrationHints))
                 .put("nativeDial", "UNKNOWN")
                 .put("multicast", "UNKNOWN")
         api.request("PUT", "/v1/device/hardware", value)

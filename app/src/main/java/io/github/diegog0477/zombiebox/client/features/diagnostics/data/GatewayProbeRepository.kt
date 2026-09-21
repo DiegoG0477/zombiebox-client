@@ -9,6 +9,7 @@ import org.json.JSONObject
 
 class GatewayProbeRepository(
     private val api: GatewayApi,
+    private val localAssets: () -> List<ProbeAsset> = { emptyList() },
     private val refreshInventory: () -> Unit = {},
 ) : ProbeRepository {
     private var cacheKey = ""
@@ -30,7 +31,7 @@ class GatewayProbeRepository(
                 item.getBoolean("video"),
                 item.optString("kind", "playback"),
             )
-        }
+        } + localAssets()
     }
 
     override fun save(results: List<ProbeResult>) {

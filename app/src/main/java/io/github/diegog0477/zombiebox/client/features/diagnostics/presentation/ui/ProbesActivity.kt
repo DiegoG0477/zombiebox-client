@@ -22,6 +22,8 @@ class ProbesActivity : Activity() {
     private val handler = Handler()
     private val playback = MediaProbePlayback()
     private lateinit var model: ProbeViewModel
+    private lateinit var probes:
+        io.github.diegog0477.zombiebox.client.features.diagnostics.platform.PlatformProbes
 
     override fun onCreate(saved: Bundle?) {
         super.onCreate(saved)
@@ -32,10 +34,26 @@ class ProbesActivity : Activity() {
             prefs.getString("token", "")!!,
         )
         val diagnostics = GatewayDiagnosticsRepository(api, HardwareScanner(applicationContext))
+        probes =
+            io.github.diegog0477.zombiebox.client.features.diagnostics.platform.PlatformProbes(
+                applicationContext,
+                playback,
+                { work -> executor.execute { work() } },
+                { work -> handler.post { work() } },
+            )
         model =
             ProbeViewModel(
-                GatewayProbeRepository(api) { diagnostics.scanAndSave() },
-                playback,
+                GatewayProbeRepository(
+                    api,
+                    {
+                        io.github.diegog0477.zombiebox.client.features.diagnostics.platform
+                            .PlatformProbes
+                            .assets()
+                    },
+                ) {
+                    diagnostics.scanAndSave()
+                },
+                probes,
                 { work -> executor.execute { work() } },
                 { work -> handler.post { work() } },
             )

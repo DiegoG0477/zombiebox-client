@@ -8,6 +8,14 @@ import android.view.ViewGroup
 /** View adapter; Android retains native click, accessibility and touch handling. */
 class RemoteFocus {
     private val model = FocusModel()
+    private var pendingKey: String? = null
+    val selectedKey: String?
+        get() = model.selected
+
+    fun remember(key: String?) {
+        pendingKey = key
+    }
+
     private val views = LinkedHashMap<String, View>()
     private val windows = LinkedHashMap<String, WindowedRow>()
 
@@ -35,6 +43,12 @@ class RemoteFocus {
                 FocusModel.Row(id, keys)
             }
         )
+        pendingKey?.let { key ->
+            if (views.containsKey(key) || windows.containsKey(key)) {
+                model.select(key)
+                pendingKey = null
+            }
+        }
         if (restore) restore()
     }
 

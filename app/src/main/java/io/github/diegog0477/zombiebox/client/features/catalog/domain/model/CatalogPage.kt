@@ -24,3 +24,5 @@ data class CatalogViewport(
     val firstTop: Int = 0,
     val selectedTop: Int? = null,
 )
+
+data class CatalogBookmark(val location: CatalogLocation, val viewport: CatalogViewport)

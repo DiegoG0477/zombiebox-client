@@ -213,4 +213,5 @@
     <string name="guide_help">Left/right: time · Up/down: channel · Select: watch live</string>
     <string name="guide_earlier">Earlier</string>
     <string name="guide_later">Later</string>
+    <string name="guide_stale">Cached guide: refresh temporarily unavailable.</string>
 </resources>

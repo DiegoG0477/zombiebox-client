@@ -7,27 +7,37 @@ class ArtworkViewModel(
     private val repository: ArtworkRepository,
     private val execute: (() -> Unit) -> Unit,
     private val deliver: (() -> Unit) -> Unit,
+    private val maxCacheBytes: Int = 4 * 1024 * 1024,
+    private val now: () -> Long = System::currentTimeMillis,
 ) {
     private var generation = 0
     private var requested = 0
-    private val cache = LinkedHashMap<String, ByteArray>()
+
+    private data class Cached(val bytes: ByteArray, val expires: Long)
+
+    private val cache = LinkedHashMap<String, Cached>()
     private var cacheBytes = 0
     private var closed = false
 
-    fun reset() {
+    fun reset(clearCache: Boolean = true) {
         generation++
         requested = 0
-        cache.clear()
-        cacheBytes = 0
+        if (clearCache) {
+            cache.clear()
+            cacheBytes = 0
+        }
     }
 
     fun load(path: String, hero: Boolean, display: (ByteArray) -> Unit) {
         if (closed || path.isEmpty()) return
         val key = "$hero:$path"
-        cache.remove(key)?.let { bytes ->
-            cache[key] = bytes
-            display(bytes)
-            return
+        cache.remove(key)?.let { cached ->
+            if (now() < cached.expires) {
+                cache[key] = cached
+                display(cached.bytes)
+                return
+            }
+            cacheBytes -= cached.bytes.size
         }
         if (requested >= 12) return
         requested++
@@ -43,15 +53,13 @@ class ArtworkViewModel(
                 if (!closed && screen == generation) {
                     requested--
                     if (bytes != null) {
-                        if (bytes.size <= 1024 * 1024) {
-                            cache.remove(key)?.let { cacheBytes -= it.size }
-                            while (
-                                cacheBytes + bytes.size > 4 * 1024 * 1024 && cache.isNotEmpty()
-                            ) {
+                        if (bytes.size <= minOf(256 * 1024, maxCacheBytes)) {
+                            cache.remove(key)?.let { cacheBytes -= it.bytes.size }
+                            while (cacheBytes + bytes.size > maxCacheBytes && cache.isNotEmpty()) {
                                 val oldest = cache.keys.first()
-                                cacheBytes -= cache.remove(oldest)!!.size
+                                cacheBytes -= cache.remove(oldest)!!.bytes.size
                             }
-                            cache[key] = bytes
+                            cache[key] = Cached(bytes, now() + 5 * 60 * 1000L)
                             cacheBytes += bytes.size
                         }
                         display(bytes)

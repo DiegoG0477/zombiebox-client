@@ -21,6 +21,22 @@ class BrowserViewModelTest {
     }
 
     @Test
+    fun recreationReusesSessionAndFinalCloseReleasesIt() {
+        val repository = Repository()
+        val id = "a".repeat(32)
+        val old = BrowserViewModel(repository, { it() }, { it() })
+        old.restore(id)
+        assertEquals(id, old.state.session)
+        old.close(preserveSession = true)
+        assertTrue(repository.stopped.isEmpty())
+        val restored = BrowserViewModel(repository, { it() }, { it() })
+        restored.restore(id)
+        assertNotNull(restored.state.frame)
+        restored.close()
+        assertEquals(listOf(id), repository.stopped)
+    }
+
+    @Test
     fun closeBeforeCreationReturnsReleasesLateSession() {
         val repository = Repository()
         val work = ArrayList<() -> Unit>()
