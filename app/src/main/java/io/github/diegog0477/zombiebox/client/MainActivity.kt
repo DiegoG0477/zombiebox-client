@@ -117,7 +117,9 @@ class MainActivity : Activity() {
             }
         }
         audioController = AudioFocusFactory.create(Build.VERSION.SDK_INT, getSystemService(AUDIO_SERVICE) as AudioManager, audioFocus, prefs.getBoolean("audioFocusCompatibility", false))
-        homeViewModel = HomeViewModel(GatewayHomeRepository(api), { work -> worker.execute { work() } }, { done -> handler.post { done() } })
+        val backgroundExecutor = worker
+        val uiHandler = handler
+        homeViewModel = HomeViewModel(GatewayHomeRepository(api), { work -> backgroundExecutor.execute { work() } }, { done -> uiHandler.post { done() } })
         homeViewModel.observer = { state ->
             if (!closed && !state.loading) { render(); state.failure?.let { error(it) } }
         }
@@ -365,7 +367,7 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this).setTitle(R.string.search).setView(input).setPositiveButton(R.string.search) { _, _ -> refresh(query = input.text.toString()) }.setNegativeButton(R.string.cancel, null).show()
     }
     private fun catalogPage(provider: String, offset: Int = 0) {
-        async({ api.request("GET", "/v1/catalog?provider=" + URLEncoder.encode(provider, "UTF-8") + "&offset=$offset") }, { page ->
+        async({ api.request("GET", "/v1/catalog?provider=" + URLEncoder.encode(provider, "UTF-8") + "&offset=$offset&q=" + URLEncoder.encode(homeViewModel.state.scope.query, "UTF-8")) }, { page ->
             val items = page.getJSONArray("items")
             val labels = Array(items.length()) { i -> val item = items.getJSONObject(i); item.optString("title") + item.optString("subtitle").takeIf { it.isNotEmpty() }?.let { " — $it" }.orEmpty() }
             val dialog = AlertDialog.Builder(this).setTitle(serviceTitle(provider)).setItems(labels) { _, index -> details(GatewayHomeRepository.decodeItem(items.getJSONObject(index))) }.setNegativeButton(R.string.close, null)
