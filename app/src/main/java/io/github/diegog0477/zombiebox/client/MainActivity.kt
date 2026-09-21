@@ -233,6 +233,7 @@ class MainActivity : Activity() {
         homeFocus.rebuild(focusRows + Pair("transport", bottom), !full)
     }
     private fun refresh(provider: String = homeViewModel.state.scope.provider, query: String = homeViewModel.state.scope.query) {
+        if (provider == "rebrowser") { startActivity(Intent(this, BrowserActivity::class.java)); return }
         if (api.token.isNotEmpty()) homeViewModel.refresh(HomeScope(provider, query))
     }
     private fun <T> async(work: () -> T, done: (T) -> Unit, notify: Boolean = true, onError: () -> Unit = {}) {
@@ -299,8 +300,8 @@ class MainActivity : Activity() {
             .put("memory", JSONObject().put("memoryClassMb", memory.memoryClass).put("physicalMb", 0))
     }
     private fun settings() {
-        AlertDialog.Builder(this).setTitle(R.string.settings).setItems(arrayOf(getString(R.string.connect_gateway), getString(R.string.configure_services), getString(R.string.diagnostics), getString(R.string.language), getString(R.string.presentation_mode), getString(R.string.advanced), getString(R.string.receive_cast))) { _, index ->
-            when (index) { 0 -> pairing(); 1 -> providerList(); 2 -> diagnostics(); 3 -> language(); 4 -> mode(); 5 -> advanced(); 6 -> receiverSettings() }
+        AlertDialog.Builder(this).setTitle(R.string.settings).setItems(arrayOf(getString(R.string.connect_gateway), getString(R.string.configure_services), getString(R.string.diagnostics), getString(R.string.language), getString(R.string.presentation_mode), getString(R.string.advanced), getString(R.string.receive_cast), getString(R.string.gateway_services))) { _, index ->
+            when (index) { 0 -> pairing(); 1 -> providerList(); 2 -> diagnostics(); 3 -> language(); 4 -> mode(); 5 -> advanced(); 6 -> receiverSettings(); 7 -> startActivity(Intent(this, ServicesActivity::class.java)) }
         }.setNegativeButton(R.string.close, null).show()
     }
     private fun providerList() {
