@@ -126,4 +126,12 @@
     <string name="browser_activate">Open link</string>
     <string name="browser_text">Text for the focused field</string>
     <string name="browser_type">Type</string>
+    <string name="run_probes">Run media probes</string>
+    <string name="probe_description">Plays muted synthetic clips, one at a time. Results are saved on the gateway. Run again after system updates; a passing result still needs visual confirmation.</string>
+    <string name="probes_unavailable">Probe assets unavailable or results could not be saved. Generate fixtures on your gateway and retry.</string>
+    <string name="probes_saved">Results saved on gateway</string>
+    <string name="probe_result">%1$s: %2$s · prepare %3$d ms · played %4$d ms</string>
+    <string name="probe_pass">Passed</string>
+    <string name="probe_fail">Failed</string>
+    <string name="probe_unknown">Unknown</string>
 </resources>

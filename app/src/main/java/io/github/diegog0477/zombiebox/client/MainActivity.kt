@@ -8,6 +8,8 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -46,6 +48,10 @@ class MainActivity : Activity() {
     private val poller = Executors.newSingleThreadExecutor()
     private val api = GatewayApi()
     private val handler = Handler()
+    private val imageWorker = java.util.concurrent.ThreadPoolExecutor(2, 2, 0L, java.util.concurrent.TimeUnit.MILLISECONDS, java.util.concurrent.ArrayBlockingQueue<Runnable>(24))
+    private val artwork = io.github.diegog0477.zombiebox.client.presentation.ArtworkViewModel(
+        io.github.diegog0477.zombiebox.client.data.GatewayArtworkRepository(api),
+        { work -> imageWorker.execute { work() } }, { work -> handler.post { work() } })
     private val prefs by lazy { getSharedPreferences("zombie", MODE_PRIVATE) }
     private lateinit var root: FrameLayout
     private lateinit var content: LinearLayout
@@ -178,6 +184,7 @@ class MainActivity : Activity() {
     }
     private fun title(label: String) { content.addView(text(label, 18f).apply { setPadding(dp(4), dp(14), 0, dp(8)) }) }
     private fun render() {
+        artwork.reset(); imageWorker.queue.clear()
         focusRows.clear()
         content.removeAllViews()
         val nav = horizontal(content, "navigation")
@@ -188,10 +195,16 @@ class MainActivity : Activity() {
         }
         nav.addView(button(R.string.search) { search() })
         nav.addView(button(R.string.settings) { settings() })
+        val heroFrame = FrameLayout(this)
         val hero = column()
         hero.setPadding(dp(24), dp(18), dp(24), dp(18))
         hero.setBackgroundDrawable(GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.rgb(20, 39, 31), Color.rgb(25, 41, 44), background)).apply { cornerRadius = dp(10).toFloat() })
         val featured = snapshot.hero
+        if (featured != null && featured.imageUrl.isNotEmpty()) {
+            heroFrame.addView(artImage(featured.imageUrl, true), FrameLayout.LayoutParams(-1, -1))
+            hero.setBackgroundDrawable(GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.argb(240,10,15,16),Color.argb(100,10,15,16))))
+        }
+        heroFrame.addView(hero, FrameLayout.LayoutParams(-1,-2))
         hero.addView(text(getString(R.string.tagline), 12f, green))
         hero.addView(text(featured?.title ?: getString(R.string.welcome), 32f).apply { typeface = Typeface.DEFAULT_BOLD; maxLines = 2 })
         hero.addView(text(featured?.description?.takeIf { it.isNotEmpty() } ?: getString(R.string.welcome_detail), 16f, muted).apply { maxLines = 2 })
@@ -202,17 +215,23 @@ class MainActivity : Activity() {
         } else heroActions.addView(button(R.string.configure_services) { settings() })
         focusRows.add(Pair("hero", heroActions))
         hero.addView(heroActions)
-        content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(14), 0, dp(4)) })
+        content.addView(heroFrame, LinearLayout.LayoutParams(-1, dp(240)).apply { setMargins(0, dp(14), 0, dp(4)) })
         for (section in snapshot.sections) {
             title(if (section.id == "continue") getString(R.string.continue_watching) else serviceTitle(section.id))
             val line = horizontal(content, "section:" + section.id)
             for (item in section.items) {
-                val card = column().apply { tag = "item:" + section.id + ":" + item.id }
+                val card = FrameLayout(this).apply { tag = "item:" + section.id + ":" + item.id }
+                val cardContent = column()
+                if (item.imageUrl.isNotEmpty()) {
+                    card.addView(artImage(item.imageUrl, false), FrameLayout.LayoutParams(-1,-1))
+                    cardContent.setBackgroundDrawable(GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, intArrayOf(Color.argb(240,10,15,16),Color.argb(90,10,15,16))))
+                }
+                card.addView(cardContent, FrameLayout.LayoutParams(-1,-1))
                 card.setPadding(dp(12), dp(12), dp(12), dp(12)); card.setBackgroundDrawable(focusBackground()); card.isFocusable = true; card.isClickable = true
-                card.addView(text(serviceTitle(item.provider), 12f, green))
-                card.addView(text(item.title, 19f).apply { maxLines = 2; typeface = Typeface.DEFAULT_BOLD })
-                if (item.subtitle.isNotEmpty()) card.addView(text(item.subtitle, 12f, muted).apply { maxLines = 1 })
-                if (item.positionMs > 0) card.addView(text(getString(R.string.resume_at, formatTime(item.positionMs)), 12f, muted))
+                cardContent.addView(text(serviceTitle(item.provider), 12f, green))
+                cardContent.addView(text(item.title, 19f).apply { maxLines = 2; typeface = Typeface.DEFAULT_BOLD })
+                if (item.subtitle.isNotEmpty()) cardContent.addView(text(item.subtitle, 12f, muted).apply { maxLines = 1 })
+                if (item.positionMs > 0) cardContent.addView(text(getString(R.string.resume_at, formatTime(item.positionMs)), 12f, muted))
                 card.setOnClickListener { details(item) }
                 line.addView(card, LinearLayout.LayoutParams(dp(230), dp(130)).apply { setMargins(dp(3), dp(3), dp(8), dp(3)) })
             }
@@ -231,6 +250,18 @@ class MainActivity : Activity() {
         if (snapshot.modules.isEmpty()) services.addView(button(R.string.connect_gateway) { pairing() })
         content.addView(text(getString(if (isTV()) R.string.docked_description else R.string.handheld_description), 14f, muted))
         homeFocus.rebuild(focusRows + Pair("transport", bottom), !full)
+    }
+    private fun artImage(path: String, hero: Boolean): ImageView {
+        val image = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; isFocusable = false }
+        artwork.load(path, hero) { bytes ->
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes,0,bytes.size,bounds)
+            if (bounds.outWidth in 1..960 && bounds.outHeight in 1..540) {
+                try { image.setImageBitmap(BitmapFactory.decodeByteArray(bytes,0,bytes.size,BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })) }
+                catch (_: OutOfMemoryError) { image.setImageDrawable(null) }
+            }
+        }
+        return image
     }
     private fun refresh(provider: String = homeViewModel.state.scope.provider, query: String = homeViewModel.state.scope.query) {
         if (provider == "rebrowser") { startActivity(Intent(this, BrowserActivity::class.java)); return }
@@ -294,10 +325,10 @@ class MainActivity : Activity() {
         val display = resources.displayMetrics
         val touch = packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
         val memory = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-        return JSONObject().put("clientVersion", "0.1.0-dev.4").put("protocolVersion", 1).put("installationId", id)
+        return JSONObject().put("clientVersion", packageManager.getPackageInfo(packageName, 0).versionName).put("protocolVersion", 1).put("installationId", id)
             .put("platform", JSONObject().put("androidApi", Build.VERSION.SDK_INT).put("release", Build.VERSION.RELEASE).put("manufacturer", Build.MANUFACTURER).put("model", Build.MODEL).put("abis", JSONArray().put(Build.CPU_ABI)))
             .put("display", JSONObject().put("width", display.widthPixels).put("height", display.heightPixels).put("dpi", display.densityDpi).put("touch", touch).put("dpad", resources.configuration.navigation == Configuration.NAVIGATION_DPAD || !touch))
-            .put("memory", JSONObject().put("memoryClassMb", memory.memoryClass).put("physicalMb", 0))
+            .put("memory", JSONObject().put("memoryClassMb", memory.memoryClass).put("physicalMb", io.github.diegog0477.zombiebox.client.platform.HardwareMemory.physicalMb()))
     }
     private fun settings() {
         AlertDialog.Builder(this).setTitle(R.string.settings).setItems(arrayOf(getString(R.string.connect_gateway), getString(R.string.configure_services), getString(R.string.diagnostics), getString(R.string.language), getString(R.string.presentation_mode), getString(R.string.advanced), getString(R.string.receive_cast), getString(R.string.gateway_services))) { _, index ->
@@ -362,7 +393,7 @@ class MainActivity : Activity() {
     }
     private fun diagnostics() {
         val report = getString(R.string.device_report, Build.MANUFACTURER, Build.MODEL, Build.VERSION.SDK_INT, Build.CPU_ABI, (getSystemService(ACTIVITY_SERVICE) as ActivityManager).memoryClass)
-        AlertDialog.Builder(this).setTitle(R.string.diagnostics).setMessage(report).setPositiveButton(R.string.close, null).show()
+        AlertDialog.Builder(this).setTitle(R.string.diagnostics).setMessage(report).setNeutralButton(R.string.run_probes) { _, _ -> startActivity(Intent(this, ProbesActivity::class.java)) }.setPositiveButton(R.string.close, null).show()
     }
     private fun language() { AlertDialog.Builder(this).setTitle(R.string.language).setItems(arrayOf("English", "Español")) { _, which ->
         prefs.edit().putString("language", if (which == 0) "en" else "es").commit()
@@ -551,6 +582,6 @@ class MainActivity : Activity() {
     override fun onPause() { foreground = false; player.pause(); super.onPause() }
     override fun onDestroy() {
         audioController.release()
-        closed = true; receiverViewModel.close(); homeViewModel.close(); foreground = false; handler.removeCallbacksAndMessages(null); api.close(); player.close(); worker.shutdownNow(); poller.shutdownNow(); super.onDestroy()
+        closed = true; artwork.close(); imageWorker.shutdownNow(); receiverViewModel.close(); homeViewModel.close(); foreground = false; handler.removeCallbacksAndMessages(null); api.close(); player.close(); worker.shutdownNow(); poller.shutdownNow(); super.onDestroy()
     }
 }

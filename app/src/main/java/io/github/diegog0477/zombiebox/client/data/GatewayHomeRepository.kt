@@ -26,7 +26,7 @@ class GatewayHomeRepository(private val api: GatewayApi) : HomeRepository {
                 item.optString("description"), item.optInt("positionMs"), (0 until programmes.length()).map {
                     val programme = programmes.getJSONObject(it)
                     Programme(programme.optString("title"), programme.optLong("start"))
-                })
+                }, item.optString("imageUrl"))
         }
     }
 }

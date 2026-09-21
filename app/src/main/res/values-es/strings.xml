@@ -126,4 +126,12 @@
     <string name="browser_activate">Abrir enlace</string>
     <string name="browser_text">Texto para el campo seleccionado</string>
     <string name="browser_type">Escribir</string>
+    <string name="run_probes">Ejecutar pruebas multimedia</string>
+    <string name="probe_description">Reproduce clips sintéticos sin sonido, uno a la vez. Los resultados se guardan en el gateway. Repite después de actualizar el sistema; confirma visualmente los resultados.</string>
+    <string name="probes_unavailable">Pruebas no disponibles o no se pudieron guardar. Genera los clips en el gateway y reintenta.</string>
+    <string name="probes_saved">Resultados guardados en el gateway</string>
+    <string name="probe_result">%1$s: %2$s · preparación %3$d ms · reproducido %4$d ms</string>
+    <string name="probe_pass">Correcto</string>
+    <string name="probe_fail">Falló</string>
+    <string name="probe_unknown">Desconocido</string>
 </resources>
