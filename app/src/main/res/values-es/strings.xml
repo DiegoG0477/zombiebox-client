@@ -87,4 +87,8 @@
     <string name="view_all">Ver todos</string>
     <string name="next_page">Página siguiente</string>
     <string name="previous_page">Página anterior</string>
+    <string name="advanced">Avanzado</string>
+    <string name="audio_focus_backend">Control de foco de audio</string>
+    <string name="backend_auto">Automático (preferir API moderna si está disponible)</string>
+    <string name="backend_compatibility">Implementación de compatibilidad</string>
 </resources>

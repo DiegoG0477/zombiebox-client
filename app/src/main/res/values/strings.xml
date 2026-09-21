@@ -87,4 +87,8 @@
     <string name="view_all">View all</string>
     <string name="next_page">Next page</string>
     <string name="previous_page">Previous page</string>
+    <string name="advanced">Advanced</string>
+    <string name="audio_focus_backend">Audio focus backend</string>
+    <string name="backend_auto">Automatic (prefer modern platform when available)</string>
+    <string name="backend_compatibility">Compatibility platform backend</string>
 </resources>

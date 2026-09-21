@@ -1,4 +1,4 @@
-package tv.zombiebox.client
+package io.github.diegog0477.zombiebox.client
 
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream

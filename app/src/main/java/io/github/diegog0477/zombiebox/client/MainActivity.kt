@@ -1,4 +1,4 @@
-package tv.zombiebox.client
+package io.github.diegog0477.zombiebox.client
 
 import android.app.Activity
 import android.app.ActivityManager
@@ -24,6 +24,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.*
+import io.github.diegog0477.zombiebox.client.data.GatewayHomeRepository
+import io.github.diegog0477.zombiebox.client.model.*
+import io.github.diegog0477.zombiebox.client.presentation.HomeViewModel
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URL
@@ -48,14 +51,19 @@ class MainActivity : Activity() {
     private lateinit var videoSurface: VideoSurface
     private lateinit var player: EmbeddedPlayer
     private val audioFocus = AudioManager.OnAudioFocusChangeListener { if (it <= 0) player.pause() }
-    private var screen = JSONObject()
-    private var modules = JSONArray()
+    private lateinit var homeViewModel: HomeViewModel
+    private val snapshot get() = homeViewModel.state.snapshot
     private var session = ""
     private var stream = ""
     private var mime = "video/mp4"
     private var itemTitle = ""
     private var full = false
-    private var lastFocus: View? = null
+    private val homeFocus = RemoteFocus()
+    private val playerFocus = RemoteFocus()
+    private val focusRows = ArrayList<Pair<String, ViewGroup>>()
+    private lateinit var bottom: LinearLayout
+    private lateinit var audioController: AudioFocusController
+    private var gamepadClick: View? = null
     private var lastReport = 0L
     private var lastState = ""
     private var lastPosition = 0
@@ -86,12 +94,12 @@ class MainActivity : Activity() {
         content.setPadding(dp(22), dp(16), dp(22), dp(18))
         scroll.addView(content)
         shell.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        val bottom = row()
+        bottom = row()
         bottom.setPadding(dp(16), dp(4), dp(16), dp(4))
         bottom.setBackgroundColor(panel)
         now = text(getString(R.string.nothing_playing), 16f)
         bottom.addView(now, LinearLayout.LayoutParams(0, -2, 1f))
-        bottom.addView(button(R.string.play_pause) { player.toggle() })
+        bottom.addView(button(R.string.play_pause) { togglePlayback() })
         bottom.addView(button(R.string.expand) { if (session.isNotEmpty()) setFullscreen(!full) })
         shell.addView(bottom)
         createPlayer()
@@ -107,6 +115,11 @@ class MainActivity : Activity() {
                 val current = session
                 async({ api.request("PUT", "/v1/playback/$current/progress", JSONObject().put("state", status).put("positionMs", position).put("durationMs", duration)) }, {}, false)
             }
+        }
+        audioController = AudioFocusFactory.create(Build.VERSION.SDK_INT, getSystemService(AUDIO_SERVICE) as AudioManager, audioFocus, prefs.getBoolean("audioFocusCompatibility", false))
+        homeViewModel = HomeViewModel(GatewayHomeRepository(api), { work -> worker.execute { work() } }, { done -> handler.post { done() } })
+        homeViewModel.observer = { state ->
+            if (!closed && !state.loading) { render(); state.failure?.let { error(it) } }
         }
         setContentView(root)
         render()
@@ -146,78 +159,71 @@ class MainActivity : Activity() {
         setOnClickListener { click() }
         layoutParams = LinearLayout.LayoutParams(-2, dp(44)).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }
     }
-    private fun button(label: Int, click: () -> Unit) = action(getString(label), click)
-    private fun horizontal(parent: LinearLayout): LinearLayout {
+    private fun button(label: Int, click: () -> Unit) = action(getString(label), click).apply { tag = "button:$label" }
+    private fun horizontal(parent: LinearLayout, id: String = ""): LinearLayout {
         val scroll = HorizontalScrollView(this); scroll.isHorizontalScrollBarEnabled = false
-        val line = row(); scroll.addView(line); parent.addView(scroll); return line
+        val line = row(); scroll.addView(line); parent.addView(scroll)
+        if (id.isNotEmpty()) focusRows.add(Pair(id, line))
+        return line
     }
     private fun title(label: String) { content.addView(text(label, 18f).apply { setPadding(dp(4), dp(14), 0, dp(8)) }) }
     private fun render() {
-        val focused = currentFocus?.tag
+        focusRows.clear()
         content.removeAllViews()
-        val nav = horizontal(content)
+        val nav = horizontal(content, "navigation")
         nav.addView(text(getString(R.string.brand), 25f, green).apply { typeface = Typeface.DEFAULT_BOLD; setPadding(0, 0, dp(24), 0) })
-        nav.addView(button(R.string.home) { refresh() })
+        nav.addView(button(R.string.home) { refresh("", "") })
         for (id in arrayOf("youtube", "plex", "stremio", "spotify", "iptv", "airplay")) {
-            nav.addView(action(serviceTitle(id)) { refresh(id) })
+            nav.addView(action(serviceTitle(id)) { refresh(id, "") }.apply { tag = "nav:$id" })
         }
         nav.addView(button(R.string.search) { search() })
         nav.addView(button(R.string.settings) { settings() })
         val hero = column()
         hero.setPadding(dp(24), dp(18), dp(24), dp(18))
         hero.setBackgroundDrawable(GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.rgb(20, 39, 31), Color.rgb(25, 41, 44), background)).apply { cornerRadius = dp(10).toFloat() })
-        val featured = screen.optJSONObject("hero")?.optJSONObject("item")
+        val featured = snapshot.hero
         hero.addView(text(getString(R.string.tagline), 12f, green))
-        hero.addView(text(featured?.optString("title") ?: getString(R.string.welcome), 32f).apply { typeface = Typeface.DEFAULT_BOLD; maxLines = 2 })
-        hero.addView(text(featured?.optString("description")?.takeIf { it.isNotEmpty() } ?: getString(R.string.welcome_detail), 16f, muted).apply { maxLines = 2 })
+        hero.addView(text(featured?.title ?: getString(R.string.welcome), 32f).apply { typeface = Typeface.DEFAULT_BOLD; maxLines = 2 })
+        hero.addView(text(featured?.description?.takeIf { it.isNotEmpty() } ?: getString(R.string.welcome_detail), 16f, muted).apply { maxLines = 2 })
         val heroActions = row()
         if (featured != null) {
             heroActions.addView(button(R.string.play) { startPlayback(featured) })
             heroActions.addView(button(R.string.more_info) { details(featured) })
         } else heroActions.addView(button(R.string.configure_services) { settings() })
+        focusRows.add(Pair("hero", heroActions))
         hero.addView(heroActions)
         content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(14), 0, dp(4)) })
-        val sections = screen.optJSONArray("sections") ?: JSONArray()
-        for (i in 0 until sections.length()) {
-            val section = sections.getJSONObject(i)
-            title(if (section.optString("id") == "continue") getString(R.string.continue_watching) else serviceTitle(section.optString("id")))
-            val line = horizontal(content)
-            val items = section.optJSONArray("items") ?: JSONArray()
-            for (j in 0 until items.length()) {
-                val item = items.getJSONObject(j)
-                val card = column().apply { tag = "item:" + item.optString("id") }
+        for (section in snapshot.sections) {
+            title(if (section.id == "continue") getString(R.string.continue_watching) else serviceTitle(section.id))
+            val line = horizontal(content, "section:" + section.id)
+            for (item in section.items) {
+                val card = column().apply { tag = "item:" + section.id + ":" + item.id }
                 card.setPadding(dp(12), dp(12), dp(12), dp(12)); card.setBackgroundDrawable(focusBackground()); card.isFocusable = true; card.isClickable = true
-                card.addView(text(serviceTitle(item.optString("provider")), 12f, green))
-                card.addView(text(item.optString("title"), 19f).apply { maxLines = 2; typeface = Typeface.DEFAULT_BOLD })
-                if (item.optString("subtitle").isNotEmpty()) card.addView(text(item.optString("subtitle"), 12f, muted).apply { maxLines = 1 })
-                if (item.optLong("positionMs") > 0) card.addView(text(getString(R.string.resume_at, formatTime(item.optInt("positionMs"))), 12f, muted))
-                card.setOnClickListener { lastFocus = card; details(item) }
+                card.addView(text(serviceTitle(item.provider), 12f, green))
+                card.addView(text(item.title, 19f).apply { maxLines = 2; typeface = Typeface.DEFAULT_BOLD })
+                if (item.subtitle.isNotEmpty()) card.addView(text(item.subtitle, 12f, muted).apply { maxLines = 1 })
+                if (item.positionMs > 0) card.addView(text(getString(R.string.resume_at, formatTime(item.positionMs)), 12f, muted))
+                card.setOnClickListener { details(item) }
                 line.addView(card, LinearLayout.LayoutParams(dp(230), dp(130)).apply { setMargins(dp(3), dp(3), dp(8), dp(3)) })
             }
-            if (section.optString("id") != "continue") line.addView(button(R.string.view_all) { catalogPage(section.optString("id")) })
+            if (section.id != "continue") line.addView(button(R.string.view_all) { catalogPage(section.id) }.apply { tag = "all:" + section.id })
         }
         title(getString(R.string.apps_content))
-        val services = horizontal(content)
-        for (i in 0 until modules.length()) {
-            val module = modules.getJSONObject(i)
-            val id = module.optString("id")
-            val label = serviceTitle(id) + "\n" + localizedState(module.optString("state"))
-            services.addView(action(label) { if (module.optString("state") == "DISABLED") providerList() else refresh(id) }.apply {
+        val services = horizontal(content, "services")
+        for (module in snapshot.modules) {
+            val id = module.id
+            val label = serviceTitle(id) + "\n" + localizedState(module.state)
+            services.addView(action(label) { if (module.state == "DISABLED") providerList() else refresh(id, "") }.apply {
+                tag = "service:$id"
                 layoutParams = LinearLayout.LayoutParams(dp(165), dp(66)).apply { setMargins(dp(3), dp(3), dp(6), dp(3)) }
             })
         }
-        if (modules.length() == 0) services.addView(button(R.string.connect_gateway) { pairing() })
+        if (snapshot.modules.isEmpty()) services.addView(button(R.string.connect_gateway) { pairing() })
         content.addView(text(getString(if (isTV()) R.string.docked_description else R.string.handheld_description), 14f, muted))
-        if (focused != null) content.findViewWithTag<View>(focused)?.requestFocus()
+        homeFocus.rebuild(focusRows + Pair("transport", bottom), !full)
     }
-    private var refreshing = false
-    private fun refresh(provider: String = "", query: String = "") {
-        if (api.token.isEmpty() || refreshing) return
-        refreshing = true
-        async({
-            val home = api.request("GET", "/v1/home?provider=" + URLEncoder.encode(provider, "UTF-8") + "&q=" + URLEncoder.encode(query, "UTF-8"))
-            Pair(home, api.request("GET", "/v1/modules").optJSONArray("modules") ?: JSONArray())
-        }, { screen = it.first; modules = it.second; refreshing = false; render() }, onError = { refreshing = false })
+    private fun refresh(provider: String = homeViewModel.state.scope.provider, query: String = homeViewModel.state.scope.query) {
+        if (api.token.isNotEmpty()) homeViewModel.refresh(HomeScope(provider, query))
     }
     private fun <T> async(work: () -> T, done: (T) -> Unit, notify: Boolean = true, onError: () -> Unit = {}) {
         if (closed) return
@@ -266,7 +272,7 @@ class MainActivity : Activity() {
                 async({ val connection = GatewayApi(); connection.base = candidate; connection.request("POST", "/v1/devices/register", payload) }, { result ->
                     stopPlayback(); api.disconnect(); api.configure(candidate, result.getString("deviceId"), result.getString("deviceToken"))
                     prefs.edit().putString("gateway", api.base).putString("device", api.device).putString("token", api.token).commit()
-                    dialog.dismiss(); refresh()
+                    dialog.dismiss(); homeViewModel.reset(); refresh()
                 }, onError = { dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true })
             }
         }
@@ -277,14 +283,14 @@ class MainActivity : Activity() {
         val display = resources.displayMetrics
         val touch = packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
         val memory = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-        return JSONObject().put("clientVersion", "0.1.0-dev.2").put("protocolVersion", 1).put("installationId", id)
+        return JSONObject().put("clientVersion", "0.1.0-dev.3").put("protocolVersion", 1).put("installationId", id)
             .put("platform", JSONObject().put("androidApi", Build.VERSION.SDK_INT).put("release", Build.VERSION.RELEASE).put("manufacturer", Build.MANUFACTURER).put("model", Build.MODEL).put("abis", JSONArray().put(Build.CPU_ABI)))
             .put("display", JSONObject().put("width", display.widthPixels).put("height", display.heightPixels).put("dpi", display.densityDpi).put("touch", touch).put("dpad", resources.configuration.navigation == Configuration.NAVIGATION_DPAD || !touch))
             .put("memory", JSONObject().put("memoryClassMb", memory.memoryClass).put("physicalMb", 0))
     }
     private fun settings() {
-        AlertDialog.Builder(this).setTitle(R.string.settings).setItems(arrayOf(getString(R.string.connect_gateway), getString(R.string.configure_services), getString(R.string.diagnostics), getString(R.string.language), getString(R.string.presentation_mode))) { _, index ->
-            when (index) { 0 -> pairing(); 1 -> providerList(); 2 -> diagnostics(); 3 -> language(); 4 -> mode() }
+        AlertDialog.Builder(this).setTitle(R.string.settings).setItems(arrayOf(getString(R.string.connect_gateway), getString(R.string.configure_services), getString(R.string.diagnostics), getString(R.string.language), getString(R.string.presentation_mode), getString(R.string.advanced))) { _, index ->
+            when (index) { 0 -> pairing(); 1 -> providerList(); 2 -> diagnostics(); 3 -> language(); 4 -> mode(); 5 -> advanced() }
         }.setNegativeButton(R.string.close, null).show()
     }
     private fun providerList() {
@@ -324,6 +330,16 @@ class MainActivity : Activity() {
         dialog.setOnDismissListener { code.setText(""); token.setText(""); address.setText(""); epg?.setText("") }
         dialog.show()
     }
+    private fun advanced() {
+        AlertDialog.Builder(this).setTitle(R.string.audio_focus_backend)
+            .setSingleChoiceItems(arrayOf(getString(R.string.backend_auto), getString(R.string.backend_compatibility)),
+                if (prefs.getBoolean("audioFocusCompatibility", false)) 1 else 0) { dialog, index ->
+                player.pause(); audioController.release()
+                prefs.edit().putBoolean("audioFocusCompatibility", index == 1).commit()
+                audioController = AudioFocusFactory.create(Build.VERSION.SDK_INT, getSystemService(AUDIO_SERVICE) as AudioManager, audioFocus, index == 1)
+                dialog.dismiss()
+            }.setNegativeButton(R.string.close, null).show()
+    }
     private fun diagnostics() {
         val report = getString(R.string.device_report, Build.MANUFACTURER, Build.MODEL, Build.VERSION.SDK_INT, Build.CPU_ABI, (getSystemService(ACTIVITY_SERVICE) as ActivityManager).memoryClass)
         AlertDialog.Builder(this).setTitle(R.string.diagnostics).setMessage(report).setPositiveButton(R.string.close, null).show()
@@ -352,22 +368,20 @@ class MainActivity : Activity() {
         async({ api.request("GET", "/v1/catalog?provider=" + URLEncoder.encode(provider, "UTF-8") + "&offset=$offset") }, { page ->
             val items = page.getJSONArray("items")
             val labels = Array(items.length()) { i -> val item = items.getJSONObject(i); item.optString("title") + item.optString("subtitle").takeIf { it.isNotEmpty() }?.let { " — $it" }.orEmpty() }
-            val dialog = AlertDialog.Builder(this).setTitle(serviceTitle(provider)).setItems(labels) { _, index -> details(items.getJSONObject(index)) }.setNegativeButton(R.string.close, null)
+            val dialog = AlertDialog.Builder(this).setTitle(serviceTitle(provider)).setItems(labels) { _, index -> details(GatewayHomeRepository.decodeItem(items.getJSONObject(index))) }.setNegativeButton(R.string.close, null)
             val next = page.optInt("nextOffset", -1)
             if (next >= 0) dialog.setPositiveButton(R.string.next_page) { _, _ -> catalogPage(provider, next) }
             if (offset > 0) dialog.setNeutralButton(R.string.previous_page) { _, _ -> catalogPage(provider, (offset - 40).coerceAtLeast(0)) }
             dialog.show()
         })
     }
-    private fun details(item: JSONObject) {
-        val description = StringBuilder(item.optString("description").takeIf { it.isNotEmpty() } ?: serviceTitle(item.optString("provider")))
-        val programmes = item.optJSONArray("programmes") ?: JSONArray()
-        for (i in 0 until programmes.length()) {
-            val programme = programmes.getJSONObject(i)
-            val time = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(programme.optLong("start") * 1000))
-            description.append("\n\n").append(time).append(" · ").append(programme.optString("title"))
+    private fun details(item: MediaItem) {
+        val description = StringBuilder(item.description.takeIf { it.isNotEmpty() } ?: serviceTitle(item.provider))
+        for (programme in item.programmes) {
+            val time = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(programme.start * 1000))
+            description.append("\n\n").append(time).append(" · ").append(programme.title)
         }
-        AlertDialog.Builder(this).setTitle(item.optString("title")).setMessage(description.toString())
+        AlertDialog.Builder(this).setTitle(item.title).setMessage(description.toString())
             .setPositiveButton(R.string.play) { _, _ -> startPlayback(item) }.setNegativeButton(R.string.close, null).show()
     }
     private fun createPlayer() {
@@ -386,28 +400,28 @@ class MainActivity : Activity() {
         playerStatus = text("", 12f, muted); playerLayer.addView(playerStatus)
         val controls = horizontal(playerLayer)
         controls.addView(button(R.string.seek_back) { player.seek(-10000) })
-        controls.addView(button(R.string.play_pause) { player.toggle() })
+        controls.addView(button(R.string.play_pause) { togglePlayback() })
         controls.addView(button(R.string.seek_forward) { player.seek(10000) })
         controls.addView(button(R.string.minimize) { setFullscreen(!full) })
         controls.addView(button(R.string.external_player) { external() })
         controls.addView(button(R.string.stop) { stopPlayback() })
+        playerFocus.rebuild(listOf(Pair("player", controls)), false)
         root.addView(playerLayer, FrameLayout.LayoutParams(-1, -1))
     }
-    private fun startPlayback(item: JSONObject) {
-        lastFocus = currentFocus
+    private fun togglePlayback() { if (session.isNotEmpty() && foreground && audioController.acquire()) player.toggle() }
+    private fun startPlayback(item: MediaItem) {
         stopPlayback()
         val generation = playbackGeneration
-        async({ api.request("POST", "/v1/playback", JSONObject().put("itemId", item.getString("id"))) }, { plan ->
+        async({ api.request("POST", "/v1/playback", JSONObject().put("itemId", item.id)) }, { plan ->
             if (generation != playbackGeneration) {
                 val abandoned = plan.getString("sessionId")
                 async({ api.request("DELETE", "/v1/playback/$abandoned") }, {}, false)
                 return@async
             }
             session = plan.getString("sessionId"); stream = api.base + plan.getString("url"); mime = plan.optString("mimeType", "video/mp4")
-            itemTitle = item.optString("title"); now.text = itemTitle; lastState = ""; lastReport = 0; lastPosition = 0; lastDuration = 0
+            itemTitle = item.title; now.text = itemTitle; lastState = ""; lastReport = 0; lastPosition = 0; lastDuration = 0
             setFullscreen(true)
-            val audio = getSystemService(AUDIO_SERVICE) as AudioManager
-            if (audio.requestAudioFocus(audioFocus, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            if (audioController.acquire()) {
                 player.play(stream, plan.optInt("resumePositionMs"))
                 if (!foreground) player.pause()
             }
@@ -416,11 +430,13 @@ class MainActivity : Activity() {
     private fun setFullscreen(value: Boolean) {
         full = value; playerLayer.visibility = View.VISIBLE
         playerLayer.layoutParams = if (full) FrameLayout.LayoutParams(-1, -1) else FrameLayout.LayoutParams(dp(320), dp(230), Gravity.BOTTOM or Gravity.RIGHT).apply { bottomMargin = dp(58); rightMargin = dp(12) }
+        content.descendantFocusability = if (full) ViewGroup.FOCUS_BLOCK_DESCENDANTS else ViewGroup.FOCUS_AFTER_DESCENDANTS
+        bottom.descendantFocusability = content.descendantFocusability
         playerLayer.bringToFront()
-        if (full) playerLayer.getChildAt(playerLayer.childCount - 1).requestFocus() else lastFocus?.tag?.let { content.findViewWithTag<View>(it)?.requestFocus() }
+        if (full) playerFocus.restore() else homeFocus.restore()
     }
     private fun stopPlayback() {
-        (getSystemService(AUDIO_SERVICE) as AudioManager).abandonAudioFocus(audioFocus)
+        audioController.release()
         playbackGeneration++
         if (session.isNotEmpty()) {
             val old = session
@@ -428,7 +444,9 @@ class MainActivity : Activity() {
             async({ try { api.request("PUT", "/v1/playback/$old/progress", progress) } finally { api.request("DELETE", "/v1/playback/$old") } }, {}, false)
         }
         session = ""; stream = ""; full = false; player.stop(); playerLayer.visibility = View.GONE; now.setText(R.string.nothing_playing)
-        lastFocus?.tag?.let { content.findViewWithTag<View>(it)?.requestFocus() }
+        content.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+        bottom.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+        homeFocus.restore()
     }
     private fun external() {
         if (stream.isEmpty()) return
@@ -447,15 +465,44 @@ class MainActivity : Activity() {
         "PLAYING" -> R.string.playing; "PAUSED" -> R.string.paused; "ENDED" -> R.string.ended; "STOPPED" -> R.string.stopped
         else -> R.string.unavailable
     })
-    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) { player.toggle(); return true }
-        return super.onKeyDown(keyCode, event)
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val key = event.keyCode
+        if (currentFocus !is EditText) {
+            if (event.action == KeyEvent.ACTION_DOWN && (if (full) playerFocus else homeFocus).move(key, currentFocus)) return true
+            // Preserve native CENTER/ENTER activation; gamepad A follows the same key-up contract.
+            if (key == KeyEvent.KEYCODE_BUTTON_A) {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) gamepadClick = currentFocus
+                if (event.action == KeyEvent.ACTION_UP) {
+                    if (!event.isCanceled && gamepadClick === currentFocus) gamepadClick?.performClick()
+                    gamepadClick = null
+                }
+                return true
+            }
+            if (key == KeyEvent.KEYCODE_BUTTON_B) {
+                if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) onBackPressed()
+                return true
+            }
+            if (session.isNotEmpty() && key in intArrayOf(KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE,
+                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_MEDIA_STOP,
+                    KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD)) {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) when (key) {
+                    KeyEvent.KEYCODE_MEDIA_PLAY -> if (audioController.acquire()) player.resume()
+                    KeyEvent.KEYCODE_MEDIA_PAUSE -> player.pause()
+                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> togglePlayback()
+                    KeyEvent.KEYCODE_MEDIA_STOP -> stopPlayback()
+                    KeyEvent.KEYCODE_MEDIA_REWIND -> player.seek(-10000)
+                    KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> player.seek(10000)
+                }
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
     override fun onBackPressed() { if (full) setFullscreen(false) else if (session.isNotEmpty()) stopPlayback() else super.onBackPressed() }
     override fun onResume() { super.onResume(); foreground = true }
     override fun onPause() { foreground = false; player.pause(); super.onPause() }
     override fun onDestroy() {
-        (getSystemService(AUDIO_SERVICE) as AudioManager).abandonAudioFocus(audioFocus)
-        closed = true; foreground = false; handler.removeCallbacksAndMessages(null); api.close(); player.close(); worker.shutdownNow(); poller.shutdownNow(); super.onDestroy()
+        audioController.release()
+        closed = true; homeViewModel.close(); foreground = false; handler.removeCallbacksAndMessages(null); api.close(); player.close(); worker.shutdownNow(); poller.shutdownNow(); super.onDestroy()
     }
 }

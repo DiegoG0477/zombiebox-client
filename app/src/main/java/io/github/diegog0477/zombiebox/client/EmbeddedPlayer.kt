@@ -1,4 +1,4 @@
-package tv.zombiebox.client
+package io.github.diegog0477.zombiebox.client
 
 import android.media.AudioManager
 import android.media.MediaPlayer
@@ -73,6 +73,11 @@ class EmbeddedPlayer(private val sizeChanged: (Int, Int) -> Unit, private val ch
             else { media.start(); wantPlay = true; state = "PLAYING" }
             report()
         } catch (_: IllegalStateException) { state = "FAILED"; report() }
+    } }
+    fun resume() { handler.post {
+        wantPlay = true
+        if (prepared && state == "PAUSED") try { player?.start(); state = "PLAYING"; report() }
+        catch (_: IllegalStateException) { state = "FAILED"; report() }
     } }
     fun pause() { handler.post { wantPlay = false; if (prepared && state == "PLAYING") { player?.pause(); state = "PAUSED"; report() } } }
     fun seek(delta: Int) { handler.post {
