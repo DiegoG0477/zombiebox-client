@@ -206,4 +206,6 @@
         Retry with a more compatible stream, or open this item in another player.
     </string>
     <string name="retry_compatible">Retry compatible</string>
+    <string name="next_item">Next</string>
+    <string name="next_failed">Could not start the next item. Try Next again.</string>
 </resources>

@@ -53,3 +53,8 @@ The audio panel is an initial semantic Now Playing view; artwork and seamless
 cross-Activity music remain open.
 
 Dev.13: Foreground/surface intent, guarded media callbacks, finite compatible retry and fresh external fallback; client versionCode 13.
+
+## dev.14 increment
+
+Service-owned playback across Activity recreation/background, paged next-content queue, notification controls and retained semantic subtitle selection; client versionCode 14.
+The four requested block-1 changes are implemented; physical acceptance and broader product gates remain open.

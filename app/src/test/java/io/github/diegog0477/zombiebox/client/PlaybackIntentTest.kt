@@ -6,6 +6,22 @@ import org.junit.Test
 
 class PlaybackIntentTest {
     @Test
+    fun serviceBackgroundPlaybackPreservesExplicitPauseAndWaitsForReturningVideoSurface() {
+        val intent = PlaybackIntent()
+        intent.backgroundPlayback = true
+        intent.begin(true, true)
+        intent.foreground = false
+        assertTrue(intent.canPlay)
+        intent.pause()
+        assertFalse(intent.canPlay)
+        intent.resume()
+        intent.foreground = true
+        assertFalse(intent.canPlay)
+        intent.surfaceAvailable = true
+        assertTrue(intent.canPlay)
+    }
+
+    @Test
     fun surfaceAndForegroundLossPreserveIntent() {
         val intent = PlaybackIntent()
         intent.begin(true, true)

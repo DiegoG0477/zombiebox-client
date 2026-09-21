@@ -85,6 +85,13 @@ class ReceiverViewModel(
         return ReceiverChange.Begin(plan)
     }
 
+    fun restore(plan: ReceiverPlan) {
+        activeSession = plan.sessionId
+        lastPlan = plan
+        interrupted = null
+        playbackFailed = false
+    }
+
     fun dismiss(sessionId: String) {
         dismissed = sessionId
         activeSession = ""

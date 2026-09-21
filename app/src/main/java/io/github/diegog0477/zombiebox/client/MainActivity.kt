@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
-import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -48,9 +47,11 @@ import io.github.diegog0477.zombiebox.client.features.playback.data.GatewayPlayb
 import io.github.diegog0477.zombiebox.client.features.playback.data.GatewayTracksRepository
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.PlaybackPlan
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.PlaybackProgress
+import io.github.diegog0477.zombiebox.client.features.playback.domain.model.PlaybackSession
+import io.github.diegog0477.zombiebox.client.features.playback.domain.model.QueueCursor
 import io.github.diegog0477.zombiebox.client.features.playback.platform.AudioFocusController
-import io.github.diegog0477.zombiebox.client.features.playback.platform.AudioFocusFactory
-import io.github.diegog0477.zombiebox.client.features.playback.platform.EmbeddedPlayer
+import io.github.diegog0477.zombiebox.client.features.playback.platform.PlaybackConnection
+import io.github.diegog0477.zombiebox.client.features.playback.platform.PlaybackNotifications
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.PlaybackFailureDialog
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.TracksDialog
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.VideoSurface
@@ -208,8 +209,10 @@ class MainActivity : Activity() {
     private lateinit var playerLayer: LinearLayout
     private lateinit var playerStatus: TextView
     private lateinit var videoSurface: VideoSurface
-    private lateinit var player: EmbeddedPlayer
-    private val audioFocus = AudioManager.OnAudioFocusChangeListener { if (it <= 0) player.pause() }
+    private lateinit var player: PlaybackConnection
+    private lateinit var nextButton: Button
+    private var restoreFullscreen = true
+    private var queueFailed = false
     private lateinit var homeViewModel: HomeViewModel
     private val snapshot
         get() = homeViewModel.state.snapshot
@@ -224,7 +227,6 @@ class MainActivity : Activity() {
     private var playbackPending = false
     private var playbackLive = false
     private var receiverState = ""
-    private var receiverSuspended = false
     private lateinit var receiverInfo: TextView
     private var full = false
     private val homeFocus
@@ -249,6 +251,10 @@ class MainActivity : Activity() {
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        restoreFullscreen =
+            if (state?.containsKey("playbackFullscreen") == true)
+                state.getBoolean("playbackFullscreen")
+            else true
         val language = prefs.getString("language", "en") ?: "en"
         val config = Configuration(resources.configuration)
         config.locale = Locale(language)
@@ -293,11 +299,12 @@ class MainActivity : Activity() {
         shell.addView(bottom)
         createPlayer()
         player =
-            EmbeddedPlayer({ width, height -> videoSurface.setVideoSize(width, height) }) {
-                status,
-                position,
-                duration ->
-                if (playbackPending) return@EmbeddedPlayer
+            PlaybackConnection(
+                this,
+                ::restorePlayback,
+                { width, height -> videoSurface.setVideoSize(width, height) },
+            ) { status, position, duration ->
+                if (playbackPending) return@PlaybackConnection
                 if (::receiverViewModel.isInitialized && receiverViewModel.activeSession == session)
                     receiverViewModel.playbackState(status)
                 lastPosition = position + timelineOffset
@@ -337,24 +344,9 @@ class MainActivity : Activity() {
                 ) {
                     showPlaybackFailure()
                 }
-                val time = System.currentTimeMillis()
-                if (session.isNotEmpty() && (status != lastState || time - lastReport > 10000)) {
-                    lastState = status
-                    lastReport = time
-                    val current = session
-                    playbackModel.progress(
-                        current,
-                        PlaybackProgress(status, lastPosition, lastDuration),
-                    )
-                }
+                lastState = status
             }
-        audioController =
-            AudioFocusFactory.create(
-                Build.VERSION.SDK_INT,
-                getSystemService(AUDIO_SERVICE) as AudioManager,
-                audioFocus,
-                prefs.getBoolean("audioFocusCompatibility", false),
-            )
+        audioController = player
         youtubeReceiver =
             YouTubeReceiverViewModel(
                 GatewayYouTubeReceiverRepository(api),
@@ -438,13 +430,7 @@ class MainActivity : Activity() {
                 player.pause()
                 audioController.release()
                 prefs.edit().putBoolean("audioFocusCompatibility", index == 1).commit()
-                audioController =
-                    AudioFocusFactory.create(
-                        Build.VERSION.SDK_INT,
-                        getSystemService(AUDIO_SERVICE) as AudioManager,
-                        audioFocus,
-                        index == 1,
-                    )
+                player.refreshFocus()
                 dialog.dismiss()
             }
             .setNegativeButton(R.string.close, null)
@@ -578,7 +564,7 @@ class MainActivity : Activity() {
     }
 
     private fun receiveCast(plan: ReceiverPlan?) {
-        if (!foreground) return
+        if (!foreground || !player.ready) return
         when (
             val change =
                 receiverViewModel.transition(
@@ -594,8 +580,6 @@ class MainActivity : Activity() {
             }
             is ReceiverChange.Update -> {
                 updateReceiver(change.plan)
-                if (receiverSuspended && audioController.acquire()) player.resume()
-                receiverSuspended = false
             }
             is ReceiverChange.Reconnect -> {
                 updateReceiver(change.plan)
@@ -609,6 +593,21 @@ class MainActivity : Activity() {
                 stream = api.base + change.plan.path
                 mime = change.plan.mime
                 updateReceiver(change.plan)
+                player.configure(api.base, api.device, api.token)
+                player.adopt(
+                    PlaybackPlan(
+                        session,
+                        stream,
+                        mime,
+                        "DIRECT_PLAY",
+                        0,
+                        live = true,
+                        seekable = false,
+                    ),
+                    currentItem ?: MediaItem(session, "cast", getString(R.string.screen_mirroring)),
+                    emptyList(),
+                    incoming = true,
+                )
                 lastReport = 0
                 lastState = ""
                 setSeekable(false)
@@ -693,6 +692,9 @@ class MainActivity : Activity() {
         controls.addView(ui.button(R.string.audio_tracks) { showTracks("audio") })
         controls.addView(ui.button(R.string.subtitles) { showTracks("subtitle") })
         controls.addView(ui.button(R.string.minimize) { setFullscreen(!full) })
+        nextButton = ui.button(R.string.next_item) { player.next() }
+        nextButton.isEnabled = false
+        controls.addView(nextButton)
         controls.addView(ui.button(R.string.external_player) { external() })
         controls.addView(ui.button(R.string.stop) { stopPlayback() })
         playerFocus.rebuild(listOf(Pair("player", controls)), false)
@@ -720,6 +722,51 @@ class MainActivity : Activity() {
         setSeekable(plan.seekable && !plan.live)
     }
 
+    private fun retainPlan(plan: PlaybackPlan) {
+        currentItem?.let { player.adopt(plan, it) }
+    }
+
+    private fun restorePlayback(state: PlaybackSession) {
+        if (playbackPending) return
+        nextButton.isEnabled = state.canNext
+        if (state.error && !queueFailed)
+            Toast.makeText(this, R.string.next_failed, Toast.LENGTH_LONG).show()
+        queueFailed = state.error
+        val plan = state.plan
+        if (plan == null) {
+            if (session.isNotEmpty()) {
+                session = ""
+                stopPlayback(endSession = false)
+            }
+            return
+        }
+        if (session != plan.sessionId) {
+            val wasPlaying = session.isNotEmpty()
+            adoptPlan(plan)
+            currentItem = state.item
+            itemTitle = state.item?.title ?: getString(R.string.screen_mirroring)
+            now.text = itemTitle
+            tracksModel.attach(session)
+            state.subtitleId?.let { tracksModel.subtitles(it, {}, ::error) }
+            if (state.incoming) {
+                val receiver =
+                    ReceiverPlan(
+                        session,
+                        stream.removePrefix(api.base),
+                        mime,
+                        state.item,
+                        state.item?.kind != "audio",
+                    )
+                receiverViewModel.restore(receiver)
+                updateReceiver(receiver)
+            }
+            lastState = ""
+            lastPosition = state.progress.positionMs
+            lastDuration = state.progress.durationMs
+            setFullscreen(if (wasPlaying) full else restoreFullscreen)
+        }
+    }
+
     private fun showTracks(kind: String) {
         val requestedSession = session
         tracksModel.inventory(
@@ -730,6 +777,7 @@ class MainActivity : Activity() {
                             tracksModel.subtitles(
                                 id,
                                 {
+                                    player.subtitle(tracksModel.subtitleId)
                                     subtitleText.text = tracksModel.textAt(lastPosition)
                                     subtitleText.visibility =
                                         if (subtitleText.text.isEmpty()) View.GONE else View.VISIBLE
@@ -743,6 +791,7 @@ class MainActivity : Activity() {
                                 lastPosition,
                                 { plan ->
                                     adoptPlan(plan)
+                                    retainPlan(plan)
                                     lastReport = 0
                                     player.play(
                                         stream,
@@ -785,6 +834,27 @@ class MainActivity : Activity() {
         remote: YouTubeCommand? = null,
     ) {
         if (remote == null) youtubeReceiver.disable()
+        val catalog =
+            catalogModel.screen?.takeIf { page -> page.page.items.any { it.id == item.id } }
+        val queue =
+            if (remote != null) listOf(item)
+            else
+                catalog?.page?.items
+                    ?: snapshot.sections
+                        .firstOrNull { section -> section.items.any { it.id == item.id } }
+                        ?.items
+                    ?: listOf(item)
+        val cursor =
+            catalog
+                ?.takeIf { it.page.nextOffset > it.location.offset }
+                ?.let {
+                    QueueCursor(
+                        it.location.provider,
+                        it.location.parent,
+                        it.location.query,
+                        it.page.nextOffset,
+                    )
+                }
         stopPlayback()
         playbackPending = true
         playbackModel.start(
@@ -792,9 +862,15 @@ class MainActivity : Activity() {
             if (remote != null) "AUTO" else prefs.getString("playbackMode", "AUTO") ?: "AUTO",
             { plan ->
                 playbackPending = false
+                if (!foreground || !player.ready) {
+                    playbackModel.stop(plan.sessionId, null)
+                    return@start
+                }
                 adoptPlan(plan)
                 tracksModel.attach(session)
                 currentItem = item
+                player.configure(api.base, api.device, api.token)
+                player.adopt(plan, item, queue, if (remote == null) cursor else null)
                 itemTitle = item.title
                 now.text = itemTitle
                 lastState = ""
@@ -849,6 +925,7 @@ class MainActivity : Activity() {
             { plan ->
                 playbackPending = false
                 adoptPlan(plan)
+                retainPlan(plan)
                 tracksModel.attach(session)
                 lastPosition = plan.resumePositionMs + plan.timelineOffsetMs
                 lastReport = 0
@@ -863,6 +940,7 @@ class MainActivity : Activity() {
             },
             { failure ->
                 playbackPending = false
+                player.failed()
                 error(failure)
                 if (foreground) showPlaybackFailure()
             },
@@ -881,11 +959,13 @@ class MainActivity : Activity() {
             { plan ->
                 playbackPending = false
                 adoptPlan(plan)
+                retainPlan(plan)
                 tracksModel.attach(session)
                 if (foreground) external()
             },
             { failure ->
                 playbackPending = false
+                player.failed()
                 error(failure)
             },
         )
@@ -909,7 +989,7 @@ class MainActivity : Activity() {
         if (full) playerFocus.restore() else homeFocus.restore()
     }
 
-    private fun stopPlayback(keepReceiver: Boolean = false) {
+    private fun stopPlayback(keepReceiver: Boolean = false, endSession: Boolean = true) {
         playbackFailure.dismiss()
         playbackPending = false
         if (!keepReceiver && receiverViewModel.activeSession.isNotEmpty())
@@ -919,14 +999,8 @@ class MainActivity : Activity() {
         receiverInfo.visibility = View.GONE
         videoSurface.visibility = View.VISIBLE
         audioController.release()
-        playbackModel.stop(
-            session,
-            PlaybackProgress(
-                if (lastState == "ENDED") "ENDED" else "STOPPED",
-                lastPosition,
-                lastDuration,
-            ),
-        )
+        // Cancel pending Activity requests; the service owns session progress and revocation.
+        playbackModel.stop("", PlaybackProgress("STOPPED", 0, 0))
         session = ""
         stream = ""
         tracksModel.attach("")
@@ -934,7 +1008,7 @@ class MainActivity : Activity() {
         subtitleText.visibility = View.GONE
         timelineOffset = 0
         full = false
-        player.stop()
+        if (endSession) player.end()
         playerLayer.visibility = View.GONE
         now.setText(R.string.nothing_playing)
         content.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
@@ -990,6 +1064,7 @@ class MainActivity : Activity() {
                             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                             KeyEvent.KEYCODE_HEADSETHOOK,
                             KeyEvent.KEYCODE_MEDIA_STOP,
+                            KeyEvent.KEYCODE_MEDIA_NEXT,
                             KeyEvent.KEYCODE_MEDIA_REWIND,
                             KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
                         )
@@ -1001,6 +1076,7 @@ class MainActivity : Activity() {
                         KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                         KeyEvent.KEYCODE_HEADSETHOOK -> togglePlayback()
                         KeyEvent.KEYCODE_MEDIA_STOP -> stopPlayback()
+                        KeyEvent.KEYCODE_MEDIA_NEXT -> player.next()
                         KeyEvent.KEYCODE_MEDIA_REWIND -> seek(-10000)
                         KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> seek(10000)
                     }
@@ -1017,6 +1093,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        PlaybackNotifications.requestPermission(this)
         foreground = true
         if (::player.isInitialized) {
             if (session.isNotEmpty() && !audioController.acquire()) player.pause()
@@ -1033,19 +1110,21 @@ class MainActivity : Activity() {
             showPlaybackFailure()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("playbackFullscreen", full)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onPause() {
         foreground = false
-        receiverSuspended = receiverViewModel.activeSession.isNotEmpty()
         youtubeReceiver.disable()
         playbackFailure.dismiss()
         player.foreground(false)
-        audioController.release()
         super.onPause()
     }
 
     override fun onDestroy() {
         playbackFailure.dismiss()
-        audioController.release()
         closed = true
         events.close()
         settingsModel.close()
@@ -1060,10 +1139,16 @@ class MainActivity : Activity() {
         receiverViewModel.close()
         homeViewModel.close()
         foreground = false
-        handler.removeCallbacksAndMessages(null)
-        api.close()
+        handler.removeCallbacks(youtubeTick)
+        handler.removeCallbacks(receiverTick)
         player.close()
-        worker.shutdownNow()
+        // Let closed ViewModels revoke plans already queued for UI delivery.
+        worker.execute {
+            handler.post {
+                worker.execute { api.close() }
+                worker.shutdown()
+            }
+        }
         poller.shutdownNow()
         super.onDestroy()
     }

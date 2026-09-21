@@ -28,3 +28,8 @@ Foreground media-receiver selection, metadata updates, audio panel, interrupted-
 
 Foreground/surface intent, guarded media callbacks, finite compatible retry and fresh external fallback; client versionCode 13.
 No product milestone or physical/account gate closes with this checkpoint.
+
+## dev.14 increment
+
+Service-owned playback across Activity recreation/background, paged next-content queue, notification controls and retained semantic subtitle selection; client versionCode 14.
+The four requested block-1 changes are implemented; physical acceptance and broader product gates remain open.

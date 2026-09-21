@@ -1,0 +1,43 @@
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:background="#182021"
+>
+    <TextView
+        android:id="@+id/notification_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#ffffff"
+        android:maxLines="1"
+    />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+    >
+        <Button
+            android:id="@+id/notification_toggle"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="@string/play_pause"
+        />
+        <Button
+            android:id="@+id/notification_next"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="@string/next_item"
+        />
+        <Button
+            android:id="@+id/notification_stop"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="@string/stop"
+        />
+    </LinearLayout>
+</LinearLayout>

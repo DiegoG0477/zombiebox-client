@@ -214,6 +214,13 @@ class EmbeddedPlayer(
         report()
     }
 
+    fun background(value: Boolean) {
+        command {
+            intent.backgroundPlayback = value
+            applyIntent()
+        }
+    }
+
     fun foreground(value: Boolean) {
         if (closed) return
         handler.post {

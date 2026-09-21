@@ -4,12 +4,14 @@ package io.github.diegog0477.zombiebox.client.features.playback.domain.policy
 class PlaybackIntent {
     var foreground = true
     var surfaceAvailable = false
+    var backgroundPlayback = false
     private var video = true
     var wantsPlayback = false
         private set
 
     val canPlay: Boolean
-        get() = wantsPlayback && foreground && (!video || surfaceAvailable)
+        get() =
+            wantsPlayback && if (foreground) (!video || surfaceAvailable) else backgroundPlayback
 
     fun begin(autoplay: Boolean, hasVideo: Boolean) {
         wantsPlayback = autoplay

@@ -212,4 +212,8 @@
         Reintenta con un formato más compatible o abre este contenido en otro reproductor.
     </string>
     <string name="retry_compatible">Reintentar compatible</string>
+    <string name="next_item">Siguiente</string>
+    <string name="next_failed">
+        No se pudo iniciar el siguiente contenido. Intenta Siguiente de nuevo.
+    </string>
 </resources>

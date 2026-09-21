@@ -7,7 +7,8 @@
     "Dev.10: shared local media tracks/text subtitles and client Home refinement. Cast consumes the protocol transport update. Product exit gates remain open.",
     "Dev.11: Recycled provider list, scoped search, bounded history and stable focus/scroll snapshots. Home virtualization and full rich-screen navigation remain open. Product exit gates remain open.",
     "Dev.12: Foreground media-receiver selection, metadata updates, audio panel, interrupted-playback restoration and bounded reconnect. Rich artwork, complete screen stack and background ownership remain open.",
-    "Dev.13: Foreground/surface intent, guarded media callbacks, finite compatible retry and fresh external fallback; client versionCode 13. Product exit gates remain open."
+    "Dev.13: Foreground/surface intent, guarded media callbacks, finite compatible retry and fresh external fallback; client versionCode 13. Product exit gates remain open.",
+    "Dev.14: Service-owned playback across Activity recreation/background, paged next-content queue, notification controls and retained semantic subtitle selection; client versionCode 14. Product exit gates remain open."
   ],
   "milestones": [
     {
