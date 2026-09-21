@@ -37,3 +37,8 @@ The central workspace owns product-wide ADRs, the original specification, the UI
 reference, M0–M11 exit gates and the complete development/validation gap audit.
 Physical devices over USB/ADB are the default; automated checks do not establish
 legacy runtime or end-to-end account/media compatibility.
+
+Dev.10 adds [playback tracks and refined Home navigation](docs/playback-tracks.md).
+Local audio/text-subtitle controls use feature MVVM and the shared gateway transport;
+active section selection is independent of remote focus. Physical visual and media
+validation remains pending.

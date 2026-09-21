@@ -6,6 +6,9 @@ data class PlaybackPlan(
     val mime: String,
     val mode: String,
     val resumePositionMs: Int,
+    val timelineOffsetMs: Int = 0,
+    val live: Boolean = false,
+    val seekable: Boolean = true,
 )
 
 data class PlaybackProgress(val state: String, val positionMs: Int, val durationMs: Int)

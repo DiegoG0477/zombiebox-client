@@ -29,7 +29,7 @@ class EmbeddedPlayer(
         object : Runnable {
             override fun run() {
                 report()
-                if (!closed && prepared) handler.postDelayed(this, 1000)
+                if (!closed && prepared) handler.postDelayed(this, 250)
             }
         }
 

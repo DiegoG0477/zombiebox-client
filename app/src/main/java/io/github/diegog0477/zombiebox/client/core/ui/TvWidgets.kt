@@ -1,10 +1,14 @@
 package io.github.diegog0477.zombiebox.client.core.ui
 
 import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
+import android.view.View
 import android.widget.*
 import io.github.diegog0477.zombiebox.client.R
 import java.util.Locale
@@ -39,7 +43,7 @@ class TvWidgets(
             setPadding(dp(4), dp(4), dp(4), dp(4))
         }
 
-    fun box(color: Int, stroke: Int = Color.rgb(48, 60, 63)) =
+    fun box(color: Int, stroke: Int = Color.TRANSPARENT) =
         GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(8).toFloat()
@@ -71,6 +75,67 @@ class TvWidgets(
 
     fun button(label: Int, click: () -> Unit) =
         action(context.getString(label), click = click).apply { tag = "button:$label" }
+
+    /** Selection identifies the current section; focus identifies the remote's next action. */
+    fun navigation(label: String, provider: String, selected: Boolean, click: () -> Unit) =
+        action(label, providerAccent(provider), click).apply {
+            val color = providerAccent(provider)
+            tag = "nav:$provider"
+            isSelected = selected
+            setTextColor(
+                ColorStateList(
+                    arrayOf(intArrayOf(android.R.attr.state_selected), intArrayOf()),
+                    intArrayOf(this@TvWidgets.background, Color.WHITE),
+                )
+            )
+            setBackgroundDrawable(
+                StateListDrawable().apply {
+                    addState(
+                        intArrayOf(android.R.attr.state_selected, android.R.attr.state_focused),
+                        box(color, Color.WHITE),
+                    )
+                    addState(intArrayOf(android.R.attr.state_selected), box(color))
+                    addState(intArrayOf(android.R.attr.state_focused), box(panel, color))
+                    addState(intArrayOf(android.R.attr.state_pressed), box(panel, color))
+                    addState(intArrayOf(), box(Color.TRANSPARENT))
+                }
+            )
+        }
+
+    fun primary(label: Int, click: () -> Unit) =
+        button(label, click).apply {
+            setTextColor(this@TvWidgets.background)
+            setBackgroundDrawable(
+                StateListDrawable().apply {
+                    addState(intArrayOf(android.R.attr.state_focused), box(accent(), Color.WHITE))
+                    addState(intArrayOf(android.R.attr.state_pressed), box(accent(), Color.WHITE))
+                    addState(intArrayOf(), box(accent()))
+                }
+            )
+        }
+
+    fun progress(positionMs: Int, durationMs: Int): View =
+        object : View(context) {
+            private val paint = Paint()
+            private val fraction =
+                (positionMs.toFloat() / durationMs.coerceAtLeast(1)).coerceIn(0f, 1f)
+
+            init {
+                layoutParams =
+                    LinearLayout.LayoutParams(-1, dp(3)).apply {
+                        setMargins(dp(4), dp(4), dp(4), 0)
+                    }
+                isFocusable = false
+            }
+
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                paint.color = Color.rgb(60, 70, 72)
+                canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
+                paint.color = accent()
+                canvas.drawRect(0f, 0f, width * fraction, height.toFloat(), paint)
+            }
+        }
 
     fun formatTime(ms: Int): String {
         val seconds = ms.coerceAtLeast(0) / 1000

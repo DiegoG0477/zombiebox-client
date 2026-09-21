@@ -44,12 +44,16 @@ import io.github.diegog0477.zombiebox.client.features.mirroring.domain.model.Rec
 import io.github.diegog0477.zombiebox.client.features.mirroring.domain.model.ReceiverPlan
 import io.github.diegog0477.zombiebox.client.features.mirroring.presentation.viewmodel.ReceiverViewModel
 import io.github.diegog0477.zombiebox.client.features.playback.data.GatewayPlaybackRepository
+import io.github.diegog0477.zombiebox.client.features.playback.data.GatewayTracksRepository
+import io.github.diegog0477.zombiebox.client.features.playback.domain.model.PlaybackPlan
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.PlaybackProgress
 import io.github.diegog0477.zombiebox.client.features.playback.platform.AudioFocusController
 import io.github.diegog0477.zombiebox.client.features.playback.platform.AudioFocusFactory
 import io.github.diegog0477.zombiebox.client.features.playback.platform.EmbeddedPlayer
+import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.TracksDialog
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.VideoSurface
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel.PlaybackViewModel
+import io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel.TracksViewModel
 import io.github.diegog0477.zombiebox.client.features.settings.data.GatewaySettingsRepository
 import io.github.diegog0477.zombiebox.client.features.settings.presentation.ui.SettingsActions
 import io.github.diegog0477.zombiebox.client.features.settings.presentation.ui.SettingsDialogs
@@ -79,6 +83,19 @@ class MainActivity : Activity() {
     private val catalogModel by lazy {
         CatalogViewModel(GatewayCatalogRepository(api), screenTasks())
     }
+    private val tracksModel by lazy {
+        TracksViewModel(
+            GatewayTracksRepository(api),
+            { work -> worker.execute { work() } },
+            { work -> handler.post { work() } },
+        )
+    }
+    private lateinit var subtitleText: TextView
+    private var timelineOffset = 0
+    private var playbackSeekable = true
+    private val seekButtons = ArrayList<Button>()
+    private lateinit var playerControls: LinearLayout
+
     private val playbackModel by lazy {
         PlaybackViewModel(
             GatewayPlaybackRepository(api),
@@ -261,8 +278,13 @@ class MainActivity : Activity() {
                 status,
                 position,
                 duration ->
-                lastPosition = position
-                lastDuration = duration
+                lastPosition = position + timelineOffset
+                lastDuration = if (duration > 0) duration + timelineOffset else 0
+                subtitleText.text =
+                    if (status == "PLAYING" || status == "PAUSED") tracksModel.textAt(lastPosition)
+                    else ""
+                subtitleText.visibility =
+                    if (subtitleText.text.isEmpty()) View.GONE else View.VISIBLE
                 if (
                     ::youtubeReceiver.isInitialized &&
                         (currentItem?.provider == "youtube" || status == "STOPPED")
@@ -272,8 +294,8 @@ class MainActivity : Activity() {
                     getString(
                         R.string.player_status,
                         ui.localizedState(status),
-                        ui.formatTime(position),
-                        ui.formatTime(duration),
+                        ui.formatTime(lastPosition),
+                        ui.formatTime(lastDuration),
                     )
                 if (session.isNotEmpty()) now.text = itemTitle
                 if (status == "PLAYING")
@@ -284,7 +306,10 @@ class MainActivity : Activity() {
                     lastState = status
                     lastReport = time
                     val current = session
-                    playbackModel.progress(current, PlaybackProgress(status, position, duration))
+                    playbackModel.progress(
+                        current,
+                        PlaybackProgress(status, lastPosition, lastDuration),
+                    )
                 }
             }
         audioController =
@@ -319,6 +344,7 @@ class MainActivity : Activity() {
             )
         receiverViewModel.observer = { plan -> receiveCast(plan) }
         homeViewModel.observer = { state ->
+            if (!closed) content.selectScope(state.scope)
             if (!closed && !state.loading) {
                 render()
                 state.failure?.let { error(it) }
@@ -460,7 +486,9 @@ class MainActivity : Activity() {
                 if (audioController.acquire()) player.resume()
                 else youtubeReceiver.complete(false, command.id)
             "stop" -> stopPlayback()
-            "seek" -> player.seekTo(command.positionMs)
+            "seek" ->
+                if (playbackSeekable) player.seekTo(command.positionMs)
+                else youtubeReceiver.complete(false, command.id)
             "volume" ->
                 player.volume(command.volume, command.muted) { ok ->
                     youtubeReceiver.volumeApplied(command.id, command.volume, command.muted, ok)
@@ -513,6 +541,7 @@ class MainActivity : Activity() {
                 itemTitle = getString(R.string.screen_mirroring)
                 lastReport = 0
                 lastState = ""
+                setSeekable(false)
                 setFullscreen(true)
                 if (audioController.acquire()) player.play(stream, 0)
             }
@@ -555,19 +584,96 @@ class MainActivity : Activity() {
         )
         val viewport = FrameLayout(this)
         viewport.addView(surface, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
+        subtitleText =
+            ui.text("", 22f).apply {
+                gravity = Gravity.CENTER
+                setShadowLayer(3f, 1f, 1f, Color.BLACK)
+                setBackgroundColor(Color.argb(170, 0, 0, 0))
+                visibility = View.GONE
+            }
+        viewport.addView(
+            subtitleText,
+            FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply {
+                setMargins(ui.dp(24), 0, ui.dp(24), ui.dp(18))
+            },
+        )
         playerLayer.addView(viewport, LinearLayout.LayoutParams(-1, 0, 1f))
         playerStatus = ui.text("", 12f, muted)
         playerLayer.addView(playerStatus)
         val controls = ui.row()
+        playerControls = controls
         playerLayer.addView(HorizontalScrollView(this).apply { addView(controls) })
-        controls.addView(ui.button(R.string.seek_back) { player.seek(-10000) })
+        seekButtons.clear()
+        val back = ui.button(R.string.seek_back) { seek(-10000) }
+        val forward = ui.button(R.string.seek_forward) { seek(10000) }
+        seekButtons.add(back)
+        seekButtons.add(forward)
+        controls.addView(back)
         controls.addView(ui.button(R.string.play_pause) { togglePlayback() })
-        controls.addView(ui.button(R.string.seek_forward) { player.seek(10000) })
+        controls.addView(forward)
+        controls.addView(ui.button(R.string.audio_tracks) { showTracks("audio") })
+        controls.addView(ui.button(R.string.subtitles) { showTracks("subtitle") })
         controls.addView(ui.button(R.string.minimize) { setFullscreen(!full) })
         controls.addView(ui.button(R.string.external_player) { external() })
         controls.addView(ui.button(R.string.stop) { stopPlayback() })
         playerFocus.rebuild(listOf(Pair("player", controls)), false)
         root.addView(playerLayer, FrameLayout.LayoutParams(-1, -1))
+    }
+
+    private fun setSeekable(value: Boolean) {
+        playbackSeekable = value
+        seekButtons.forEach { it.isEnabled = value }
+        if (::playerControls.isInitialized)
+            playerFocus.rebuild(listOf(Pair("player", playerControls)), false)
+    }
+
+    private fun seek(delta: Int) {
+        if (playbackSeekable) player.seek(delta)
+    }
+
+    private fun adoptPlan(plan: PlaybackPlan) {
+        session = plan.sessionId
+        stream = plan.url
+        mime = plan.mime
+        timelineOffset = plan.timelineOffsetMs
+        setSeekable(plan.seekable && !plan.live)
+    }
+
+    private fun showTracks(kind: String) {
+        val requestedSession = session
+        tracksModel.inventory(
+            { inventory ->
+                TracksDialog(this).show(inventory, kind, tracksModel.subtitleId) { id ->
+                    if (requestedSession == session) {
+                        if (kind == "subtitle")
+                            tracksModel.subtitles(
+                                id,
+                                {
+                                    subtitleText.text = tracksModel.textAt(lastPosition)
+                                    subtitleText.visibility =
+                                        if (subtitleText.text.isEmpty()) View.GONE else View.VISIBLE
+                                },
+                                ::error,
+                            )
+                        else if (id != null) {
+                            val paused = lastState != "PLAYING"
+                            tracksModel.audio(
+                                id,
+                                lastPosition,
+                                { plan ->
+                                    adoptPlan(plan)
+                                    lastReport = 0
+                                    player.play(stream, plan.resumePositionMs)
+                                    if (paused || !foreground) player.pause()
+                                },
+                                ::error,
+                            )
+                        }
+                    }
+                }
+            },
+            ::error,
+        )
     }
 
     private fun togglePlayback() {
@@ -586,9 +692,8 @@ class MainActivity : Activity() {
             item.id,
             if (remote != null) "AUTO" else prefs.getString("playbackMode", "AUTO") ?: "AUTO",
             { plan ->
-                session = plan.sessionId
-                stream = plan.url
-                mime = plan.mime
+                adoptPlan(plan)
+                tracksModel.attach(session)
                 currentItem = item
                 itemTitle = item.title
                 now.text = itemTitle
@@ -649,6 +754,10 @@ class MainActivity : Activity() {
         )
         session = ""
         stream = ""
+        tracksModel.attach("")
+        subtitleText.text = ""
+        subtitleText.visibility = View.GONE
+        timelineOffset = 0
         full = false
         player.stop()
         playerLayer.visibility = View.GONE
@@ -717,8 +826,8 @@ class MainActivity : Activity() {
                         KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                         KeyEvent.KEYCODE_HEADSETHOOK -> togglePlayback()
                         KeyEvent.KEYCODE_MEDIA_STOP -> stopPlayback()
-                        KeyEvent.KEYCODE_MEDIA_REWIND -> player.seek(-10000)
-                        KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> player.seek(10000)
+                        KeyEvent.KEYCODE_MEDIA_REWIND -> seek(-10000)
+                        KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> seek(10000)
                     }
                 return true
             }
@@ -751,6 +860,7 @@ class MainActivity : Activity() {
         settingsModel.close()
         catalogModel.close()
         playbackModel.close()
+        tracksModel.close()
         diagnosticsModel?.close()
         youtubeReceiver.close()
         receiverWorker.shutdown()

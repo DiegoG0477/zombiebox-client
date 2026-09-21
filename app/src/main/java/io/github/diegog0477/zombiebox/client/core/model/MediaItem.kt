@@ -9,4 +9,5 @@ data class MediaItem(
     val positionMs: Int = 0,
     val programmes: List<Programme> = emptyList(),
     val imageUrl: String = "",
+    val durationMs: Int = 0,
 )

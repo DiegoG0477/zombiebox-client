@@ -13,13 +13,7 @@ class GatewayPlaybackRepository(private val api: GatewayApi) : PlaybackRepositor
                 "/v1/playback",
                 JSONObject().put("itemId", itemId).put("mode", mode),
             )
-        return PlaybackPlan(
-            plan.getString("sessionId"),
-            api.base + plan.getString("url"),
-            plan.optString("mimeType", "video/mp4"),
-            plan.optString("mode"),
-            plan.optInt("resumePositionMs"),
-        )
+        return PlaybackPlanDecoder.decode(api.base, plan)
     }
 
     override fun progress(sessionId: String, progress: PlaybackProgress) {

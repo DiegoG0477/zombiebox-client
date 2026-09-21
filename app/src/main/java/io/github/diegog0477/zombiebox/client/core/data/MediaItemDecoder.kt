@@ -20,6 +20,7 @@ object MediaItemDecoder {
                 Programme(programme.optString("title"), programme.optLong("start"))
             },
             item.optString("imageUrl"),
+            item.optInt("durationMs"),
         )
     }
 }

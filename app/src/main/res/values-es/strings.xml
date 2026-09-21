@@ -193,4 +193,13 @@
         multicast: sin verificar. Los códecs declarados son indicios; ejecuta las pruebas de
         reproducción.
     </string>
+    <string name="audio_tracks">Pistas de audio</string>
+    <string name="subtitles">Subtítulos</string>
+    <string name="subtitles_off">Desactivados</string>
+    <string name="tracks_unavailable">
+        La selección de pistas no está disponible para este contenido.
+    </string>
+    <string name="track_number">Pista %1$d</string>
+    <string name="language_unknown">Idioma desconocido</string>
+    <string name="track_forced">Forzados</string>
 </resources>

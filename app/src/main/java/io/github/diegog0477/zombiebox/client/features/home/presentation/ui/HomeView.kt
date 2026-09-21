@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.*
 import io.github.diegog0477.zombiebox.client.R
@@ -42,6 +43,13 @@ class HomeView(
 
     private val focusRows = ArrayList<Pair<String, ViewGroup>>()
     private var scope = HomeScope()
+    private val navigation = LinkedHashMap<String, Button>()
+
+    fun selectScope(scope: HomeScope) {
+        this.scope = scope
+        navigation.forEach { (provider, tab) -> tab.isSelected = provider == scope.provider }
+    }
+
     private val ui = TvWidgets(context) { accent() }
 
     private fun accent(): Int = ui.providerAccent(scope.provider)
@@ -81,12 +89,20 @@ class HomeView(
                 setPadding(0, 0, ui.dp(24), 0)
             }
         )
-        nav.addView(ui.button(R.string.home) { actions.navigate("", "") })
+        navigation.clear()
+        val home =
+            ui.navigation(context.getString(R.string.home), "", scope.provider.isEmpty()) {
+                actions.navigate("", "")
+            }
+        navigation[""] = home
+        nav.addView(home)
         for (id in arrayOf("youtube", "plex", "stremio", "spotify", "iptv", "airplay")) {
-            nav.addView(
-                ui.action(ui.serviceTitle(id), ui.providerAccent(id)) { actions.navigate(id, "") }
-                    .apply { tag = "nav:$id" }
-            )
+            val tab =
+                ui.navigation(ui.serviceTitle(id), id, scope.provider == id) {
+                    actions.navigate(id, "")
+                }
+            navigation[id] = tab
+            nav.addView(tab)
         }
         nav.addView(ui.button(R.string.search) { actions.search() })
         nav.addView(ui.button(R.string.settings) { actions.settings() })
@@ -131,7 +147,7 @@ class HomeView(
         )
         val heroActions = ui.row()
         if (featured != null) {
-            heroActions.addView(ui.button(R.string.play) { actions.play(featured) })
+            heroActions.addView(ui.primary(R.string.play) { actions.play(featured) })
             heroActions.addView(ui.button(R.string.more_info) { actions.details(featured) })
         } else heroActions.addView(ui.button(R.string.configure_services) { actions.settings() })
         if (scope.provider == "youtube")
@@ -144,7 +160,8 @@ class HomeView(
                 setMargins(0, ui.dp(14), 0, ui.dp(4))
             },
         )
-        for (section in snapshot.sections) {
+        if (snapshot.sections.none { it.id == "continue" }) renderServices(snapshot)
+        for (section in snapshot.sections.sortedBy { if (it.id == "continue") 0 else 1 }) {
             title(
                 if (section.id == "continue") context.getString(R.string.continue_watching)
                 else ui.serviceTitle(section.id)
@@ -163,7 +180,9 @@ class HomeView(
                     )
                 }
                 card.addView(cardContent, FrameLayout.LayoutParams(-1, -1))
-                card.setPadding(ui.dp(12), ui.dp(12), ui.dp(12), ui.dp(12))
+                card.setPadding(ui.dp(2), ui.dp(2), ui.dp(2), ui.dp(2))
+                cardContent.setPadding(ui.dp(8), ui.dp(6), ui.dp(8), ui.dp(6))
+                cardContent.gravity = Gravity.BOTTOM
                 card.setBackgroundDrawable(ui.focusBackground(ui.providerAccent(item.provider)))
                 card.isFocusable = true
                 card.isClickable = true
@@ -188,6 +207,9 @@ class HomeView(
                             ui.muted,
                         )
                     )
+                if (item.positionMs > 0 && item.durationMs > 0) {
+                    cardContent.addView(ui.progress(item.positionMs, item.durationMs))
+                }
                 card.setOnClickListener { actions.details(item) }
                 line.addView(
                     card,
@@ -201,29 +223,8 @@ class HomeView(
                     ui.button(R.string.view_all) { actions.catalog(section.id) }
                         .apply { tag = "all:" + section.id }
                 )
+            if (section.id == "continue") renderServices(snapshot)
         }
-        title(context.getString(R.string.apps_content))
-        val services = horizontal(content, "services")
-        for (module in snapshot.modules) {
-            val id = module.id
-            val label = ui.serviceTitle(id) + "\n" + ui.localizedState(module.state)
-            services.addView(
-                ui.action(label, ui.providerAccent(id)) {
-                        if (id == "android_mirror") actions.mirrorReceiver()
-                        else if (module.state == "DISABLED") actions.providers()
-                        else actions.navigate(id, "")
-                    }
-                    .apply {
-                        tag = "service:$id"
-                        layoutParams =
-                            LinearLayout.LayoutParams(ui.dp(165), ui.dp(66)).apply {
-                                setMargins(ui.dp(3), ui.dp(3), ui.dp(6), ui.dp(3))
-                            }
-                    }
-            )
-        }
-        if (snapshot.modules.isEmpty())
-            services.addView(ui.button(R.string.connect_gateway) { actions.pair() })
         content.addView(
             ui.text(
                 context.getString(
@@ -234,6 +235,42 @@ class HomeView(
             )
         )
         focus.rebuild(focusRows + Pair("transport", bottom), !full)
+    }
+
+    private fun renderServices(snapshot: HomeSnapshot) {
+        title(context.getString(R.string.apps_content))
+        val services = horizontal(content, "services")
+        for (module in snapshot.modules) {
+            val id = module.id
+            val tile =
+                ui.column().apply {
+                    tag = "service:$id"
+                    isFocusable = true
+                    isClickable = true
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(ui.dp(12), ui.dp(6), ui.dp(12), ui.dp(6))
+                    setBackgroundDrawable(ui.focusBackground(ui.providerAccent(id)))
+                    addView(
+                        ui.text(ui.serviceTitle(id), 19f, ui.providerAccent(id)).apply {
+                            typeface = Typeface.DEFAULT_BOLD
+                        }
+                    )
+                    addView(ui.text(ui.localizedState(module.state), 12f, ui.muted))
+                    setOnClickListener {
+                        if (id == "android_mirror") actions.mirrorReceiver()
+                        else if (module.state == "DISABLED") actions.providers()
+                        else actions.navigate(id, "")
+                    }
+                }
+            services.addView(
+                tile,
+                LinearLayout.LayoutParams(ui.dp(165), ui.dp(76)).apply {
+                    setMargins(ui.dp(3), ui.dp(3), ui.dp(6), ui.dp(3))
+                },
+            )
+        }
+        if (snapshot.modules.isEmpty())
+            services.addView(ui.button(R.string.connect_gateway) { actions.pair() })
     }
 
     private fun artImage(path: String, hero: Boolean): ImageView {
