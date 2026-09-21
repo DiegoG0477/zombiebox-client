@@ -1,7 +1,7 @@
 package io.github.diegog0477.zombiebox.client
 
-import io.github.diegog0477.zombiebox.client.model.BrowserRepository
-import io.github.diegog0477.zombiebox.client.presentation.BrowserViewModel
+import io.github.diegog0477.zombiebox.client.features.browser.domain.repository.BrowserRepository
+import io.github.diegog0477.zombiebox.client.features.browser.presentation.viewmodel.BrowserViewModel
 import org.junit.Assert.*
 import org.junit.Test
 

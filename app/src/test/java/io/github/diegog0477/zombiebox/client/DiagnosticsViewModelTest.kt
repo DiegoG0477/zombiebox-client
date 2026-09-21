@@ -1,7 +1,8 @@
 package io.github.diegog0477.zombiebox.client
 
-import io.github.diegog0477.zombiebox.client.model.*
-import io.github.diegog0477.zombiebox.client.presentation.DiagnosticsViewModel
+import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.model.HardwareReport
+import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.repository.DiagnosticsRepository
+import io.github.diegog0477.zombiebox.client.features.diagnostics.presentation.viewmodel.DiagnosticsViewModel
 import org.junit.Assert.*
 import org.junit.Test
 

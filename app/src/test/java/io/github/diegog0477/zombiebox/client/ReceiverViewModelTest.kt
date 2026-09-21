@@ -1,7 +1,11 @@
 package io.github.diegog0477.zombiebox.client
 
-import io.github.diegog0477.zombiebox.client.model.*
-import io.github.diegog0477.zombiebox.client.presentation.ReceiverViewModel
+import io.github.diegog0477.zombiebox.client.core.model.MediaItem
+import io.github.diegog0477.zombiebox.client.features.mirroring.domain.model.PlaybackContext
+import io.github.diegog0477.zombiebox.client.features.mirroring.domain.model.ReceiverChange
+import io.github.diegog0477.zombiebox.client.features.mirroring.domain.model.ReceiverPlan
+import io.github.diegog0477.zombiebox.client.features.mirroring.domain.repository.ReceiverRepository
+import io.github.diegog0477.zombiebox.client.features.mirroring.presentation.viewmodel.ReceiverViewModel
 import org.junit.Assert.*
 import org.junit.Test
 

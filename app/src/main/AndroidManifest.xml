@@ -18,9 +18,18 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:usesCleartextTraffic="true"
     >
-        <activity android:name=".ProbesActivity" android:exported="false" />
-        <activity android:name=".ServicesActivity" android:exported="false" />
-        <activity android:name=".BrowserActivity" android:exported="false" />
+        <activity
+            android:name="io.github.diegog0477.zombiebox.client.features.diagnostics.presentation.ui.ProbesActivity"
+            android:exported="false"
+        />
+        <activity
+            android:name="io.github.diegog0477.zombiebox.client.features.services.presentation.ui.ServicesActivity"
+            android:exported="false"
+        />
+        <activity
+            android:name="io.github.diegog0477.zombiebox.client.features.browser.presentation.ui.BrowserActivity"
+            android:exported="false"
+        />
         <activity
             android:name=".MainActivity"
             android:exported="true"

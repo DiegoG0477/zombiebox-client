@@ -1,23 +1,16 @@
 package io.github.diegog0477.zombiebox.client
 
 import android.app.Activity
-import android.app.ActivityManager
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.StateListDrawable
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
-import android.text.InputType
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.SurfaceHolder
@@ -25,31 +18,132 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.*
-import io.github.diegog0477.zombiebox.client.data.GatewayHomeRepository
-import io.github.diegog0477.zombiebox.client.data.GatewayReceiverRepository
-import io.github.diegog0477.zombiebox.client.model.*
-import io.github.diegog0477.zombiebox.client.presentation.HomeViewModel
-import io.github.diegog0477.zombiebox.client.presentation.ReceiverViewModel
+import io.github.diegog0477.zombiebox.client.core.data.GatewayEvents
+import io.github.diegog0477.zombiebox.client.core.model.MediaItem
+import io.github.diegog0477.zombiebox.client.core.presentation.ScreenTasks
+import io.github.diegog0477.zombiebox.client.core.ui.RemoteFocus
+import io.github.diegog0477.zombiebox.client.core.ui.TvWidgets
+import io.github.diegog0477.zombiebox.client.features.artwork.data.GatewayArtworkRepository
+import io.github.diegog0477.zombiebox.client.features.artwork.presentation.viewmodel.ArtworkViewModel
+import io.github.diegog0477.zombiebox.client.features.browser.presentation.ui.BrowserActivity
+import io.github.diegog0477.zombiebox.client.features.catalog.data.GatewayCatalogRepository
+import io.github.diegog0477.zombiebox.client.features.catalog.presentation.ui.CatalogDialogs
+import io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel.CatalogViewModel
+import io.github.diegog0477.zombiebox.client.features.diagnostics.data.GatewayDiagnosticsRepository
+import io.github.diegog0477.zombiebox.client.features.diagnostics.platform.HardwareScanner
+import io.github.diegog0477.zombiebox.client.features.diagnostics.presentation.ui.DiagnosticsDialog
+import io.github.diegog0477.zombiebox.client.features.diagnostics.presentation.viewmodel.DiagnosticsViewModel
+import io.github.diegog0477.zombiebox.client.features.home.data.GatewayHomeRepository
+import io.github.diegog0477.zombiebox.client.features.home.domain.model.HomeScope
+import io.github.diegog0477.zombiebox.client.features.home.presentation.ui.HomeActions
+import io.github.diegog0477.zombiebox.client.features.home.presentation.ui.HomeView
+import io.github.diegog0477.zombiebox.client.features.home.presentation.viewmodel.HomeViewModel
+import io.github.diegog0477.zombiebox.client.features.mirroring.data.GatewayReceiverRepository
+import io.github.diegog0477.zombiebox.client.features.mirroring.domain.model.PlaybackContext
+import io.github.diegog0477.zombiebox.client.features.mirroring.domain.model.ReceiverChange
+import io.github.diegog0477.zombiebox.client.features.mirroring.domain.model.ReceiverPlan
+import io.github.diegog0477.zombiebox.client.features.mirroring.presentation.viewmodel.ReceiverViewModel
+import io.github.diegog0477.zombiebox.client.features.playback.data.GatewayPlaybackRepository
+import io.github.diegog0477.zombiebox.client.features.playback.domain.model.PlaybackProgress
+import io.github.diegog0477.zombiebox.client.features.playback.platform.AudioFocusController
+import io.github.diegog0477.zombiebox.client.features.playback.platform.AudioFocusFactory
+import io.github.diegog0477.zombiebox.client.features.playback.platform.EmbeddedPlayer
+import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.VideoSurface
+import io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel.PlaybackViewModel
+import io.github.diegog0477.zombiebox.client.features.settings.data.GatewaySettingsRepository
+import io.github.diegog0477.zombiebox.client.features.settings.presentation.ui.SettingsActions
+import io.github.diegog0477.zombiebox.client.features.settings.presentation.ui.SettingsDialogs
+import io.github.diegog0477.zombiebox.client.features.settings.presentation.viewmodel.SettingsViewModel
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.data.GatewayYouTubeReceiverRepository
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.YouTubeCommand
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.presentation.viewmodel.YouTubeReceiverViewModel
 import io.github.diegog0477.zombiebox.shared.GatewayApi
 import io.github.diegog0477.zombiebox.shared.GatewayFailure
-import java.net.URL
-import java.net.URLEncoder
 import java.util.Locale
-import java.util.UUID
 import java.util.concurrent.Executors
-import org.json.JSONArray
-import org.json.JSONObject
 
 /** Native semantic Home. The gateway supplies content; all layout stays on-device. */
 @Suppress("DEPRECATION")
 class MainActivity : Activity() {
+    private val ui by lazy { TvWidgets(this) { contextAccent() } }
+
+    private fun render() {
+        artwork.reset()
+        imageWorker.queue.clear()
+        content.render(snapshot, homeViewModel.state.scope, isTV(), bottom, full)
+    }
+
+    private val settingsModel by lazy {
+        SettingsViewModel(GatewaySettingsRepository(applicationContext, api), screenTasks())
+    }
+    private val catalogModel by lazy {
+        CatalogViewModel(GatewayCatalogRepository(api), screenTasks())
+    }
+    private val playbackModel by lazy {
+        PlaybackViewModel(
+            GatewayPlaybackRepository(api),
+            { work -> worker.execute { work() } },
+            { work -> handler.post { work() } },
+        )
+    }
+    private val events by lazy { GatewayEvents(api, poller) { work -> handler.post { work() } } }
+
+    private fun screenTasks() =
+        ScreenTasks({ work -> worker.execute { work() } }, { work -> handler.post { work() } })
+
+    private val settingsDialogs by lazy {
+        SettingsDialogs(
+            this,
+            settingsModel,
+            { api.token.isNotEmpty() },
+            { api.base },
+            ::error,
+            SettingsActions(
+                { profile ->
+                    stopPlayback()
+                    settingsModel.activate(profile)
+                    receiverViewModel.reset()
+                    homeViewModel.reset()
+                    refresh()
+                    receiverViewModel.refresh()
+                },
+                { refresh() },
+                ::render,
+                ::diagnostics,
+                ::audioSettings,
+                ::receiverSettings,
+                ::youtubeReceiverSettings,
+            ),
+        )
+    }
+
+    private fun settings() = settingsDialogs.show()
+
+    private fun pairing() = settingsDialogs.pairing()
+
+    private fun providerList() = settingsDialogs.providers()
+
+    private val catalogDialogs by lazy {
+        CatalogDialogs(
+            this,
+            catalogModel,
+            { homeViewModel.state.scope.query },
+            { refresh(query = it) },
+            { startPlayback(it) },
+            ::error,
+        )
+    }
+
+    private fun search() = catalogDialogs.search()
+
+    private fun catalogPage(provider: String) = catalogDialogs.page(provider)
+
+    private fun details(item: MediaItem) = catalogDialogs.details(item)
+
     private val worker = Executors.newSingleThreadExecutor()
     private val receiverWorker = Executors.newSingleThreadExecutor()
-    private lateinit var youtubeReceiver:
-        io.github.diegog0477.zombiebox.client.presentation.YouTubeReceiverViewModel
-    private var diagnosticsModel:
-        io.github.diegog0477.zombiebox.client.presentation.DiagnosticsViewModel? =
-        null
+    private lateinit var youtubeReceiver: YouTubeReceiverViewModel
+    private var diagnosticsModel: DiagnosticsViewModel? = null
     private var youtubeDialog: AlertDialog? = null
     private val youtubeTick =
         object : Runnable {
@@ -72,14 +166,14 @@ class MainActivity : Activity() {
             java.util.concurrent.ArrayBlockingQueue<Runnable>(24),
         )
     private val artwork =
-        io.github.diegog0477.zombiebox.client.presentation.ArtworkViewModel(
-            io.github.diegog0477.zombiebox.client.data.GatewayArtworkRepository(api),
+        ArtworkViewModel(
+            GatewayArtworkRepository(api),
             { work -> imageWorker.execute { work() } },
             { work -> handler.post { work() } },
         )
     private val prefs by lazy { getSharedPreferences("zombie", MODE_PRIVATE) }
     private lateinit var root: FrameLayout
-    private lateinit var content: LinearLayout
+    private lateinit var content: HomeView
     private lateinit var now: TextView
     private lateinit var playerLayer: LinearLayout
     private lateinit var playerStatus: TextView
@@ -97,9 +191,10 @@ class MainActivity : Activity() {
     private var mime = "video/mp4"
     private var itemTitle = ""
     private var full = false
-    private val homeFocus = RemoteFocus()
+    private val homeFocus
+        get() = content.focus
+
     private val playerFocus = RemoteFocus()
-    private val focusRows = ArrayList<Pair<String, ViewGroup>>()
     private lateinit var bottom: LinearLayout
     private lateinit var audioController: AudioFocusController
     private var gamepadClick: View? = null
@@ -107,7 +202,6 @@ class MainActivity : Activity() {
     private var lastState = ""
     private var lastPosition = 0
     private var lastDuration = 0
-    private var playbackGeneration = 0
     @Volatile private var closed = false
     @Volatile private var foreground = false
     private val green
@@ -128,20 +222,38 @@ class MainActivity : Activity() {
         api.token = prefs.getString("token", "") ?: ""
         root = FrameLayout(this)
         root.setBackgroundColor(background)
-        val shell = column()
+        val shell = ui.column()
         root.addView(shell, FrameLayout.LayoutParams(-1, -1))
         val scroll = ScrollView(this)
-        content = column()
-        content.setPadding(dp(22), dp(16), dp(22), dp(18))
+        content =
+            HomeView(
+                this,
+                artwork,
+                HomeActions(
+                    navigate = { provider, query -> refresh(provider, query) },
+                    play = { item -> startPlayback(item) },
+                    details = { item -> details(item) },
+                    settings = { settings() },
+                    search = { search() },
+                    youtubeReceiver = { youtubeReceiverSettings() },
+                    catalog = { provider -> catalogPage(provider) },
+                    mirrorReceiver = { receiverSettings() },
+                    providers = { providerList() },
+                    pair = { pairing() },
+                ),
+            )
+        content.setPadding(ui.dp(22), ui.dp(16), ui.dp(22), ui.dp(18))
         scroll.addView(content)
         shell.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        bottom = row()
-        bottom.setPadding(dp(16), dp(4), dp(16), dp(4))
+        bottom = ui.row()
+        bottom.setPadding(ui.dp(16), ui.dp(4), ui.dp(16), ui.dp(4))
         bottom.setBackgroundColor(panel)
-        now = text(getString(R.string.nothing_playing), 16f)
+        now = ui.text(getString(R.string.nothing_playing), 16f)
         bottom.addView(now, LinearLayout.LayoutParams(0, -2, 1f))
-        bottom.addView(button(R.string.play_pause) { togglePlayback() })
-        bottom.addView(button(R.string.expand) { if (session.isNotEmpty()) setFullscreen(!full) })
+        bottom.addView(ui.button(R.string.play_pause) { togglePlayback() })
+        bottom.addView(
+            ui.button(R.string.expand) { if (session.isNotEmpty()) setFullscreen(!full) }
+        )
         shell.addView(bottom)
         createPlayer()
         player =
@@ -159,9 +271,9 @@ class MainActivity : Activity() {
                 playerStatus.text =
                     getString(
                         R.string.player_status,
-                        localizedState(status),
-                        formatTime(position),
-                        formatTime(duration),
+                        ui.localizedState(status),
+                        ui.formatTime(position),
+                        ui.formatTime(duration),
                     )
                 if (session.isNotEmpty()) now.text = itemTitle
                 if (status == "PLAYING")
@@ -172,20 +284,7 @@ class MainActivity : Activity() {
                     lastState = status
                     lastReport = time
                     val current = session
-                    async(
-                        {
-                            api.request(
-                                "PUT",
-                                "/v1/playback/$current/progress",
-                                JSONObject()
-                                    .put("state", status)
-                                    .put("positionMs", position)
-                                    .put("durationMs", duration),
-                            )
-                        },
-                        {},
-                        false,
-                    )
+                    playbackModel.progress(current, PlaybackProgress(status, position, duration))
                 }
             }
         audioController =
@@ -196,8 +295,8 @@ class MainActivity : Activity() {
                 prefs.getBoolean("audioFocusCompatibility", false),
             )
         youtubeReceiver =
-            io.github.diegog0477.zombiebox.client.presentation.YouTubeReceiverViewModel(
-                io.github.diegog0477.zombiebox.client.data.GatewayYouTubeReceiverRepository(api),
+            YouTubeReceiverViewModel(
+                GatewayYouTubeReceiverRepository(api),
                 { work -> receiverWorker.execute { work() } },
                 { work -> handler.post { work() } },
             )
@@ -228,290 +327,12 @@ class MainActivity : Activity() {
         setContentView(root)
         render()
         if (api.token.isNotEmpty()) refresh() else handler.post { pairing() }
-        poller.execute {
-            var cursor = ""
-            while (!closed) {
-                if (!foreground || api.token.isEmpty()) {
-                    try {
-                        Thread.sleep(1000)
-                    } catch (_: InterruptedException) {
-                        break
-                    }
-                    continue
-                }
-                try {
-                    val result =
-                        api.request(
-                            "GET",
-                            "/v1/events?cursor=" + URLEncoder.encode(cursor, "UTF-8"),
-                        )
-                    cursor = result.optString("cursor")
-                    runOnUiThread {
-                        if (!closed && foreground) {
-                            receiverViewModel.refresh()
-                            if ((result.optJSONArray("events")?.length() ?: 0) > 0) refresh()
-                        }
-                    }
-                } catch (e: Exception) {
-                    if (e is GatewayFailure && e.status == 409) cursor = ""
-                    try {
-                        Thread.sleep(3000)
-                    } catch (_: InterruptedException) {
-                        break
-                    }
-                }
+        events.start { changed ->
+            if (!closed && foreground) {
+                receiverViewModel.refresh()
+                if (changed) refresh()
             }
         }
-    }
-
-    private fun dp(value: Int) = (value * resources.displayMetrics.density + 0.5f).toInt()
-
-    private fun column() = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-
-    private fun row() =
-        LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-
-    private fun text(value: String, size: Float, color: Int = Color.WHITE) =
-        TextView(this).apply {
-            text = value
-            textSize = size
-            setTextColor(color)
-            setPadding(dp(4), dp(4), dp(4), dp(4))
-        }
-
-    private fun box(color: Int, stroke: Int = Color.rgb(48, 60, 63)) =
-        GradientDrawable().apply {
-            setColor(color)
-            cornerRadius = dp(8).toFloat()
-            setStroke(dp(1), stroke)
-        }
-
-    private fun focusBackground(accent: Int = contextAccent()): StateListDrawable =
-        StateListDrawable().apply {
-            addState(intArrayOf(android.R.attr.state_focused), box(Color.rgb(32, 39, 42), accent))
-            addState(intArrayOf(android.R.attr.state_pressed), box(Color.rgb(32, 39, 42), accent))
-            addState(intArrayOf(), box(panel))
-        }
-
-    private fun action(label: String, accent: Int = contextAccent(), click: () -> Unit) =
-        Button(this).apply {
-            text = label
-            textSize = 14f
-            setTextColor(Color.WHITE)
-            isFocusable = true
-            setPadding(dp(12), dp(7), dp(12), dp(7))
-            setBackgroundDrawable(focusBackground(accent))
-            tag = "action:$label"
-            setOnClickListener { click() }
-            layoutParams =
-                LinearLayout.LayoutParams(-2, dp(44)).apply {
-                    setMargins(dp(3), dp(3), dp(3), dp(3))
-                }
-        }
-
-    private fun button(label: Int, click: () -> Unit) =
-        action(getString(label), click = click).apply { tag = "button:$label" }
-
-    private fun horizontal(parent: LinearLayout, id: String = ""): LinearLayout {
-        val scroll = HorizontalScrollView(this)
-        scroll.isHorizontalScrollBarEnabled = false
-        val line = row()
-        scroll.addView(line)
-        parent.addView(scroll)
-        if (id.isNotEmpty()) focusRows.add(Pair(id, line))
-        return line
-    }
-
-    private fun title(label: String) {
-        content.addView(text(label, 18f).apply { setPadding(dp(4), dp(14), 0, dp(8)) })
-    }
-
-    private fun render() {
-        artwork.reset()
-        imageWorker.queue.clear()
-        focusRows.clear()
-        content.removeAllViews()
-        val nav = horizontal(content, "navigation")
-        nav.addView(
-            text(getString(R.string.brand), 25f, green).apply {
-                typeface = Typeface.DEFAULT_BOLD
-                setPadding(0, 0, dp(24), 0)
-            }
-        )
-        nav.addView(button(R.string.home) { refresh("", "") })
-        for (id in arrayOf("youtube", "plex", "stremio", "spotify", "iptv", "airplay")) {
-            nav.addView(
-                action(serviceTitle(id), providerAccent(id)) { refresh(id, "") }
-                    .apply { tag = "nav:$id" }
-            )
-        }
-        nav.addView(button(R.string.search) { search() })
-        nav.addView(button(R.string.settings) { settings() })
-        val heroFrame = FrameLayout(this)
-        val hero = column()
-        hero.setPadding(dp(24), dp(18), dp(24), dp(18))
-        hero.setBackgroundDrawable(
-            GradientDrawable(
-                    GradientDrawable.Orientation.LEFT_RIGHT,
-                    intArrayOf(Color.rgb(20, 39, 31), Color.rgb(25, 41, 44), background),
-                )
-                .apply { cornerRadius = dp(10).toFloat() }
-        )
-        val featured = snapshot.hero
-        if (featured != null && featured.imageUrl.isNotEmpty()) {
-            heroFrame.addView(artImage(featured.imageUrl, true), FrameLayout.LayoutParams(-1, -1))
-            hero.setBackgroundDrawable(
-                GradientDrawable(
-                    GradientDrawable.Orientation.LEFT_RIGHT,
-                    intArrayOf(Color.argb(240, 10, 15, 16), Color.argb(100, 10, 15, 16)),
-                )
-            )
-        }
-        heroFrame.addView(hero, FrameLayout.LayoutParams(-1, -2))
-        hero.addView(text(getString(R.string.tagline), 12f, contextAccent()))
-        hero.addView(
-            text(featured?.title ?: getString(R.string.welcome), 32f).apply {
-                typeface = Typeface.DEFAULT_BOLD
-                maxLines = 2
-            }
-        )
-        hero.addView(
-            text(
-                    featured?.description?.takeIf { it.isNotEmpty() }
-                        ?: getString(R.string.welcome_detail),
-                    16f,
-                    muted,
-                )
-                .apply { maxLines = 2 }
-        )
-        val heroActions = row()
-        if (featured != null) {
-            heroActions.addView(button(R.string.play) { startPlayback(featured) })
-            heroActions.addView(button(R.string.more_info) { details(featured) })
-        } else heroActions.addView(button(R.string.configure_services) { settings() })
-        if (homeViewModel.state.scope.provider == "youtube")
-            heroActions.addView(button(R.string.youtube_receiver) { youtubeReceiverSettings() })
-        focusRows.add(Pair("hero", heroActions))
-        hero.addView(heroActions)
-        content.addView(
-            heroFrame,
-            LinearLayout.LayoutParams(-1, dp(240)).apply { setMargins(0, dp(14), 0, dp(4)) },
-        )
-        for (section in snapshot.sections) {
-            title(
-                if (section.id == "continue") getString(R.string.continue_watching)
-                else serviceTitle(section.id)
-            )
-            val line = horizontal(content, "section:" + section.id)
-            for (item in section.items) {
-                val card = FrameLayout(this).apply { tag = "item:" + section.id + ":" + item.id }
-                val cardContent = column()
-                if (item.imageUrl.isNotEmpty()) {
-                    card.addView(artImage(item.imageUrl, false), FrameLayout.LayoutParams(-1, -1))
-                    cardContent.setBackgroundDrawable(
-                        GradientDrawable(
-                            GradientDrawable.Orientation.BOTTOM_TOP,
-                            intArrayOf(Color.argb(240, 10, 15, 16), Color.argb(90, 10, 15, 16)),
-                        )
-                    )
-                }
-                card.addView(cardContent, FrameLayout.LayoutParams(-1, -1))
-                card.setPadding(dp(12), dp(12), dp(12), dp(12))
-                card.setBackgroundDrawable(focusBackground(providerAccent(item.provider)))
-                card.isFocusable = true
-                card.isClickable = true
-                cardContent.addView(
-                    text(serviceTitle(item.provider), 12f, providerAccent(item.provider))
-                )
-                cardContent.addView(
-                    text(item.title, 19f).apply {
-                        maxLines = 2
-                        typeface = Typeface.DEFAULT_BOLD
-                    }
-                )
-                if (item.subtitle.isNotEmpty())
-                    cardContent.addView(text(item.subtitle, 12f, muted).apply { maxLines = 1 })
-                if (item.positionMs > 0)
-                    cardContent.addView(
-                        text(getString(R.string.resume_at, formatTime(item.positionMs)), 12f, muted)
-                    )
-                card.setOnClickListener { details(item) }
-                line.addView(
-                    card,
-                    LinearLayout.LayoutParams(dp(230), dp(130)).apply {
-                        setMargins(dp(3), dp(3), dp(8), dp(3))
-                    },
-                )
-            }
-            if (section.id != "continue")
-                line.addView(
-                    button(R.string.view_all) { catalogPage(section.id) }
-                        .apply { tag = "all:" + section.id }
-                )
-        }
-        title(getString(R.string.apps_content))
-        val services = horizontal(content, "services")
-        for (module in snapshot.modules) {
-            val id = module.id
-            val label = serviceTitle(id) + "\n" + localizedState(module.state)
-            services.addView(
-                action(label, providerAccent(id)) {
-                        if (id == "android_mirror") receiverSettings()
-                        else if (module.state == "DISABLED") providerList() else refresh(id, "")
-                    }
-                    .apply {
-                        tag = "service:$id"
-                        layoutParams =
-                            LinearLayout.LayoutParams(dp(165), dp(66)).apply {
-                                setMargins(dp(3), dp(3), dp(6), dp(3))
-                            }
-                    }
-            )
-        }
-        if (snapshot.modules.isEmpty())
-            services.addView(button(R.string.connect_gateway) { pairing() })
-        content.addView(
-            text(
-                getString(
-                    if (isTV()) R.string.docked_description else R.string.handheld_description
-                ),
-                14f,
-                muted,
-            )
-        )
-        homeFocus.rebuild(focusRows + Pair("transport", bottom), !full)
-    }
-
-    private fun artImage(path: String, hero: Boolean): ImageView {
-        val image =
-            ImageView(this).apply {
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                isFocusable = false
-            }
-        artwork.load(path, hero) { bytes ->
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-            if (bounds.outWidth in 1..960 && bounds.outHeight in 1..540) {
-                try {
-                    image.setImageBitmap(
-                        BitmapFactory.decodeByteArray(
-                            bytes,
-                            0,
-                            bytes.size,
-                            BitmapFactory.Options().apply {
-                                inPreferredConfig = Bitmap.Config.RGB_565
-                            },
-                        )
-                    )
-                } catch (_: OutOfMemoryError) {
-                    image.setImageDrawable(null)
-                }
-            }
-        }
-        return image
     }
 
     private fun refresh(
@@ -523,28 +344,6 @@ class MainActivity : Activity() {
             return
         }
         if (api.token.isNotEmpty()) homeViewModel.refresh(HomeScope(provider, query))
-    }
-
-    private fun <T> async(
-        work: () -> T,
-        done: (T) -> Unit,
-        notify: Boolean = true,
-        onError: () -> Unit = {},
-    ) {
-        if (closed) return
-        worker.execute {
-            try {
-                val result = work()
-                runOnUiThread { if (!closed) done(result) }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    if (!closed) {
-                        onError()
-                        if (notify) error(e)
-                    }
-                }
-            }
-        }
     }
 
     private fun error(e: Exception) {
@@ -561,342 +360,6 @@ class MainActivity : Activity() {
                 )
             else getString(R.string.error_network)
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-    }
-
-    private fun field(parent: LinearLayout, label: Int, secret: Boolean = false): EditText {
-        parent.addView(text(getString(label), 14f, muted))
-        return EditText(this).apply {
-            setSingleLine(true)
-            setTextColor(Color.WHITE)
-            setHintTextColor(muted)
-            inputType =
-                if (secret) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-                else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            isSaveEnabled = false
-            parent.addView(this, LinearLayout.LayoutParams(-1, dp(48)))
-        }
-    }
-
-    private fun dialogForm(): Pair<ScrollView, LinearLayout> {
-        val form = column()
-        form.setPadding(dp(18), dp(8), dp(18), dp(12))
-        val scroll = ScrollView(this)
-        scroll.addView(form)
-        return Pair(scroll, form)
-    }
-
-    private fun pairing() {
-        val (scroll, form) = dialogForm()
-        form.addView(text(getString(R.string.lan_notice), 14f, muted))
-        val address = field(form, R.string.gateway_address)
-        address.setText(api.base)
-        address.hint = getString(R.string.gateway_hint)
-        val code = field(form, R.string.operator_code, true)
-        val dialog =
-            AlertDialog.Builder(this)
-                .setTitle(R.string.connect_gateway)
-                .setView(scroll)
-                .setNegativeButton(R.string.cancel, null)
-                .setPositiveButton(R.string.connect, null)
-                .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val candidate = address.text.toString().trim().trimEnd('/')
-                try {
-                    val u = URL(candidate)
-                    require(
-                        u.protocol in arrayOf("http", "https") &&
-                            u.host.isNotEmpty() &&
-                            u.userInfo == null &&
-                            u.query == null &&
-                            u.ref == null
-                    )
-                } catch (_: Exception) {
-                    address.error = getString(R.string.invalid_address)
-                    return@setOnClickListener
-                }
-                val pairingCode = code.text.toString()
-                code.setText("")
-                val identifier =
-                    prefs.getString("installation", null)
-                        ?: UUID.randomUUID().toString().also {
-                            prefs.edit().putString("installation", it).commit()
-                        }
-                val payload = registration(identifier).put("pairingCode", pairingCode)
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
-                // Use a separate connection profile until pairing succeeds.
-                async(
-                    {
-                        val connection = GatewayApi()
-                        connection.base = candidate
-                        connection.request("POST", "/v1/devices/register", payload)
-                    },
-                    { result ->
-                        stopPlayback()
-                        api.disconnect()
-                        api.configure(
-                            candidate,
-                            result.getString("deviceId"),
-                            result.getString("deviceToken"),
-                        )
-                        prefs
-                            .edit()
-                            .putString("gateway", api.base)
-                            .putString("device", api.device)
-                            .putString("token", api.token)
-                            .commit()
-                        dialog.dismiss()
-                        receiverViewModel.reset()
-                        homeViewModel.reset()
-                        refresh()
-                        receiverViewModel.refresh()
-                    },
-                    onError = { dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true },
-                )
-            }
-        }
-        dialog.setOnDismissListener { code.setText("") }
-        dialog.show()
-    }
-
-    private fun registration(id: String): JSONObject {
-        val display = resources.displayMetrics
-        val touch = packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
-        val memory = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-        return JSONObject()
-            .put("clientVersion", packageManager.getPackageInfo(packageName, 0).versionName)
-            .put("protocolVersion", 1)
-            .put("installationId", id)
-            .put(
-                "platform",
-                JSONObject()
-                    .put("androidApi", Build.VERSION.SDK_INT)
-                    .put("release", Build.VERSION.RELEASE)
-                    .put("manufacturer", Build.MANUFACTURER)
-                    .put("model", Build.MODEL)
-                    .put("abis", JSONArray().put(Build.CPU_ABI)),
-            )
-            .put(
-                "display",
-                JSONObject()
-                    .put("width", display.widthPixels)
-                    .put("height", display.heightPixels)
-                    .put("dpi", display.densityDpi)
-                    .put("touch", touch)
-                    .put(
-                        "dpad",
-                        resources.configuration.navigation == Configuration.NAVIGATION_DPAD ||
-                            !touch,
-                    ),
-            )
-            .put(
-                "memory",
-                JSONObject()
-                    .put("memoryClassMb", memory.memoryClass)
-                    .put(
-                        "physicalMb",
-                        io.github.diegog0477.zombiebox.client.platform.HardwareMemory.physicalMb(),
-                    ),
-            )
-    }
-
-    private fun settings() {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.settings)
-            .setItems(
-                arrayOf(
-                    getString(R.string.connect_gateway),
-                    getString(R.string.configure_services),
-                    getString(R.string.diagnostics),
-                    getString(R.string.language),
-                    getString(R.string.presentation_mode),
-                    getString(R.string.advanced),
-                    getString(R.string.receive_cast),
-                    getString(R.string.gateway_services),
-                    getString(R.string.youtube_receiver),
-                )
-            ) { _, index ->
-                when (index) {
-                    0 -> pairing()
-                    1 -> providerList()
-                    2 -> diagnostics()
-                    3 -> language()
-                    4 -> mode()
-                    5 -> advanced()
-                    6 -> receiverSettings()
-                    7 -> startActivity(Intent(this, ServicesActivity::class.java))
-                    8 -> youtubeReceiverSettings()
-                }
-            }
-            .setNegativeButton(R.string.close, null)
-            .show()
-    }
-
-    private fun providerList() {
-        if (api.token.isEmpty()) {
-            pairing()
-            return
-        }
-        async(
-            { api.request("GET", "/v1/providers").getJSONArray("providers") },
-            { providers ->
-                val labels =
-                    Array(providers.length()) { i ->
-                        val p = providers.getJSONObject(i)
-                        serviceTitle(p.getString("id")) +
-                            " · " +
-                            getString(
-                                if (p.optBoolean("enabled")) R.string.enabled else R.string.disabled
-                            )
-                    }
-                AlertDialog.Builder(this)
-                    .setTitle(R.string.configure_services)
-                    .setItems(labels) { _, index -> providerForm(providers.getJSONObject(index)) }
-                    .setNegativeButton(R.string.close, null)
-                    .show()
-            },
-        )
-    }
-
-    private fun providerForm(provider: JSONObject) {
-        val id = provider.getString("id")
-        if (provider.optBoolean("managedByServer")) {
-            AlertDialog.Builder(this)
-                .setTitle(serviceTitle(id))
-                .setMessage(R.string.server_managed)
-                .setPositiveButton(R.string.close, null)
-                .show()
-            return
-        }
-        val (scroll, form) = dialogForm()
-        form.addView(
-            text(
-                getString(
-                    if (provider.optBoolean("implemented")) R.string.secret_policy
-                    else R.string.adapter_pending
-                ),
-                14f,
-                muted,
-            )
-        )
-        val enabled =
-            CheckBox(this).apply {
-                setText(R.string.enabled)
-                isChecked = provider.optBoolean("enabled")
-                setTextColor(Color.WHITE)
-            }
-        form.addView(enabled)
-        val address =
-            field(form, if (id == "iptv") R.string.playlist_url else R.string.service_url, true)
-        address.hint =
-            getString(
-                if (provider.optBoolean("configured")) R.string.keep_existing
-                else R.string.optional_url
-            )
-        val token = field(form, R.string.service_token, true)
-        token.hint =
-            getString(
-                if (provider.optBoolean("hasToken")) R.string.keep_existing
-                else R.string.optional_token
-            )
-        val clear =
-            CheckBox(this).apply {
-                setText(R.string.remove_token)
-                setTextColor(Color.WHITE)
-            }
-        form.addView(clear)
-        val user = if (id == "jellyfin") field(form, R.string.service_user) else null
-        val epg = if (id == "iptv") field(form, R.string.epg_url, true) else null
-        val catalog = if (id == "stremio") field(form, R.string.catalog_id) else null
-        val media = if (id == "stremio") field(form, R.string.media_type) else null
-        val code = field(form, R.string.operator_code, true)
-        val dialog =
-            AlertDialog.Builder(this)
-                .setTitle(serviceTitle(id))
-                .setView(scroll)
-                .setNegativeButton(R.string.cancel, null)
-                .setPositiveButton(R.string.save, null)
-                .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val patch = JSONObject().put("enabled", enabled.isChecked)
-                for ((key, view) in
-                    arrayOf(
-                        "url" to address,
-                        "token" to token,
-                        "userId" to user,
-                        "epgUrl" to epg,
-                        "catalogId" to catalog,
-                        "mediaType" to media,
-                    )) {
-                    if (view != null && view.text.toString().isNotBlank())
-                        patch.put(key, view.text.toString().trim())
-                }
-                if (clear.isChecked) patch.put("token", "")
-                val admin = code.text.toString()
-                code.setText("")
-                token.setText("")
-                address.setText("")
-                epg?.setText("")
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
-                async(
-                    { api.request("PUT", "/v1/providers/$id", patch, admin) },
-                    {
-                        dialog.dismiss()
-                        Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
-                        refresh()
-                    },
-                    onError = { dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true },
-                )
-            }
-        }
-        dialog.setOnDismissListener {
-            code.setText("")
-            token.setText("")
-            address.setText("")
-            epg?.setText("")
-        }
-        dialog.show()
-    }
-
-    private fun advanced() {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.advanced)
-            .setItems(
-                arrayOf(
-                    getString(R.string.audio_focus_backend),
-                    getString(R.string.playback_backend),
-                )
-            ) { _, index ->
-                if (index == 0) audioSettings()
-                else {
-                    val modes =
-                        arrayOf("AUTO", "DIRECT_PLAY", "REMUX", "TRANSCODE", "EXTERNAL_PLAYER")
-                    val labels =
-                        arrayOf(
-                                R.string.automatic,
-                                R.string.direct_play,
-                                R.string.remux,
-                                R.string.transcode,
-                                R.string.external_player,
-                            )
-                            .map { getString(it) }
-                            .toTypedArray()
-                    AlertDialog.Builder(this)
-                        .setTitle(R.string.playback_backend)
-                        .setSingleChoiceItems(
-                            labels,
-                            modes.indexOf(prefs.getString("playbackMode", "AUTO")),
-                        ) { dialog, selection ->
-                            prefs.edit().putString("playbackMode", modes[selection]).commit()
-                            dialog.dismiss()
-                        }
-                        .setNegativeButton(R.string.close, null)
-                        .show()
-                }
-            }
-            .setNegativeButton(R.string.close, null)
-            .show()
     }
 
     private fun audioSettings() {
@@ -935,108 +398,15 @@ class MainActivity : Activity() {
                 Build.CPU_ABI,
             )
         val model =
-            io.github.diegog0477.zombiebox.client.presentation.DiagnosticsViewModel(
-                io.github.diegog0477.zombiebox.client.data.GatewayDiagnosticsRepository(
-                    api,
-                    io.github.diegog0477.zombiebox.client.platform.HardwareScanner(
-                        applicationContext
-                    ),
-                ),
-                { work -> worker.execute { work() } },
-                { work -> handler.post { work() } },
-            )
+            io.github.diegog0477.zombiebox.client.features.diagnostics.presentation.viewmodel
+                .DiagnosticsViewModel(
+                    GatewayDiagnosticsRepository(api, HardwareScanner(applicationContext)),
+                    { work -> worker.execute { work() } },
+                    { work -> handler.post { work() } },
+                )
         diagnosticsModel?.close()
         diagnosticsModel = model
-        val dialog =
-            AlertDialog.Builder(this)
-                .setTitle(R.string.diagnostics)
-                .setMessage(report)
-                .setNeutralButton(R.string.run_probes) { _, _ ->
-                    startActivity(Intent(this, ProbesActivity::class.java))
-                }
-                .setNegativeButton(R.string.rescan_hardware, null)
-                .setPositiveButton(R.string.close, null)
-                .create()
-        model.observer = { hardware, failed ->
-            dialog.setMessage(
-                if (failed) getString(R.string.error_request)
-                else if (hardware == null) report
-                else
-                    getString(
-                        R.string.hardware_report,
-                        hardware.abis.joinToString(", "),
-                        hardware.cores,
-                        hardware.memoryMb,
-                        hardware.storageFreeMb,
-                        hardware.network,
-                        hardware.latencyMs,
-                        hardware.decoders.size,
-                        hardware.externalPlayers.size,
-                    )
-            )
-        }
-        dialog.setOnDismissListener {
-            model.close()
-            if (diagnosticsModel === model) diagnosticsModel = null
-        }
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
-                dialog.setMessage(getString(R.string.loading))
-                model.scan()
-            }
-        }
-        dialog.show()
-    }
-
-    private fun language() {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.language)
-            .setItems(arrayOf("English", "Español")) { _, which ->
-                prefs.edit().putString("language", if (which == 0) "en" else "es").commit()
-                savePreferences()
-                Toast.makeText(this, R.string.restart_language, Toast.LENGTH_LONG).show()
-            }
-            .show()
-    }
-
-    private fun mode() {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.presentation_mode)
-            .setItems(
-                arrayOf(
-                    getString(R.string.automatic),
-                    getString(R.string.tv),
-                    getString(R.string.docked),
-                    getString(R.string.handheld),
-                )
-            ) { _, which ->
-                prefs
-                    .edit()
-                    .putString("mode", arrayOf("AUTO", "TV", "DOCKED", "HANDHELD")[which])
-                    .commit()
-                savePreferences()
-                render()
-            }
-            .show()
-    }
-
-    private fun savePreferences() {
-        if (api.token.isEmpty()) return
-        val payload =
-            JSONObject()
-                .put("mode", prefs.getString("mode", "AUTO"))
-                .put("uiLanguage", prefs.getString("language", "en"))
-                .put("audioLanguages", JSONArray().put("en").put("es"))
-                .put("subtitleLanguages", JSONArray().put("en").put("es"))
-                .put("subtitleMode", "auto")
-        async(
-            {
-                val current = api.request("GET", "/v1/device/preferences")
-                payload.put("allowCasting", current.optBoolean("allowCasting"))
-                api.request("PUT", "/v1/device/preferences", payload)
-            },
-            {},
-        )
+        DiagnosticsDialog(this, model).show()
     }
 
     private fun youtubeReceiverMessage(): String {
@@ -1104,19 +474,18 @@ class MainActivity : Activity() {
             pairing()
             return
         }
-        val repository = GatewayReceiverRepository(api)
-        async(
-            { repository.enabled() },
+        receiverViewModel.readEnabled(
             { enabled ->
                 AlertDialog.Builder(this)
                     .setTitle(R.string.receive_cast)
                     .setMessage(R.string.receive_cast_detail)
                     .setPositiveButton(if (enabled) R.string.disable else R.string.enable) { _, _ ->
-                        async({ repository.setEnabled(!enabled) }, { receiverViewModel.refresh() })
+                        receiverViewModel.setEnabled(!enabled, ::error)
                     }
                     .setNegativeButton(R.string.cancel, null)
                     .show()
             },
+            ::error,
         )
     }
 
@@ -1159,82 +528,8 @@ class MainActivity : Activity() {
             else -> !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
         }
 
-    private fun search() {
-        val input = EditText(this)
-        input.setSingleLine(true)
-        AlertDialog.Builder(this)
-            .setTitle(R.string.search)
-            .setView(input)
-            .setPositiveButton(R.string.search) { _, _ -> refresh(query = input.text.toString()) }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-    }
-
-    private fun catalogPage(provider: String, offset: Int = 0) {
-        async(
-            {
-                api.request(
-                    "GET",
-                    "/v1/catalog?provider=" +
-                        URLEncoder.encode(provider, "UTF-8") +
-                        "&offset=$offset&q=" +
-                        URLEncoder.encode(homeViewModel.state.scope.query, "UTF-8"),
-                )
-            },
-            { page ->
-                val items = page.getJSONArray("items")
-                val labels =
-                    Array(items.length()) { i ->
-                        val item = items.getJSONObject(i)
-                        item.optString("title") +
-                            item
-                                .optString("subtitle")
-                                .takeIf { it.isNotEmpty() }
-                                ?.let { " — $it" }
-                                .orEmpty()
-                    }
-                val dialog =
-                    AlertDialog.Builder(this)
-                        .setTitle(serviceTitle(provider))
-                        .setItems(labels) { _, index ->
-                            details(GatewayHomeRepository.decodeItem(items.getJSONObject(index)))
-                        }
-                        .setNegativeButton(R.string.close, null)
-                val next = page.optInt("nextOffset", -1)
-                if (next >= 0)
-                    dialog.setPositiveButton(R.string.next_page) { _, _ ->
-                        catalogPage(provider, next)
-                    }
-                if (offset > 0)
-                    dialog.setNeutralButton(R.string.previous_page) { _, _ ->
-                        catalogPage(provider, (offset - 40).coerceAtLeast(0))
-                    }
-                dialog.show()
-            },
-        )
-    }
-
-    private fun details(item: MediaItem) {
-        val description =
-            StringBuilder(
-                item.description.takeIf { it.isNotEmpty() } ?: serviceTitle(item.provider)
-            )
-        for (programme in item.programmes) {
-            val time =
-                java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
-                    .format(java.util.Date(programme.start * 1000))
-            description.append("\n\n").append(time).append(" · ").append(programme.title)
-        }
-        AlertDialog.Builder(this)
-            .setTitle(item.title)
-            .setMessage(description.toString())
-            .setPositiveButton(R.string.play) { _, _ -> startPlayback(item) }
-            .setNegativeButton(R.string.close, null)
-            .show()
-    }
-
     private fun createPlayer() {
-        playerLayer = column()
+        playerLayer = ui.column()
         playerLayer.setBackgroundColor(Color.BLACK)
         playerLayer.visibility = View.GONE
         val surface = VideoSurface(this)
@@ -1261,15 +556,16 @@ class MainActivity : Activity() {
         val viewport = FrameLayout(this)
         viewport.addView(surface, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
         playerLayer.addView(viewport, LinearLayout.LayoutParams(-1, 0, 1f))
-        playerStatus = text("", 12f, muted)
+        playerStatus = ui.text("", 12f, muted)
         playerLayer.addView(playerStatus)
-        val controls = horizontal(playerLayer)
-        controls.addView(button(R.string.seek_back) { player.seek(-10000) })
-        controls.addView(button(R.string.play_pause) { togglePlayback() })
-        controls.addView(button(R.string.seek_forward) { player.seek(10000) })
-        controls.addView(button(R.string.minimize) { setFullscreen(!full) })
-        controls.addView(button(R.string.external_player) { external() })
-        controls.addView(button(R.string.stop) { stopPlayback() })
+        val controls = ui.row()
+        playerLayer.addView(HorizontalScrollView(this).apply { addView(controls) })
+        controls.addView(ui.button(R.string.seek_back) { player.seek(-10000) })
+        controls.addView(ui.button(R.string.play_pause) { togglePlayback() })
+        controls.addView(ui.button(R.string.seek_forward) { player.seek(10000) })
+        controls.addView(ui.button(R.string.minimize) { setFullscreen(!full) })
+        controls.addView(ui.button(R.string.external_player) { external() })
+        controls.addView(ui.button(R.string.stop) { stopPlayback() })
         playerFocus.rebuild(listOf(Pair("player", controls)), false)
         root.addView(playerLayer, FrameLayout.LayoutParams(-1, -1))
     }
@@ -1286,29 +582,13 @@ class MainActivity : Activity() {
     ) {
         if (remote == null) youtubeReceiver.disable()
         stopPlayback()
-        val generation = playbackGeneration
-        async(
-            {
-                api.request(
-                    "POST",
-                    "/v1/playback",
-                    JSONObject()
-                        .put("itemId", item.id)
-                        .put(
-                            "mode",
-                            if (remote != null) "AUTO" else prefs.getString("playbackMode", "AUTO"),
-                        ),
-                )
-            },
+        playbackModel.start(
+            item.id,
+            if (remote != null) "AUTO" else prefs.getString("playbackMode", "AUTO") ?: "AUTO",
             { plan ->
-                if (generation != playbackGeneration) {
-                    val abandoned = plan.getString("sessionId")
-                    async({ api.request("DELETE", "/v1/playback/$abandoned") }, {}, false)
-                    return@async
-                }
-                session = plan.getString("sessionId")
-                stream = api.base + plan.getString("url")
-                mime = plan.optString("mimeType", "video/mp4")
+                session = plan.sessionId
+                stream = plan.url
+                mime = plan.mime
                 currentItem = item
                 itemTitle = item.title
                 now.text = itemTitle
@@ -1317,19 +597,22 @@ class MainActivity : Activity() {
                 lastPosition = 0
                 lastDuration = 0
                 setFullscreen(fullscreen)
-                if (plan.optString("mode") == "EXTERNAL_PLAYER") {
+                if (plan.mode == "EXTERNAL_PLAYER") {
                     if (remote != null) {
                         youtubeReceiver.complete(false, remote.id)
                         stopPlayback()
                     } else external()
-                    return@async
+                    return@start
                 }
                 if (audioController.acquire()) {
-                    player.play(stream, remote?.positionMs ?: plan.optInt("resumePositionMs"))
+                    player.play(stream, remote?.positionMs ?: plan.resumePositionMs)
                     if (!foreground || !autoplay) player.pause()
                 } else if (remote != null) youtubeReceiver.complete(false, remote.id)
             },
-            onError = { if (remote != null) youtubeReceiver.complete(false, remote.id) },
+            failed = { failure ->
+                if (remote != null) youtubeReceiver.complete(false, remote.id)
+                error(failure)
+            },
         )
     }
 
@@ -1339,10 +622,11 @@ class MainActivity : Activity() {
         playerLayer.layoutParams =
             if (full) FrameLayout.LayoutParams(-1, -1)
             else
-                FrameLayout.LayoutParams(dp(320), dp(230), Gravity.BOTTOM or Gravity.RIGHT).apply {
-                    bottomMargin = dp(58)
-                    rightMargin = dp(12)
-                }
+                FrameLayout.LayoutParams(ui.dp(320), ui.dp(230), Gravity.BOTTOM or Gravity.RIGHT)
+                    .apply {
+                        bottomMargin = ui.dp(58)
+                        rightMargin = ui.dp(12)
+                    }
         content.descendantFocusability =
             if (full) ViewGroup.FOCUS_BLOCK_DESCENDANTS else ViewGroup.FOCUS_AFTER_DESCENDANTS
         bottom.descendantFocusability = content.descendantFocusability
@@ -1355,26 +639,14 @@ class MainActivity : Activity() {
             receiverViewModel.dismiss(receiverViewModel.activeSession)
         currentItem = null
         audioController.release()
-        playbackGeneration++
-        if (session.isNotEmpty()) {
-            val old = session
-            val progress =
-                JSONObject()
-                    .put("state", if (lastState == "ENDED") "ENDED" else "STOPPED")
-                    .put("positionMs", lastPosition)
-                    .put("durationMs", lastDuration)
-            async(
-                {
-                    try {
-                        api.request("PUT", "/v1/playback/$old/progress", progress)
-                    } finally {
-                        api.request("DELETE", "/v1/playback/$old")
-                    }
-                },
-                {},
-                false,
-            )
-        }
+        playbackModel.stop(
+            session,
+            PlaybackProgress(
+                if (lastState == "ENDED") "ENDED" else "STOPPED",
+                lastPosition,
+                lastDuration,
+            ),
+        )
         session = ""
         stream = ""
         full = false
@@ -1396,60 +668,9 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun formatTime(ms: Int): String {
-        val seconds = ms.coerceAtLeast(0) / 1000
-        return String.format(Locale.US, "%d:%02d", seconds / 60, seconds % 60)
-    }
-
     private fun contextAccent(): Int =
-        providerAccent(
+        ui.providerAccent(
             if (::homeViewModel.isInitialized) homeViewModel.state.scope.provider else ""
-        )
-
-    private fun providerAccent(id: String): Int =
-        resources.getColor(
-            when (id) {
-                "youtube" -> R.color.accent_youtube
-                "plex" -> R.color.accent_plex
-                "stremio" -> R.color.accent_stremio
-                "jellyfin" -> R.color.accent_jellyfin
-                "iptv" -> R.color.accent_iptv
-                "spotify" -> R.color.accent_spotify
-                "airplay" -> R.color.accent_airplay
-                else -> R.color.accent_zombie
-            }
-        )
-
-    private fun serviceTitle(id: String): String =
-        getString(
-            when (id) {
-                "local" -> R.string.local_library
-                "youtube" -> R.string.youtube
-                "plex" -> R.string.plex
-                "jellyfin" -> R.string.jellyfin
-                "stremio" -> R.string.stremio
-                "spotify" -> R.string.spotify
-                "iptv" -> R.string.iptv
-                "airplay" -> R.string.airplay
-                "android_mirror" -> R.string.android_mirror
-                "rebrowser" -> R.string.browser
-                else -> R.string.apps_content
-            }
-        )
-
-    private fun localizedState(state: String): String =
-        getString(
-            when (state) {
-                "HEALTHY" -> R.string.ready
-                "STARTING",
-                "BUFFERING" -> R.string.loading
-                "DISABLED" -> R.string.disabled
-                "PLAYING" -> R.string.playing
-                "PAUSED" -> R.string.paused
-                "ENDED" -> R.string.ended
-                "STOPPED" -> R.string.stopped
-                else -> R.string.unavailable
-            }
         )
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -1526,6 +747,10 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         audioController.release()
         closed = true
+        events.close()
+        settingsModel.close()
+        catalogModel.close()
+        playbackModel.close()
         diagnosticsModel?.close()
         youtubeReceiver.close()
         receiverWorker.shutdown()

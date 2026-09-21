@@ -1,7 +1,10 @@
 package io.github.diegog0477.zombiebox.client
 
-import io.github.diegog0477.zombiebox.client.model.*
-import io.github.diegog0477.zombiebox.client.presentation.ProbeViewModel
+import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.model.ProbeAsset
+import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.model.ProbeResult
+import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.repository.ProbePlayback
+import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.repository.ProbeRepository
+import io.github.diegog0477.zombiebox.client.features.diagnostics.presentation.viewmodel.ProbeViewModel
 import org.junit.Assert.*
 import org.junit.Test
 

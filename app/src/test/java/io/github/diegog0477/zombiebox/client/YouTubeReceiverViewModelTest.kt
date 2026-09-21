@@ -1,7 +1,10 @@
 package io.github.diegog0477.zombiebox.client
 
-import io.github.diegog0477.zombiebox.client.model.*
-import io.github.diegog0477.zombiebox.client.presentation.YouTubeReceiverViewModel
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.ReceiverFeedback
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.YouTubeCommand
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.YouTubeReceiver
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.repository.YouTubeReceiverRepository
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.presentation.viewmodel.YouTubeReceiverViewModel
 import org.junit.Assert.*
 import org.junit.Test
 

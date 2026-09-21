@@ -1,5 +1,6 @@
 package io.github.diegog0477.zombiebox.client
 
+import io.github.diegog0477.zombiebox.client.core.ui.FocusModel
 import org.junit.Assert.*
 import org.junit.Test
 

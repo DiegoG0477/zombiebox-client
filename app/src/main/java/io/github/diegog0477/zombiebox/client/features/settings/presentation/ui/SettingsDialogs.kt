@@ -1,0 +1,337 @@
+package io.github.diegog0477.zombiebox.client.features.settings.presentation.ui
+
+import android.app.Activity
+import android.app.AlertDialog
+import android.content.Intent
+import android.graphics.Color
+import android.text.InputType
+import android.widget.*
+import io.github.diegog0477.zombiebox.client.R
+import io.github.diegog0477.zombiebox.client.core.ui.TvWidgets
+import io.github.diegog0477.zombiebox.client.features.services.presentation.ui.ServicesActivity
+import io.github.diegog0477.zombiebox.client.features.settings.domain.model.GatewayProfile
+import io.github.diegog0477.zombiebox.client.features.settings.domain.model.ProviderPatch
+import io.github.diegog0477.zombiebox.client.features.settings.domain.model.ProviderSettings
+import io.github.diegog0477.zombiebox.client.features.settings.presentation.viewmodel.SettingsViewModel
+
+data class SettingsActions(
+    val paired: (GatewayProfile) -> Unit,
+    val refresh: () -> Unit,
+    val render: () -> Unit,
+    val diagnostics: () -> Unit,
+    val audioSettings: () -> Unit,
+    val receiverSettings: () -> Unit,
+    val youtubeReceiverSettings: () -> Unit,
+)
+
+/** Dialog inputs/rendering only. Provider JSON and persistence stay behind the ViewModel. */
+class SettingsDialogs(
+    private val activity: Activity,
+    private val model: SettingsViewModel,
+    private val paired: () -> Boolean,
+    private val address: () -> String,
+    private val error: (Exception) -> Unit,
+    private val actions: SettingsActions,
+) {
+    private val ui = TvWidgets(activity)
+
+    private fun field(parent: LinearLayout, label: Int, secret: Boolean = false): EditText {
+        parent.addView(ui.text(activity.getString(label), 14f, ui.muted))
+        return EditText(activity).apply {
+            setSingleLine(true)
+            setTextColor(Color.WHITE)
+            setHintTextColor(ui.muted)
+            inputType =
+                if (secret) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            isSaveEnabled = false
+            parent.addView(this, LinearLayout.LayoutParams(-1, ui.dp(48)))
+        }
+    }
+
+    private fun dialogForm(): Pair<ScrollView, LinearLayout> {
+        val form = ui.column()
+        form.setPadding(ui.dp(18), ui.dp(8), ui.dp(18), ui.dp(12))
+        val scroll = ScrollView(activity)
+        scroll.addView(form)
+        return Pair(scroll, form)
+    }
+
+    fun pairing() {
+        val (scroll, form) = dialogForm()
+        form.addView(ui.text(activity.getString(R.string.lan_notice), 14f, ui.muted))
+        val address = field(form, R.string.gateway_address)
+        address.setText(address())
+        address.hint = activity.getString(R.string.gateway_hint)
+        val code = field(form, R.string.operator_code, true)
+        val dialog =
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.connect_gateway)
+                .setView(scroll)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.connect, null)
+                .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val candidate = address.text.toString().trim().trimEnd('/')
+                if (!model.validAddress(candidate)) {
+                    address.error = activity.getString(R.string.invalid_address)
+                    return@setOnClickListener
+                }
+                val pairingCode = code.text.toString()
+                code.setText("")
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
+                model.pair(
+                    candidate,
+                    pairingCode,
+                    { profile ->
+                        actions.paired(profile)
+                        dialog.dismiss()
+                    },
+                    { failure ->
+                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                        error(failure)
+                    },
+                )
+            }
+        }
+        dialog.setOnDismissListener { code.setText("") }
+        dialog.show()
+    }
+
+    fun show() {
+        AlertDialog.Builder(activity)
+            .setTitle(R.string.settings)
+            .setItems(
+                arrayOf(
+                    activity.getString(R.string.connect_gateway),
+                    activity.getString(R.string.configure_services),
+                    activity.getString(R.string.diagnostics),
+                    activity.getString(R.string.language),
+                    activity.getString(R.string.presentation_mode),
+                    activity.getString(R.string.advanced),
+                    activity.getString(R.string.receive_cast),
+                    activity.getString(R.string.gateway_services),
+                    activity.getString(R.string.youtube_receiver),
+                )
+            ) { _, index ->
+                when (index) {
+                    0 -> pairing()
+                    1 -> providers()
+                    2 -> actions.diagnostics()
+                    3 -> language()
+                    4 -> mode()
+                    5 -> advanced()
+                    6 -> actions.receiverSettings()
+                    7 -> activity.startActivity(Intent(activity, ServicesActivity::class.java))
+                    8 -> actions.youtubeReceiverSettings()
+                }
+            }
+            .setNegativeButton(R.string.close, null)
+            .show()
+    }
+
+    fun providers() {
+        if (!paired()) {
+            pairing()
+            return
+        }
+        model.providers(
+            { providers ->
+                val labels =
+                    providers
+                        .map {
+                            ui.serviceTitle(it.id) +
+                                " · " +
+                                activity.getString(
+                                    if (it.enabled) R.string.enabled else R.string.disabled
+                                )
+                        }
+                        .toTypedArray()
+                AlertDialog.Builder(activity)
+                    .setTitle(R.string.configure_services)
+                    .setItems(labels) { _, index -> providerForm(providers[index]) }
+                    .setNegativeButton(R.string.close, null)
+                    .show()
+            },
+            error,
+        )
+    }
+
+    private fun providerForm(provider: ProviderSettings) {
+        val id = provider.id
+        if (provider.managed) {
+            AlertDialog.Builder(activity)
+                .setTitle(ui.serviceTitle(id))
+                .setMessage(R.string.server_managed)
+                .setPositiveButton(R.string.close, null)
+                .show()
+            return
+        }
+        val (scroll, form) = dialogForm()
+        form.addView(
+            ui.text(
+                activity.getString(
+                    if (provider.implemented) R.string.secret_policy else R.string.adapter_pending
+                ),
+                14f,
+                ui.muted,
+            )
+        )
+        val enabled =
+            CheckBox(activity).apply {
+                setText(R.string.enabled)
+                isChecked = provider.enabled
+                setTextColor(Color.WHITE)
+            }
+        form.addView(enabled)
+        val address =
+            field(form, if (id == "iptv") R.string.playlist_url else R.string.service_url, true)
+        address.hint =
+            activity.getString(
+                if (provider.configured) R.string.keep_existing else R.string.optional_url
+            )
+        val token = field(form, R.string.service_token, true)
+        token.hint =
+            activity.getString(
+                if (provider.hasToken) R.string.keep_existing else R.string.optional_token
+            )
+        val clear =
+            CheckBox(activity).apply {
+                setText(R.string.remove_token)
+                setTextColor(Color.WHITE)
+            }
+        form.addView(clear)
+        val user = if (id == "jellyfin") field(form, R.string.service_user) else null
+        val epg = if (id == "iptv") field(form, R.string.epg_url, true) else null
+        val catalog = if (id == "stremio") field(form, R.string.catalog_id) else null
+        val media = if (id == "stremio") field(form, R.string.media_type) else null
+        val code = field(form, R.string.operator_code, true)
+        val dialog =
+            AlertDialog.Builder(activity)
+                .setTitle(ui.serviceTitle(id))
+                .setView(scroll)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.save, null)
+                .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val patch = linkedMapOf<String, String>()
+                for ((key, view) in
+                    arrayOf(
+                        "url" to address,
+                        "token" to token,
+                        "userId" to user,
+                        "epgUrl" to epg,
+                        "catalogId" to catalog,
+                        "mediaType" to media,
+                    )) {
+                    if (view != null && view.text.toString().isNotBlank())
+                        patch[key] = view.text.toString().trim()
+                }
+                if (clear.isChecked) patch["token"] = ""
+                val admin = code.text.toString()
+                code.setText("")
+                token.setText("")
+                address.setText("")
+                epg?.setText("")
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
+                model.saveProvider(
+                    id,
+                    ProviderPatch(enabled.isChecked, patch),
+                    admin,
+                    {
+                        dialog.dismiss()
+                        Toast.makeText(activity, R.string.saved, Toast.LENGTH_SHORT).show()
+                        actions.refresh()
+                    },
+                    failed = { failure ->
+                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                        error(failure)
+                    },
+                )
+            }
+        }
+        dialog.setOnDismissListener {
+            code.setText("")
+            token.setText("")
+            address.setText("")
+            epg?.setText("")
+        }
+        dialog.show()
+    }
+
+    private fun advanced() {
+        AlertDialog.Builder(activity)
+            .setTitle(R.string.advanced)
+            .setItems(
+                arrayOf(
+                    activity.getString(R.string.audio_focus_backend),
+                    activity.getString(R.string.playback_backend),
+                )
+            ) { _, index ->
+                if (index == 0) actions.audioSettings()
+                else {
+                    val modes =
+                        arrayOf("AUTO", "DIRECT_PLAY", "REMUX", "TRANSCODE", "EXTERNAL_PLAYER")
+                    val labels =
+                        arrayOf(
+                                R.string.automatic,
+                                R.string.direct_play,
+                                R.string.remux,
+                                R.string.transcode,
+                                R.string.external_player,
+                            )
+                            .map { activity.getString(it) }
+                            .toTypedArray()
+                    AlertDialog.Builder(activity)
+                        .setTitle(R.string.playback_backend)
+                        .setSingleChoiceItems(
+                            labels,
+                            modes.indexOf(model.preferences.playbackMode),
+                        ) { dialog, selection ->
+                            model.playbackMode(modes[selection])
+                            dialog.dismiss()
+                        }
+                        .setNegativeButton(R.string.close, null)
+                        .show()
+                }
+            }
+            .setNegativeButton(R.string.close, null)
+            .show()
+    }
+
+    private fun language() {
+        AlertDialog.Builder(activity)
+            .setTitle(R.string.language)
+            .setItems(arrayOf("English", "Español")) { _, which ->
+                model.language(if (which == 0) "en" else "es")
+                savePreferences()
+                Toast.makeText(activity, R.string.restart_language, Toast.LENGTH_LONG).show()
+            }
+            .show()
+    }
+
+    private fun mode() {
+        AlertDialog.Builder(activity)
+            .setTitle(R.string.presentation_mode)
+            .setItems(
+                arrayOf(
+                    activity.getString(R.string.automatic),
+                    activity.getString(R.string.tv),
+                    activity.getString(R.string.docked),
+                    activity.getString(R.string.handheld),
+                )
+            ) { _, which ->
+                model.mode(arrayOf("AUTO", "TV", "DOCKED", "HANDHELD")[which])
+                savePreferences()
+                actions.render()
+            }
+            .show()
+    }
+
+    private fun savePreferences() {
+        if (paired())
+            model.savePreferences(model.preferences.mode, model.preferences.language, error)
+    }
+}

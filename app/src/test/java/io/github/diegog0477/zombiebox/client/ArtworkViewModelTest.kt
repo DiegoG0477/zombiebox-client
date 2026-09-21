@@ -1,7 +1,7 @@
 package io.github.diegog0477.zombiebox.client
 
-import io.github.diegog0477.zombiebox.client.model.ArtworkRepository
-import io.github.diegog0477.zombiebox.client.presentation.ArtworkViewModel
+import io.github.diegog0477.zombiebox.client.features.artwork.domain.repository.ArtworkRepository
+import io.github.diegog0477.zombiebox.client.features.artwork.presentation.viewmodel.ArtworkViewModel
 import org.junit.Assert.*
 import org.junit.Test
 

@@ -1,7 +1,10 @@
 package io.github.diegog0477.zombiebox.client
 
-import io.github.diegog0477.zombiebox.client.model.*
-import io.github.diegog0477.zombiebox.client.presentation.HomeViewModel
+import io.github.diegog0477.zombiebox.client.core.model.MediaItem
+import io.github.diegog0477.zombiebox.client.features.home.domain.model.HomeScope
+import io.github.diegog0477.zombiebox.client.features.home.domain.model.HomeSnapshot
+import io.github.diegog0477.zombiebox.client.features.home.domain.repository.HomeRepository
+import io.github.diegog0477.zombiebox.client.features.home.presentation.viewmodel.HomeViewModel
 import org.junit.Assert.*
 import org.junit.Test
 

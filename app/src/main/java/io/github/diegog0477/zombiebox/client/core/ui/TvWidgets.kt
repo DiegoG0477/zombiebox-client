@@ -1,0 +1,125 @@
+package io.github.diegog0477.zombiebox.client.core.ui
+
+import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.StateListDrawable
+import android.view.Gravity
+import android.widget.*
+import io.github.diegog0477.zombiebox.client.R
+import java.util.Locale
+
+/** Shared legacy-safe view primitives and provider colors; no data access. */
+@Suppress("DEPRECATION")
+class TvWidgets(
+    private val context: Context,
+    private val accent: () -> Int = { context.resources.getColor(R.color.accent_zombie) },
+) {
+    val panel = Color.rgb(24, 31, 33)
+    val muted = Color.rgb(167, 180, 186)
+    val background = Color.rgb(10, 15, 16)
+    val green
+        get() = context.resources.getColor(R.color.accent_zombie)
+
+    fun dp(value: Int) = (value * context.resources.displayMetrics.density + 0.5f).toInt()
+
+    fun column() = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+
+    fun row() =
+        LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+    fun text(value: String, size: Float, color: Int = Color.WHITE) =
+        TextView(context).apply {
+            text = value
+            textSize = size
+            setTextColor(color)
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+        }
+
+    fun box(color: Int, stroke: Int = Color.rgb(48, 60, 63)) =
+        GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(8).toFloat()
+            setStroke(dp(1), stroke)
+        }
+
+    fun focusBackground(accent: Int = accent()): StateListDrawable =
+        StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused), box(Color.rgb(32, 39, 42), accent))
+            addState(intArrayOf(android.R.attr.state_pressed), box(Color.rgb(32, 39, 42), accent))
+            addState(intArrayOf(), box(panel))
+        }
+
+    fun action(label: String, accent: Int = accent(), click: () -> Unit) =
+        Button(context).apply {
+            text = label
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            isFocusable = true
+            setPadding(dp(12), dp(7), dp(12), dp(7))
+            setBackgroundDrawable(focusBackground(accent))
+            tag = "action:$label"
+            setOnClickListener { click() }
+            layoutParams =
+                LinearLayout.LayoutParams(-2, dp(44)).apply {
+                    setMargins(dp(3), dp(3), dp(3), dp(3))
+                }
+        }
+
+    fun button(label: Int, click: () -> Unit) =
+        action(context.getString(label), click = click).apply { tag = "button:$label" }
+
+    fun formatTime(ms: Int): String {
+        val seconds = ms.coerceAtLeast(0) / 1000
+        return String.format(Locale.US, "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    fun providerAccent(id: String): Int =
+        context.resources.getColor(
+            when (id) {
+                "youtube" -> R.color.accent_youtube
+                "plex" -> R.color.accent_plex
+                "stremio" -> R.color.accent_stremio
+                "jellyfin" -> R.color.accent_jellyfin
+                "iptv" -> R.color.accent_iptv
+                "spotify" -> R.color.accent_spotify
+                "airplay" -> R.color.accent_airplay
+                else -> R.color.accent_zombie
+            }
+        )
+
+    fun serviceTitle(id: String): String =
+        context.getString(
+            when (id) {
+                "local" -> R.string.local_library
+                "youtube" -> R.string.youtube
+                "plex" -> R.string.plex
+                "jellyfin" -> R.string.jellyfin
+                "stremio" -> R.string.stremio
+                "spotify" -> R.string.spotify
+                "iptv" -> R.string.iptv
+                "airplay" -> R.string.airplay
+                "android_mirror" -> R.string.android_mirror
+                "rebrowser" -> R.string.browser
+                else -> R.string.apps_content
+            }
+        )
+
+    fun localizedState(state: String): String =
+        context.getString(
+            when (state) {
+                "HEALTHY" -> R.string.ready
+                "STARTING",
+                "BUFFERING" -> R.string.loading
+                "DISABLED" -> R.string.disabled
+                "PLAYING" -> R.string.playing
+                "PAUSED" -> R.string.paused
+                "ENDED" -> R.string.ended
+                "STOPPED" -> R.string.stopped
+                else -> R.string.unavailable
+            }
+        )
+}
