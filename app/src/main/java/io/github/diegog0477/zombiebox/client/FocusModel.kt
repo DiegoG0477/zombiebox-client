@@ -3,6 +3,7 @@ package io.github.diegog0477.zombiebox.client
 /** Stable semantic keys survive catalog refreshes, translated labels and reordered rows. */
 class FocusModel {
     data class Row(val id: String, val keys: List<String>)
+
     private var rows = emptyList<Row>()
     private val remembered = HashMap<String, String>()
     var selected: String? = null
@@ -35,8 +36,11 @@ class FocusModel {
         val row = rows[index]
         val column = row.keys.indexOf(selected)
         val target = rows[(index + dy).coerceIn(0, rows.lastIndex)]
-        val key = if (dy == 0) target.keys[(column + dx).coerceIn(0, target.keys.lastIndex)]
-        else remembered[target.id]?.takeIf { it in target.keys } ?: target.keys[column.coerceAtMost(target.keys.lastIndex)]
+        val key =
+            if (dy == 0) target.keys[(column + dx).coerceIn(0, target.keys.lastIndex)]
+            else
+                remembered[target.id]?.takeIf { it in target.keys }
+                    ?: target.keys[column.coerceAtMost(target.keys.lastIndex)]
         select(key)
         return key
     }

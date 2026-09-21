@@ -10,38 +10,68 @@
     <string name="expand">Ampliar</string>
     <string name="more_info">Más información</string>
     <string name="welcome">El mismo dispositivo. Más posibilidades.</string>
-    <string name="welcome_detail">Conecta tu gateway y agrega un servicio o una lista IPTV para empezar.</string>
+    <string name="welcome_detail">
+        Conecta tu gateway y agrega un servicio o una lista IPTV para empezar.
+    </string>
     <string name="configure_services">Servicios y credenciales</string>
     <string name="continue_watching">Seguir viendo</string>
     <string name="apps_content">Apps y contenido</string>
     <string name="connect_gateway">Conectar gateway</string>
-    <string name="docked_description">Modo dock · Navegación con control · Viejos dispositivos, nuevas historias.</string>
-    <string name="handheld_description">Modo portátil · Toque o control · Tu gateway en toda la casa.</string>
+    <string name="docked_description">
+        Modo dock · Navegación con control · Viejos dispositivos, nuevas historias.
+    </string>
+    <string name="handheld_description">
+        Modo portátil · Toque o control · Tu gateway en toda la casa.
+    </string>
     <string name="nothing_playing">Sin reproducción</string>
     <string name="player_status">%1$s · %2$s / %3$s</string>
     <string name="resume_at">Continuar en %1$s</string>
     <string name="error_pairing">Empareja este dispositivo con el gateway otra vez.</string>
-    <string name="error_admin">Verifica el código de operador actual en los logs del gateway.</string>
-    <string name="error_conflict">El servidor administra este ajuste o la solicitud entra en conflicto con su estado actual.</string>
-    <string name="error_busy">Se alcanzó el límite del gateway. Espera un minuto e intenta otra vez.</string>
-    <string name="error_request">El gateway no pudo completar la solicitud. Verifica la configuración del servicio.</string>
-    <string name="error_network">No se pudo conectar al gateway. Verifica su dirección y tu conexión.</string>
-    <string name="lan_notice">Usa tu red doméstica de confianza. HTTP envía códigos y credenciales sin cifrado de transporte.</string>
+    <string name="error_admin">
+        Verifica el código de operador actual en los logs del gateway.
+    </string>
+    <string name="error_conflict">
+        El servidor administra este ajuste o la solicitud entra en conflicto con su estado actual.
+    </string>
+    <string name="error_busy">
+        Se alcanzó el límite del gateway. Espera un minuto e intenta otra vez.
+    </string>
+    <string name="error_request">
+        El gateway no pudo completar la solicitud. Verifica la configuración del servicio.
+    </string>
+    <string name="error_network">
+        No se pudo conectar al gateway. Verifica su dirección y tu conexión.
+    </string>
+    <string name="lan_notice">
+        Usa tu red doméstica de confianza. HTTP envía códigos y credenciales sin cifrado de
+        transporte.
+    </string>
     <string name="gateway_address">Dirección del gateway</string>
     <string name="gateway_hint">http://IP-LAN-FEDORA:8090</string>
     <string name="operator_code">Código de operador actual</string>
     <string name="cancel">Cancelar</string>
     <string name="connect">Conectar</string>
-    <string name="invalid_address">Escribe una dirección HTTP(S) del gateway sin credenciales.</string>
+    <string name="invalid_address">
+        Escribe una dirección HTTP(S) del gateway sin credenciales.
+    </string>
     <string name="diagnostics">Diagnóstico del dispositivo</string>
     <string name="language">Idioma</string>
     <string name="presentation_mode">Modo de presentación</string>
     <string name="close">Cerrar</string>
     <string name="enabled">Activado</string>
     <string name="disabled">Desactivado</string>
-    <string name="server_managed">Este proveedor se configura en el archivo del servidor. Edita ese archivo y reinicia el gateway. Elimina su entrada para administrarlo desde el cliente.</string>
-    <string name="secret_policy">Las credenciales se envían y guardan en tu gateway. Los campos vacíos conservan los valores existentes.</string>
-    <string name="adapter_pending">Puedes guardar la configuración, pero el adaptador de este servicio aún no está implementado. Activarlo no habilita la reproducción.</string>
+    <string name="server_managed">
+        Este proveedor se configura en el archivo del servidor. Edita ese archivo y reinicia el
+        gateway. Elimina su entrada para administrarlo desde el cliente.
+    </string>
+    <string name="secret_policy">
+        Las credenciales se envían y guardan en tu gateway. Los campos vacíos conservan los valores
+        existentes.
+    </string>
+    <string name="adapter_pending">
+        Puedes guardar la configuración, pero el adaptador de este servicio aún no
+        está implementado. Activarlo no habilita la reproducción.
+    </string>
     <string name="playlist_url">URL de la lista M3U</string>
     <string name="service_url">URL del servicio / addon</string>
     <string name="keep_existing">Configurado — deja vacío para conservar</string>
@@ -55,7 +85,10 @@
     <string name="media_type">Tipo de contenido: movie o series</string>
     <string name="save">Guardar</string>
     <string name="saved">Guardado en el gateway</string>
-    <string name="device_report">%1$s %2$s\nAndroid API %3$d · %4$s\nClase de memoria: %5$d MB\n\nPruebas de códecs y reproducción física pendientes.</string>
+    <string name="device_report">
+        %1$s %2$s\nAndroid API %3$d · %4$s\nClase de memoria: %5$d MB\n\nPruebas de códecs y
+        reproducción física pendientes.
+    </string>
     <string name="restart_language">Idioma guardado. Vuelve a abrir la app para aplicarlo.</string>
     <string name="automatic">Automático</string>
     <string name="tv">TV</string>
@@ -92,7 +125,10 @@
     <string name="backend_auto">Automático (preferir API moderna si está disponible)</string>
     <string name="backend_compatibility">Implementación de compatibilidad</string>
     <string name="receive_cast">Recibir pantalla compartida</string>
-    <string name="receive_cast_detail">Permitir que dispositivos vinculados al gateway compartan su pantalla aquí mientras este cliente está abierto. Puedes detenerlo con el botón Detener del reproductor.</string>
+    <string name="receive_cast_detail">
+        Permitir que dispositivos vinculados al gateway compartan su pantalla aquí mientras este
+        cliente está abierto. Puedes detenerlo con el botón Detener del reproductor.
+    </string>
     <string name="screen_mirroring">Pantalla compartida</string>
     <string name="enable">Activar</string>
     <string name="disable">Desactivar</string>
@@ -101,7 +137,9 @@
     <string name="remux">Remux a MP4</string>
     <string name="transcode">Convertir a H.264 baseline</string>
     <string name="gateway_services">Servicios del gateway</string>
-    <string name="service_check_detail">La disponibilidad es independiente de la validación de cuentas y reproducción.</string>
+    <string name="service_check_detail">
+        La disponibilidad es independiente de la validación de cuentas y reproducción.
+    </string>
     <string name="refresh_services">Actualizar servicios</string>
     <string name="spotify_authorize">Mostrar código de enlace de Spotify</string>
     <string name="music_resume">Reanudar Spotify</string>
@@ -118,7 +156,10 @@
     <string name="implementation_pending">Implementación pendiente</string>
     <string name="browser_address">Dirección web (https://…)</string>
     <string name="browser_open">Abrir</string>
-    <string name="browser_detail">Usa Siguiente enlace y Abrir enlace, o enfoca Página para las flechas. Atrás cierra el navegador.</string>
+    <string name="browser_detail">
+        Usa Siguiente enlace y Abrir enlace, o enfoca Página para las flechas. Atrás cierra el
+        navegador.
+    </string>
     <string name="browser_page">Página</string>
     <string name="browser_back">Página anterior</string>
     <string name="browser_previous_link">Enlace anterior</string>
@@ -127,16 +168,29 @@
     <string name="browser_text">Texto para el campo seleccionado</string>
     <string name="browser_type">Escribir</string>
     <string name="run_probes">Ejecutar pruebas multimedia</string>
-    <string name="probe_description">Reproduce clips sintéticos sin sonido, uno a la vez. Los resultados se guardan en el gateway. Repite después de actualizar el sistema; confirma visualmente los resultados.</string>
-    <string name="probes_unavailable">Pruebas no disponibles o no se pudieron guardar. Genera los clips en el gateway y reintenta.</string>
+    <string name="probe_description">
+        Reproduce clips sintéticos sin sonido, uno a la vez. Los resultados se guardan en el
+        gateway. Repite después de actualizar el sistema; confirma visualmente los resultados.
+    </string>
+    <string name="probes_unavailable">
+        Pruebas no disponibles o no se pudieron guardar. Genera los clips en el gateway y reintenta.
+    </string>
     <string name="probes_saved">Resultados guardados en el gateway</string>
     <string name="probe_result">%1$s: %2$s · preparación %3$d ms · reproducido %4$d ms</string>
     <string name="probe_pass">Correcto</string>
     <string name="probe_fail">Falló</string>
     <string name="probe_unknown">Desconocido</string>
-    <string name="youtube_receiver_detail">Activa esta TV para recibir órdenes de YouTube. DIAL se anuncia mientras el cliente sigue activo. Vincula desde YouTube con el código de TV.</string>
+    <string name="youtube_receiver_detail">
+        Activa esta TV para recibir órdenes de YouTube. DIAL se anuncia mientras el cliente sigue
+        activo. Vincula desde YouTube con el código de TV.
+    </string>
     <string name="youtube_tv_code">Código de TV de YouTube: %1$s</string>
     <string name="rescan_hardware">Volver a escanear hardware</string>
     <string name="diagnostics_report">API %1$d · %2$s %3$s · %4$s</string>
-    <string name="hardware_report">ABI: %1$s\nNúcleos: %2$d · RAM: %3$d MB · Libre: %4$d MB\nRed: %5$s · Gateway: %6$d ms\nDecodificadores declarados: %7$d · Reproductores externos: %8$d\nDIAL nativo, CEC y multicast: sin verificar. Los códecs declarados son indicios; ejecuta las pruebas de reproducción.</string>
+    <string name="hardware_report">
+        ABI: %1$s\nNúcleos: %2$d · RAM: %3$d MB · Libre: %4$d MB\nRed: %5$s · Gateway: %6$d
+        ms\nDecodificadores declarados: %7$d · Reproductores externos: %8$d\nDIAL nativo, CEC y
+        multicast: sin verificar. Los códecs declarados son indicios; ejecuta las pruebas de
+        reproducción.
+    </string>
 </resources>

@@ -7,7 +7,7 @@ import io.github.diegog0477.zombiebox.client.model.HardwareReport
 class DiagnosticsViewModel(
     private val repository: DiagnosticsRepository,
     private val execute: (() -> Unit) -> Unit,
-    private val deliver: (() -> Unit) -> Unit
+    private val deliver: (() -> Unit) -> Unit,
 ) {
     var observer: ((HardwareReport?, Boolean) -> Unit)? = null
     private var busy = false
@@ -17,7 +17,12 @@ class DiagnosticsViewModel(
         if (closed || busy) return
         busy = true
         execute {
-            val report = try { repository.scanAndSave() } catch (_: Exception) { null }
+            val report =
+                try {
+                    repository.scanAndSave()
+                } catch (_: Exception) {
+                    null
+                }
             deliver {
                 busy = false
                 if (!closed) observer?.invoke(report, report == null)
@@ -25,5 +30,8 @@ class DiagnosticsViewModel(
         }
     }
 
-    fun close() { closed = true; observer = null }
+    fun close() {
+        closed = true
+        observer = null
+    }
 }

@@ -6,13 +6,18 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DiagnosticsViewModelTest {
-    @Test fun repeatedRescansAreBoundedAndClosedScreenGetsNoResult() {
+    @Test
+    fun repeatedRescansAreBoundedAndClosedScreenGetsNoResult() {
         val tasks = ArrayList<() -> Unit>()
         var calls = 0
         var updates = 0
-        val repository = object : DiagnosticsRepository {
-            override fun scanAndSave(): HardwareReport { calls++; throw IllegalStateException("offline") }
-        }
+        val repository =
+            object : DiagnosticsRepository {
+                override fun scanAndSave(): HardwareReport {
+                    calls++
+                    throw IllegalStateException("offline")
+                }
+            }
         val model = DiagnosticsViewModel(repository, { tasks.add(it) }, { it() })
         model.observer = { _, _ -> updates++ }
         repeat(20) { model.scan() }
@@ -23,15 +28,18 @@ class DiagnosticsViewModelTest {
         assertEquals(0, updates)
     }
 
-    @Test fun failureAllowsAnExplicitRetry() {
+    @Test
+    fun failureAllowsAnExplicitRetry() {
         val tasks = ArrayList<() -> Unit>()
         var failed = false
-        val repository = object : DiagnosticsRepository {
-            override fun scanAndSave(): HardwareReport = throw IllegalStateException("offline")
-        }
+        val repository =
+            object : DiagnosticsRepository {
+                override fun scanAndSave(): HardwareReport = throw IllegalStateException("offline")
+            }
         val model = DiagnosticsViewModel(repository, { tasks.add(it) }, { it() })
         model.observer = { _, error -> failed = error }
-        model.scan(); tasks.removeAt(0)()
+        model.scan()
+        tasks.removeAt(0)()
         assertTrue(failed)
         model.scan()
         assertEquals(1, tasks.size)

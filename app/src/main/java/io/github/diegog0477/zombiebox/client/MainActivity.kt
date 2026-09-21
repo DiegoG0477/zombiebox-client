@@ -1,7 +1,5 @@
 package io.github.diegog0477.zombiebox.client
 
-import io.github.diegog0477.zombiebox.shared.GatewayApi
-import io.github.diegog0477.zombiebox.shared.GatewayFailure
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.AlertDialog
@@ -14,8 +12,8 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
-import android.net.Uri
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -23,40 +21,62 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.SurfaceHolder
-import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.*
 import io.github.diegog0477.zombiebox.client.data.GatewayHomeRepository
+import io.github.diegog0477.zombiebox.client.data.GatewayReceiverRepository
 import io.github.diegog0477.zombiebox.client.model.*
 import io.github.diegog0477.zombiebox.client.presentation.HomeViewModel
 import io.github.diegog0477.zombiebox.client.presentation.ReceiverViewModel
-import io.github.diegog0477.zombiebox.client.data.GatewayReceiverRepository
-import org.json.JSONArray
-import org.json.JSONObject
+import io.github.diegog0477.zombiebox.shared.GatewayApi
+import io.github.diegog0477.zombiebox.shared.GatewayFailure
 import java.net.URL
 import java.net.URLEncoder
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.Executors
+import org.json.JSONArray
+import org.json.JSONObject
 
 /** Native semantic Home. The gateway supplies content; all layout stays on-device. */
 @Suppress("DEPRECATION")
 class MainActivity : Activity() {
     private val worker = Executors.newSingleThreadExecutor()
     private val receiverWorker = Executors.newSingleThreadExecutor()
-    private lateinit var youtubeReceiver: io.github.diegog0477.zombiebox.client.presentation.YouTubeReceiverViewModel
-    private var diagnosticsModel:io.github.diegog0477.zombiebox.client.presentation.DiagnosticsViewModel?=null
+    private lateinit var youtubeReceiver:
+        io.github.diegog0477.zombiebox.client.presentation.YouTubeReceiverViewModel
+    private var diagnosticsModel:
+        io.github.diegog0477.zombiebox.client.presentation.DiagnosticsViewModel? =
+        null
     private var youtubeDialog: AlertDialog? = null
-    private val youtubeTick = object: Runnable { override fun run() { if(!closed) { if(foreground && ::youtubeReceiver.isInitialized) youtubeReceiver.tick();handler.postDelayed(this,1000) } } }
+    private val youtubeTick =
+        object : Runnable {
+            override fun run() {
+                if (!closed) {
+                    if (foreground && ::youtubeReceiver.isInitialized) youtubeReceiver.tick()
+                    handler.postDelayed(this, 1000)
+                }
+            }
+        }
     private val poller = Executors.newSingleThreadExecutor()
     private val api = GatewayApi()
     private val handler = Handler()
-    private val imageWorker = java.util.concurrent.ThreadPoolExecutor(2, 2, 0L, java.util.concurrent.TimeUnit.MILLISECONDS, java.util.concurrent.ArrayBlockingQueue<Runnable>(24))
-    private val artwork = io.github.diegog0477.zombiebox.client.presentation.ArtworkViewModel(
-        io.github.diegog0477.zombiebox.client.data.GatewayArtworkRepository(api),
-        { work -> imageWorker.execute { work() } }, { work -> handler.post { work() } })
+    private val imageWorker =
+        java.util.concurrent.ThreadPoolExecutor(
+            2,
+            2,
+            0L,
+            java.util.concurrent.TimeUnit.MILLISECONDS,
+            java.util.concurrent.ArrayBlockingQueue<Runnable>(24),
+        )
+    private val artwork =
+        io.github.diegog0477.zombiebox.client.presentation.ArtworkViewModel(
+            io.github.diegog0477.zombiebox.client.data.GatewayArtworkRepository(api),
+            { work -> imageWorker.execute { work() } },
+            { work -> handler.post { work() } },
+        )
     private val prefs by lazy { getSharedPreferences("zombie", MODE_PRIVATE) }
     private lateinit var root: FrameLayout
     private lateinit var content: LinearLayout
@@ -67,9 +87,11 @@ class MainActivity : Activity() {
     private lateinit var player: EmbeddedPlayer
     private val audioFocus = AudioManager.OnAudioFocusChangeListener { if (it <= 0) player.pause() }
     private lateinit var homeViewModel: HomeViewModel
-    private val snapshot get() = homeViewModel.state.snapshot
-    private lateinit var receiverViewModel:ReceiverViewModel
-    private var currentItem:MediaItem?=null
+    private val snapshot
+        get() = homeViewModel.state.snapshot
+
+    private lateinit var receiverViewModel: ReceiverViewModel
+    private var currentItem: MediaItem? = null
     private var session = ""
     private var stream = ""
     private var mime = "video/mp4"
@@ -88,7 +110,9 @@ class MainActivity : Activity() {
     private var playbackGeneration = 0
     @Volatile private var closed = false
     @Volatile private var foreground = false
-    private val green get() = resources.getColor(R.color.accent_zombie)
+    private val green
+        get() = resources.getColor(R.color.accent_zombie)
+
     private val background = Color.rgb(10, 15, 16)
     private val panel = Color.rgb(24, 31, 33)
     private val muted = Color.rgb(167, 180, 186)
@@ -120,33 +144,86 @@ class MainActivity : Activity() {
         bottom.addView(button(R.string.expand) { if (session.isNotEmpty()) setFullscreen(!full) })
         shell.addView(bottom)
         createPlayer()
-        player = EmbeddedPlayer({ width, height -> videoSurface.setVideoSize(width, height) }) { status, position, duration ->
-            lastPosition = position; lastDuration = duration
-            if (::youtubeReceiver.isInitialized && (currentItem?.provider == "youtube" || status == "STOPPED")) youtubeReceiver.playerState(status,position,duration)
-            playerStatus.text = getString(R.string.player_status, localizedState(status), formatTime(position), formatTime(duration))
-            if (session.isNotEmpty()) now.text = itemTitle
-            if (status == "PLAYING") window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            val time = System.currentTimeMillis()
-            if (session.isNotEmpty() && (status != lastState || time - lastReport > 10000)) {
-                lastState = status; lastReport = time
-                val current = session
-                async({ api.request("PUT", "/v1/playback/$current/progress", JSONObject().put("state", status).put("positionMs", position).put("durationMs", duration)) }, {}, false)
+        player =
+            EmbeddedPlayer({ width, height -> videoSurface.setVideoSize(width, height) }) {
+                status,
+                position,
+                duration ->
+                lastPosition = position
+                lastDuration = duration
+                if (
+                    ::youtubeReceiver.isInitialized &&
+                        (currentItem?.provider == "youtube" || status == "STOPPED")
+                )
+                    youtubeReceiver.playerState(status, position, duration)
+                playerStatus.text =
+                    getString(
+                        R.string.player_status,
+                        localizedState(status),
+                        formatTime(position),
+                        formatTime(duration),
+                    )
+                if (session.isNotEmpty()) now.text = itemTitle
+                if (status == "PLAYING")
+                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                val time = System.currentTimeMillis()
+                if (session.isNotEmpty() && (status != lastState || time - lastReport > 10000)) {
+                    lastState = status
+                    lastReport = time
+                    val current = session
+                    async(
+                        {
+                            api.request(
+                                "PUT",
+                                "/v1/playback/$current/progress",
+                                JSONObject()
+                                    .put("state", status)
+                                    .put("positionMs", position)
+                                    .put("durationMs", duration),
+                            )
+                        },
+                        {},
+                        false,
+                    )
+                }
             }
-        }
-        audioController = AudioFocusFactory.create(Build.VERSION.SDK_INT, getSystemService(AUDIO_SERVICE) as AudioManager, audioFocus, prefs.getBoolean("audioFocusCompatibility", false))
-        youtubeReceiver = io.github.diegog0477.zombiebox.client.presentation.YouTubeReceiverViewModel(
-            io.github.diegog0477.zombiebox.client.data.GatewayYouTubeReceiverRepository(api), { work -> receiverWorker.execute { work() } }, { work -> handler.post { work() } })
+        audioController =
+            AudioFocusFactory.create(
+                Build.VERSION.SDK_INT,
+                getSystemService(AUDIO_SERVICE) as AudioManager,
+                audioFocus,
+                prefs.getBoolean("audioFocusCompatibility", false),
+            )
+        youtubeReceiver =
+            io.github.diegog0477.zombiebox.client.presentation.YouTubeReceiverViewModel(
+                io.github.diegog0477.zombiebox.client.data.GatewayYouTubeReceiverRepository(api),
+                { work -> receiverWorker.execute { work() } },
+                { work -> handler.post { work() } },
+            )
         youtubeReceiver.command = { command -> receiveYouTube(command) }
         youtubeReceiver.observer = { youtubeDialog?.setMessage(youtubeReceiverMessage()) }
         handler.post(youtubeTick)
         val backgroundExecutor = worker
         val uiHandler = handler
-        homeViewModel = HomeViewModel(GatewayHomeRepository(api), { work -> backgroundExecutor.execute { work() } }, { done -> uiHandler.post { done() } })
-        receiverViewModel=ReceiverViewModel(GatewayReceiverRepository(api),{ work -> backgroundExecutor.execute { work() } },{ done -> uiHandler.post { done() } })
-        receiverViewModel.observer={plan -> receiveCast(plan)}
+        homeViewModel =
+            HomeViewModel(
+                GatewayHomeRepository(api),
+                { work -> backgroundExecutor.execute { work() } },
+                { done -> uiHandler.post { done() } },
+            )
+        receiverViewModel =
+            ReceiverViewModel(
+                GatewayReceiverRepository(api),
+                { work -> backgroundExecutor.execute { work() } },
+                { done -> uiHandler.post { done() } },
+            )
+        receiverViewModel.observer = { plan -> receiveCast(plan) }
         homeViewModel.observer = { state ->
-            if (!closed && !state.loading) { render(); state.failure?.let { error(it) } }
+            if (!closed && !state.loading) {
+                render()
+                state.failure?.let { error(it) }
+            }
         }
         setContentView(root)
         render()
@@ -154,378 +231,1038 @@ class MainActivity : Activity() {
         poller.execute {
             var cursor = ""
             while (!closed) {
-                if (!foreground || api.token.isEmpty()) { try { Thread.sleep(1000) } catch (_: InterruptedException) { break }; continue }
+                if (!foreground || api.token.isEmpty()) {
+                    try {
+                        Thread.sleep(1000)
+                    } catch (_: InterruptedException) {
+                        break
+                    }
+                    continue
+                }
                 try {
-                    val result = api.request("GET", "/v1/events?cursor=" + URLEncoder.encode(cursor, "UTF-8"))
+                    val result =
+                        api.request(
+                            "GET",
+                            "/v1/events?cursor=" + URLEncoder.encode(cursor, "UTF-8"),
+                        )
                     cursor = result.optString("cursor")
-                    runOnUiThread { if (!closed && foreground) { receiverViewModel.refresh(); if ((result.optJSONArray("events")?.length() ?: 0) > 0) refresh() } }
+                    runOnUiThread {
+                        if (!closed && foreground) {
+                            receiverViewModel.refresh()
+                            if ((result.optJSONArray("events")?.length() ?: 0) > 0) refresh()
+                        }
+                    }
                 } catch (e: Exception) {
                     if (e is GatewayFailure && e.status == 409) cursor = ""
-                    try { Thread.sleep(3000) } catch (_: InterruptedException) { break }
+                    try {
+                        Thread.sleep(3000)
+                    } catch (_: InterruptedException) {
+                        break
+                    }
                 }
             }
         }
     }
+
     private fun dp(value: Int) = (value * resources.displayMetrics.density + 0.5f).toInt()
+
     private fun column() = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-    private fun row() = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-    private fun text(value: String, size: Float, color: Int = Color.WHITE) = TextView(this).apply {
-        text = value; textSize = size; setTextColor(color); setPadding(dp(4), dp(4), dp(4), dp(4))
-    }
-    private fun box(color: Int, stroke: Int = Color.rgb(48, 60, 63)) = GradientDrawable().apply {
-        setColor(color); cornerRadius = dp(8).toFloat(); setStroke(dp(1), stroke)
-    }
-    private fun focusBackground(accent: Int = contextAccent()): StateListDrawable = StateListDrawable().apply {
-        addState(intArrayOf(android.R.attr.state_focused), box(Color.rgb(32, 39, 42), accent))
-        addState(intArrayOf(android.R.attr.state_pressed), box(Color.rgb(32, 39, 42), accent))
-        addState(intArrayOf(), box(panel))
-    }
-    private fun action(label: String, accent: Int = contextAccent(), click: () -> Unit) = Button(this).apply {
-        text = label; textSize = 14f; setTextColor(Color.WHITE); isFocusable = true
-        setPadding(dp(12), dp(7), dp(12), dp(7)); setBackgroundDrawable(focusBackground(accent)); tag = "action:$label"
-        setOnClickListener { click() }
-        layoutParams = LinearLayout.LayoutParams(-2, dp(44)).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }
-    }
-    private fun button(label: Int, click: () -> Unit) = action(getString(label), click = click).apply { tag = "button:$label" }
+
+    private fun row() =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+    private fun text(value: String, size: Float, color: Int = Color.WHITE) =
+        TextView(this).apply {
+            text = value
+            textSize = size
+            setTextColor(color)
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+        }
+
+    private fun box(color: Int, stroke: Int = Color.rgb(48, 60, 63)) =
+        GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(8).toFloat()
+            setStroke(dp(1), stroke)
+        }
+
+    private fun focusBackground(accent: Int = contextAccent()): StateListDrawable =
+        StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused), box(Color.rgb(32, 39, 42), accent))
+            addState(intArrayOf(android.R.attr.state_pressed), box(Color.rgb(32, 39, 42), accent))
+            addState(intArrayOf(), box(panel))
+        }
+
+    private fun action(label: String, accent: Int = contextAccent(), click: () -> Unit) =
+        Button(this).apply {
+            text = label
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            isFocusable = true
+            setPadding(dp(12), dp(7), dp(12), dp(7))
+            setBackgroundDrawable(focusBackground(accent))
+            tag = "action:$label"
+            setOnClickListener { click() }
+            layoutParams =
+                LinearLayout.LayoutParams(-2, dp(44)).apply {
+                    setMargins(dp(3), dp(3), dp(3), dp(3))
+                }
+        }
+
+    private fun button(label: Int, click: () -> Unit) =
+        action(getString(label), click = click).apply { tag = "button:$label" }
+
     private fun horizontal(parent: LinearLayout, id: String = ""): LinearLayout {
-        val scroll = HorizontalScrollView(this); scroll.isHorizontalScrollBarEnabled = false
-        val line = row(); scroll.addView(line); parent.addView(scroll)
+        val scroll = HorizontalScrollView(this)
+        scroll.isHorizontalScrollBarEnabled = false
+        val line = row()
+        scroll.addView(line)
+        parent.addView(scroll)
         if (id.isNotEmpty()) focusRows.add(Pair(id, line))
         return line
     }
-    private fun title(label: String) { content.addView(text(label, 18f).apply { setPadding(dp(4), dp(14), 0, dp(8)) }) }
+
+    private fun title(label: String) {
+        content.addView(text(label, 18f).apply { setPadding(dp(4), dp(14), 0, dp(8)) })
+    }
+
     private fun render() {
-        artwork.reset(); imageWorker.queue.clear()
+        artwork.reset()
+        imageWorker.queue.clear()
         focusRows.clear()
         content.removeAllViews()
         val nav = horizontal(content, "navigation")
-        nav.addView(text(getString(R.string.brand), 25f, green).apply { typeface = Typeface.DEFAULT_BOLD; setPadding(0, 0, dp(24), 0) })
+        nav.addView(
+            text(getString(R.string.brand), 25f, green).apply {
+                typeface = Typeface.DEFAULT_BOLD
+                setPadding(0, 0, dp(24), 0)
+            }
+        )
         nav.addView(button(R.string.home) { refresh("", "") })
         for (id in arrayOf("youtube", "plex", "stremio", "spotify", "iptv", "airplay")) {
-            nav.addView(action(serviceTitle(id), providerAccent(id)) { refresh(id, "") }.apply { tag = "nav:$id" })
+            nav.addView(
+                action(serviceTitle(id), providerAccent(id)) { refresh(id, "") }
+                    .apply { tag = "nav:$id" }
+            )
         }
         nav.addView(button(R.string.search) { search() })
         nav.addView(button(R.string.settings) { settings() })
         val heroFrame = FrameLayout(this)
         val hero = column()
         hero.setPadding(dp(24), dp(18), dp(24), dp(18))
-        hero.setBackgroundDrawable(GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.rgb(20, 39, 31), Color.rgb(25, 41, 44), background)).apply { cornerRadius = dp(10).toFloat() })
+        hero.setBackgroundDrawable(
+            GradientDrawable(
+                    GradientDrawable.Orientation.LEFT_RIGHT,
+                    intArrayOf(Color.rgb(20, 39, 31), Color.rgb(25, 41, 44), background),
+                )
+                .apply { cornerRadius = dp(10).toFloat() }
+        )
         val featured = snapshot.hero
         if (featured != null && featured.imageUrl.isNotEmpty()) {
             heroFrame.addView(artImage(featured.imageUrl, true), FrameLayout.LayoutParams(-1, -1))
-            hero.setBackgroundDrawable(GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.argb(240,10,15,16),Color.argb(100,10,15,16))))
+            hero.setBackgroundDrawable(
+                GradientDrawable(
+                    GradientDrawable.Orientation.LEFT_RIGHT,
+                    intArrayOf(Color.argb(240, 10, 15, 16), Color.argb(100, 10, 15, 16)),
+                )
+            )
         }
-        heroFrame.addView(hero, FrameLayout.LayoutParams(-1,-2))
+        heroFrame.addView(hero, FrameLayout.LayoutParams(-1, -2))
         hero.addView(text(getString(R.string.tagline), 12f, contextAccent()))
-        hero.addView(text(featured?.title ?: getString(R.string.welcome), 32f).apply { typeface = Typeface.DEFAULT_BOLD; maxLines = 2 })
-        hero.addView(text(featured?.description?.takeIf { it.isNotEmpty() } ?: getString(R.string.welcome_detail), 16f, muted).apply { maxLines = 2 })
+        hero.addView(
+            text(featured?.title ?: getString(R.string.welcome), 32f).apply {
+                typeface = Typeface.DEFAULT_BOLD
+                maxLines = 2
+            }
+        )
+        hero.addView(
+            text(
+                    featured?.description?.takeIf { it.isNotEmpty() }
+                        ?: getString(R.string.welcome_detail),
+                    16f,
+                    muted,
+                )
+                .apply { maxLines = 2 }
+        )
         val heroActions = row()
         if (featured != null) {
             heroActions.addView(button(R.string.play) { startPlayback(featured) })
             heroActions.addView(button(R.string.more_info) { details(featured) })
         } else heroActions.addView(button(R.string.configure_services) { settings() })
-        if (homeViewModel.state.scope.provider == "youtube") heroActions.addView(button(R.string.youtube_receiver) { youtubeReceiverSettings() })
+        if (homeViewModel.state.scope.provider == "youtube")
+            heroActions.addView(button(R.string.youtube_receiver) { youtubeReceiverSettings() })
         focusRows.add(Pair("hero", heroActions))
         hero.addView(heroActions)
-        content.addView(heroFrame, LinearLayout.LayoutParams(-1, dp(240)).apply { setMargins(0, dp(14), 0, dp(4)) })
+        content.addView(
+            heroFrame,
+            LinearLayout.LayoutParams(-1, dp(240)).apply { setMargins(0, dp(14), 0, dp(4)) },
+        )
         for (section in snapshot.sections) {
-            title(if (section.id == "continue") getString(R.string.continue_watching) else serviceTitle(section.id))
+            title(
+                if (section.id == "continue") getString(R.string.continue_watching)
+                else serviceTitle(section.id)
+            )
             val line = horizontal(content, "section:" + section.id)
             for (item in section.items) {
                 val card = FrameLayout(this).apply { tag = "item:" + section.id + ":" + item.id }
                 val cardContent = column()
                 if (item.imageUrl.isNotEmpty()) {
-                    card.addView(artImage(item.imageUrl, false), FrameLayout.LayoutParams(-1,-1))
-                    cardContent.setBackgroundDrawable(GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, intArrayOf(Color.argb(240,10,15,16),Color.argb(90,10,15,16))))
+                    card.addView(artImage(item.imageUrl, false), FrameLayout.LayoutParams(-1, -1))
+                    cardContent.setBackgroundDrawable(
+                        GradientDrawable(
+                            GradientDrawable.Orientation.BOTTOM_TOP,
+                            intArrayOf(Color.argb(240, 10, 15, 16), Color.argb(90, 10, 15, 16)),
+                        )
+                    )
                 }
-                card.addView(cardContent, FrameLayout.LayoutParams(-1,-1))
-                card.setPadding(dp(12), dp(12), dp(12), dp(12)); card.setBackgroundDrawable(focusBackground(providerAccent(item.provider))); card.isFocusable = true; card.isClickable = true
-                cardContent.addView(text(serviceTitle(item.provider), 12f, providerAccent(item.provider)))
-                cardContent.addView(text(item.title, 19f).apply { maxLines = 2; typeface = Typeface.DEFAULT_BOLD })
-                if (item.subtitle.isNotEmpty()) cardContent.addView(text(item.subtitle, 12f, muted).apply { maxLines = 1 })
-                if (item.positionMs > 0) cardContent.addView(text(getString(R.string.resume_at, formatTime(item.positionMs)), 12f, muted))
+                card.addView(cardContent, FrameLayout.LayoutParams(-1, -1))
+                card.setPadding(dp(12), dp(12), dp(12), dp(12))
+                card.setBackgroundDrawable(focusBackground(providerAccent(item.provider)))
+                card.isFocusable = true
+                card.isClickable = true
+                cardContent.addView(
+                    text(serviceTitle(item.provider), 12f, providerAccent(item.provider))
+                )
+                cardContent.addView(
+                    text(item.title, 19f).apply {
+                        maxLines = 2
+                        typeface = Typeface.DEFAULT_BOLD
+                    }
+                )
+                if (item.subtitle.isNotEmpty())
+                    cardContent.addView(text(item.subtitle, 12f, muted).apply { maxLines = 1 })
+                if (item.positionMs > 0)
+                    cardContent.addView(
+                        text(getString(R.string.resume_at, formatTime(item.positionMs)), 12f, muted)
+                    )
                 card.setOnClickListener { details(item) }
-                line.addView(card, LinearLayout.LayoutParams(dp(230), dp(130)).apply { setMargins(dp(3), dp(3), dp(8), dp(3)) })
+                line.addView(
+                    card,
+                    LinearLayout.LayoutParams(dp(230), dp(130)).apply {
+                        setMargins(dp(3), dp(3), dp(8), dp(3))
+                    },
+                )
             }
-            if (section.id != "continue") line.addView(button(R.string.view_all) { catalogPage(section.id) }.apply { tag = "all:" + section.id })
+            if (section.id != "continue")
+                line.addView(
+                    button(R.string.view_all) { catalogPage(section.id) }
+                        .apply { tag = "all:" + section.id }
+                )
         }
         title(getString(R.string.apps_content))
         val services = horizontal(content, "services")
         for (module in snapshot.modules) {
             val id = module.id
             val label = serviceTitle(id) + "\n" + localizedState(module.state)
-            services.addView(action(label, providerAccent(id)) { if(id=="android_mirror") receiverSettings() else if (module.state == "DISABLED") providerList() else refresh(id, "") }.apply {
-                tag = "service:$id"
-                layoutParams = LinearLayout.LayoutParams(dp(165), dp(66)).apply { setMargins(dp(3), dp(3), dp(6), dp(3)) }
-            })
+            services.addView(
+                action(label, providerAccent(id)) {
+                        if (id == "android_mirror") receiverSettings()
+                        else if (module.state == "DISABLED") providerList() else refresh(id, "")
+                    }
+                    .apply {
+                        tag = "service:$id"
+                        layoutParams =
+                            LinearLayout.LayoutParams(dp(165), dp(66)).apply {
+                                setMargins(dp(3), dp(3), dp(6), dp(3))
+                            }
+                    }
+            )
         }
-        if (snapshot.modules.isEmpty()) services.addView(button(R.string.connect_gateway) { pairing() })
-        content.addView(text(getString(if (isTV()) R.string.docked_description else R.string.handheld_description), 14f, muted))
+        if (snapshot.modules.isEmpty())
+            services.addView(button(R.string.connect_gateway) { pairing() })
+        content.addView(
+            text(
+                getString(
+                    if (isTV()) R.string.docked_description else R.string.handheld_description
+                ),
+                14f,
+                muted,
+            )
+        )
         homeFocus.rebuild(focusRows + Pair("transport", bottom), !full)
     }
+
     private fun artImage(path: String, hero: Boolean): ImageView {
-        val image = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; isFocusable = false }
+        val image =
+            ImageView(this).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                isFocusable = false
+            }
         artwork.load(path, hero) { bytes ->
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(bytes,0,bytes.size,bounds)
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
             if (bounds.outWidth in 1..960 && bounds.outHeight in 1..540) {
-                try { image.setImageBitmap(BitmapFactory.decodeByteArray(bytes,0,bytes.size,BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })) }
-                catch (_: OutOfMemoryError) { image.setImageDrawable(null) }
+                try {
+                    image.setImageBitmap(
+                        BitmapFactory.decodeByteArray(
+                            bytes,
+                            0,
+                            bytes.size,
+                            BitmapFactory.Options().apply {
+                                inPreferredConfig = Bitmap.Config.RGB_565
+                            },
+                        )
+                    )
+                } catch (_: OutOfMemoryError) {
+                    image.setImageDrawable(null)
+                }
             }
         }
         return image
     }
-    private fun refresh(provider: String = homeViewModel.state.scope.provider, query: String = homeViewModel.state.scope.query) {
-        if (provider == "rebrowser") { startActivity(Intent(this, BrowserActivity::class.java)); return }
+
+    private fun refresh(
+        provider: String = homeViewModel.state.scope.provider,
+        query: String = homeViewModel.state.scope.query,
+    ) {
+        if (provider == "rebrowser") {
+            startActivity(Intent(this, BrowserActivity::class.java))
+            return
+        }
         if (api.token.isNotEmpty()) homeViewModel.refresh(HomeScope(provider, query))
     }
-    private fun <T> async(work: () -> T, done: (T) -> Unit, notify: Boolean = true, onError: () -> Unit = {}) {
+
+    private fun <T> async(
+        work: () -> T,
+        done: (T) -> Unit,
+        notify: Boolean = true,
+        onError: () -> Unit = {},
+    ) {
         if (closed) return
         worker.execute {
-            try { val result = work(); runOnUiThread { if (!closed) done(result) } }
-            catch (e: Exception) { runOnUiThread { if (!closed) { onError(); if (notify) error(e) } } }
+            try {
+                val result = work()
+                runOnUiThread { if (!closed) done(result) }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    if (!closed) {
+                        onError()
+                        if (notify) error(e)
+                    }
+                }
+            }
         }
     }
+
     private fun error(e: Exception) {
-        val message = if (e is GatewayFailure) getString(when (e.status) {
-            401 -> R.string.error_pairing; 403 -> R.string.error_admin; 409 -> R.string.error_conflict; 429 -> R.string.error_busy
-            else -> R.string.error_request
-        }) else getString(R.string.error_network)
+        val message =
+            if (e is GatewayFailure)
+                getString(
+                    when (e.status) {
+                        401 -> R.string.error_pairing
+                        403 -> R.string.error_admin
+                        409 -> R.string.error_conflict
+                        429 -> R.string.error_busy
+                        else -> R.string.error_request
+                    }
+                )
+            else getString(R.string.error_network)
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
+
     private fun field(parent: LinearLayout, label: Int, secret: Boolean = false): EditText {
         parent.addView(text(getString(label), 14f, muted))
         return EditText(this).apply {
-            setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(muted)
-            inputType = if (secret) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            setSingleLine(true)
+            setTextColor(Color.WHITE)
+            setHintTextColor(muted)
+            inputType =
+                if (secret) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             isSaveEnabled = false
             parent.addView(this, LinearLayout.LayoutParams(-1, dp(48)))
         }
     }
+
     private fun dialogForm(): Pair<ScrollView, LinearLayout> {
-        val form = column(); form.setPadding(dp(18), dp(8), dp(18), dp(12))
-        val scroll = ScrollView(this); scroll.addView(form); return Pair(scroll, form)
+        val form = column()
+        form.setPadding(dp(18), dp(8), dp(18), dp(12))
+        val scroll = ScrollView(this)
+        scroll.addView(form)
+        return Pair(scroll, form)
     }
+
     private fun pairing() {
         val (scroll, form) = dialogForm()
         form.addView(text(getString(R.string.lan_notice), 14f, muted))
         val address = field(form, R.string.gateway_address)
-        address.setText(api.base); address.hint = getString(R.string.gateway_hint)
+        address.setText(api.base)
+        address.hint = getString(R.string.gateway_hint)
         val code = field(form, R.string.operator_code, true)
-        val dialog = AlertDialog.Builder(this).setTitle(R.string.connect_gateway).setView(scroll).setNegativeButton(R.string.cancel, null).setPositiveButton(R.string.connect, null).create()
+        val dialog =
+            AlertDialog.Builder(this)
+                .setTitle(R.string.connect_gateway)
+                .setView(scroll)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.connect, null)
+                .create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val candidate = address.text.toString().trim().trimEnd('/')
-                try { val u = URL(candidate); require(u.protocol in arrayOf("http", "https") && u.host.isNotEmpty() && u.userInfo == null && u.query == null && u.ref == null) }
-                catch (_: Exception) { address.error = getString(R.string.invalid_address); return@setOnClickListener }
-                val pairingCode = code.text.toString(); code.setText("")
-                val identifier = prefs.getString("installation", null) ?: UUID.randomUUID().toString().also { prefs.edit().putString("installation", it).commit() }
+                try {
+                    val u = URL(candidate)
+                    require(
+                        u.protocol in arrayOf("http", "https") &&
+                            u.host.isNotEmpty() &&
+                            u.userInfo == null &&
+                            u.query == null &&
+                            u.ref == null
+                    )
+                } catch (_: Exception) {
+                    address.error = getString(R.string.invalid_address)
+                    return@setOnClickListener
+                }
+                val pairingCode = code.text.toString()
+                code.setText("")
+                val identifier =
+                    prefs.getString("installation", null)
+                        ?: UUID.randomUUID().toString().also {
+                            prefs.edit().putString("installation", it).commit()
+                        }
                 val payload = registration(identifier).put("pairingCode", pairingCode)
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
                 // Use a separate connection profile until pairing succeeds.
-                async({ val connection = GatewayApi(); connection.base = candidate; connection.request("POST", "/v1/devices/register", payload) }, { result ->
-                    stopPlayback(); api.disconnect(); api.configure(candidate, result.getString("deviceId"), result.getString("deviceToken"))
-                    prefs.edit().putString("gateway", api.base).putString("device", api.device).putString("token", api.token).commit()
-                    dialog.dismiss(); receiverViewModel.reset(); homeViewModel.reset(); refresh(); receiverViewModel.refresh()
-                }, onError = { dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true })
+                async(
+                    {
+                        val connection = GatewayApi()
+                        connection.base = candidate
+                        connection.request("POST", "/v1/devices/register", payload)
+                    },
+                    { result ->
+                        stopPlayback()
+                        api.disconnect()
+                        api.configure(
+                            candidate,
+                            result.getString("deviceId"),
+                            result.getString("deviceToken"),
+                        )
+                        prefs
+                            .edit()
+                            .putString("gateway", api.base)
+                            .putString("device", api.device)
+                            .putString("token", api.token)
+                            .commit()
+                        dialog.dismiss()
+                        receiverViewModel.reset()
+                        homeViewModel.reset()
+                        refresh()
+                        receiverViewModel.refresh()
+                    },
+                    onError = { dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true },
+                )
             }
         }
         dialog.setOnDismissListener { code.setText("") }
         dialog.show()
     }
+
     private fun registration(id: String): JSONObject {
         val display = resources.displayMetrics
         val touch = packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
         val memory = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-        return JSONObject().put("clientVersion", packageManager.getPackageInfo(packageName, 0).versionName).put("protocolVersion", 1).put("installationId", id)
-            .put("platform", JSONObject().put("androidApi", Build.VERSION.SDK_INT).put("release", Build.VERSION.RELEASE).put("manufacturer", Build.MANUFACTURER).put("model", Build.MODEL).put("abis", JSONArray().put(Build.CPU_ABI)))
-            .put("display", JSONObject().put("width", display.widthPixels).put("height", display.heightPixels).put("dpi", display.densityDpi).put("touch", touch).put("dpad", resources.configuration.navigation == Configuration.NAVIGATION_DPAD || !touch))
-            .put("memory", JSONObject().put("memoryClassMb", memory.memoryClass).put("physicalMb", io.github.diegog0477.zombiebox.client.platform.HardwareMemory.physicalMb()))
+        return JSONObject()
+            .put("clientVersion", packageManager.getPackageInfo(packageName, 0).versionName)
+            .put("protocolVersion", 1)
+            .put("installationId", id)
+            .put(
+                "platform",
+                JSONObject()
+                    .put("androidApi", Build.VERSION.SDK_INT)
+                    .put("release", Build.VERSION.RELEASE)
+                    .put("manufacturer", Build.MANUFACTURER)
+                    .put("model", Build.MODEL)
+                    .put("abis", JSONArray().put(Build.CPU_ABI)),
+            )
+            .put(
+                "display",
+                JSONObject()
+                    .put("width", display.widthPixels)
+                    .put("height", display.heightPixels)
+                    .put("dpi", display.densityDpi)
+                    .put("touch", touch)
+                    .put(
+                        "dpad",
+                        resources.configuration.navigation == Configuration.NAVIGATION_DPAD ||
+                            !touch,
+                    ),
+            )
+            .put(
+                "memory",
+                JSONObject()
+                    .put("memoryClassMb", memory.memoryClass)
+                    .put(
+                        "physicalMb",
+                        io.github.diegog0477.zombiebox.client.platform.HardwareMemory.physicalMb(),
+                    ),
+            )
     }
+
     private fun settings() {
-        AlertDialog.Builder(this).setTitle(R.string.settings).setItems(arrayOf(getString(R.string.connect_gateway), getString(R.string.configure_services), getString(R.string.diagnostics), getString(R.string.language), getString(R.string.presentation_mode), getString(R.string.advanced), getString(R.string.receive_cast), getString(R.string.gateway_services), getString(R.string.youtube_receiver))) { _, index ->
-            when (index) { 0 -> pairing(); 1 -> providerList(); 2 -> diagnostics(); 3 -> language(); 4 -> mode(); 5 -> advanced(); 6 -> receiverSettings(); 7 -> startActivity(Intent(this, ServicesActivity::class.java)); 8 -> youtubeReceiverSettings() }
-        }.setNegativeButton(R.string.close, null).show()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.settings)
+            .setItems(
+                arrayOf(
+                    getString(R.string.connect_gateway),
+                    getString(R.string.configure_services),
+                    getString(R.string.diagnostics),
+                    getString(R.string.language),
+                    getString(R.string.presentation_mode),
+                    getString(R.string.advanced),
+                    getString(R.string.receive_cast),
+                    getString(R.string.gateway_services),
+                    getString(R.string.youtube_receiver),
+                )
+            ) { _, index ->
+                when (index) {
+                    0 -> pairing()
+                    1 -> providerList()
+                    2 -> diagnostics()
+                    3 -> language()
+                    4 -> mode()
+                    5 -> advanced()
+                    6 -> receiverSettings()
+                    7 -> startActivity(Intent(this, ServicesActivity::class.java))
+                    8 -> youtubeReceiverSettings()
+                }
+            }
+            .setNegativeButton(R.string.close, null)
+            .show()
     }
+
     private fun providerList() {
-        if (api.token.isEmpty()) { pairing(); return }
-        async({ api.request("GET", "/v1/providers").getJSONArray("providers") }, { providers ->
-            val labels = Array(providers.length()) { i -> val p = providers.getJSONObject(i); serviceTitle(p.getString("id")) + " · " + getString(if (p.optBoolean("enabled")) R.string.enabled else R.string.disabled) }
-            AlertDialog.Builder(this).setTitle(R.string.configure_services).setItems(labels) { _, index -> providerForm(providers.getJSONObject(index)) }.setNegativeButton(R.string.close, null).show()
-        })
+        if (api.token.isEmpty()) {
+            pairing()
+            return
+        }
+        async(
+            { api.request("GET", "/v1/providers").getJSONArray("providers") },
+            { providers ->
+                val labels =
+                    Array(providers.length()) { i ->
+                        val p = providers.getJSONObject(i)
+                        serviceTitle(p.getString("id")) +
+                            " · " +
+                            getString(
+                                if (p.optBoolean("enabled")) R.string.enabled else R.string.disabled
+                            )
+                    }
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.configure_services)
+                    .setItems(labels) { _, index -> providerForm(providers.getJSONObject(index)) }
+                    .setNegativeButton(R.string.close, null)
+                    .show()
+            },
+        )
     }
+
     private fun providerForm(provider: JSONObject) {
         val id = provider.getString("id")
-        if (provider.optBoolean("managedByServer")) { AlertDialog.Builder(this).setTitle(serviceTitle(id)).setMessage(R.string.server_managed).setPositiveButton(R.string.close, null).show(); return }
+        if (provider.optBoolean("managedByServer")) {
+            AlertDialog.Builder(this)
+                .setTitle(serviceTitle(id))
+                .setMessage(R.string.server_managed)
+                .setPositiveButton(R.string.close, null)
+                .show()
+            return
+        }
         val (scroll, form) = dialogForm()
-        form.addView(text(getString(if (provider.optBoolean("implemented")) R.string.secret_policy else R.string.adapter_pending), 14f, muted))
-        val enabled = CheckBox(this).apply { setText(R.string.enabled); isChecked = provider.optBoolean("enabled"); setTextColor(Color.WHITE) }; form.addView(enabled)
-        val address = field(form, if (id == "iptv") R.string.playlist_url else R.string.service_url, true)
-        address.hint = getString(if (provider.optBoolean("configured")) R.string.keep_existing else R.string.optional_url)
+        form.addView(
+            text(
+                getString(
+                    if (provider.optBoolean("implemented")) R.string.secret_policy
+                    else R.string.adapter_pending
+                ),
+                14f,
+                muted,
+            )
+        )
+        val enabled =
+            CheckBox(this).apply {
+                setText(R.string.enabled)
+                isChecked = provider.optBoolean("enabled")
+                setTextColor(Color.WHITE)
+            }
+        form.addView(enabled)
+        val address =
+            field(form, if (id == "iptv") R.string.playlist_url else R.string.service_url, true)
+        address.hint =
+            getString(
+                if (provider.optBoolean("configured")) R.string.keep_existing
+                else R.string.optional_url
+            )
         val token = field(form, R.string.service_token, true)
-        token.hint = getString(if (provider.optBoolean("hasToken")) R.string.keep_existing else R.string.optional_token)
-        val clear = CheckBox(this).apply { setText(R.string.remove_token); setTextColor(Color.WHITE) }; form.addView(clear)
+        token.hint =
+            getString(
+                if (provider.optBoolean("hasToken")) R.string.keep_existing
+                else R.string.optional_token
+            )
+        val clear =
+            CheckBox(this).apply {
+                setText(R.string.remove_token)
+                setTextColor(Color.WHITE)
+            }
+        form.addView(clear)
         val user = if (id == "jellyfin") field(form, R.string.service_user) else null
         val epg = if (id == "iptv") field(form, R.string.epg_url, true) else null
         val catalog = if (id == "stremio") field(form, R.string.catalog_id) else null
         val media = if (id == "stremio") field(form, R.string.media_type) else null
         val code = field(form, R.string.operator_code, true)
-        val dialog = AlertDialog.Builder(this).setTitle(serviceTitle(id)).setView(scroll).setNegativeButton(R.string.cancel, null).setPositiveButton(R.string.save, null).create()
-        dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            val patch = JSONObject().put("enabled", enabled.isChecked)
-            for ((key, view) in arrayOf("url" to address, "token" to token, "userId" to user, "epgUrl" to epg, "catalogId" to catalog, "mediaType" to media)) {
-                if (view != null && view.text.toString().isNotBlank()) patch.put(key, view.text.toString().trim())
+        val dialog =
+            AlertDialog.Builder(this)
+                .setTitle(serviceTitle(id))
+                .setView(scroll)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.save, null)
+                .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val patch = JSONObject().put("enabled", enabled.isChecked)
+                for ((key, view) in
+                    arrayOf(
+                        "url" to address,
+                        "token" to token,
+                        "userId" to user,
+                        "epgUrl" to epg,
+                        "catalogId" to catalog,
+                        "mediaType" to media,
+                    )) {
+                    if (view != null && view.text.toString().isNotBlank())
+                        patch.put(key, view.text.toString().trim())
+                }
+                if (clear.isChecked) patch.put("token", "")
+                val admin = code.text.toString()
+                code.setText("")
+                token.setText("")
+                address.setText("")
+                epg?.setText("")
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
+                async(
+                    { api.request("PUT", "/v1/providers/$id", patch, admin) },
+                    {
+                        dialog.dismiss()
+                        Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
+                        refresh()
+                    },
+                    onError = { dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true },
+                )
             }
-            if (clear.isChecked) patch.put("token", "")
-            val admin = code.text.toString(); code.setText(""); token.setText(""); address.setText(""); epg?.setText("")
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
-            async({ api.request("PUT", "/v1/providers/$id", patch, admin) }, { dialog.dismiss(); Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show(); refresh() }, onError = { dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true })
-        } }
-        dialog.setOnDismissListener { code.setText(""); token.setText(""); address.setText(""); epg?.setText("") }
-        dialog.show()
-    }
-    private fun advanced() {
-        AlertDialog.Builder(this).setTitle(R.string.advanced).setItems(arrayOf(getString(R.string.audio_focus_backend),getString(R.string.playback_backend))) {_,index ->
-            if(index==0)audioSettings() else {
-                val modes=arrayOf("AUTO","DIRECT_PLAY","REMUX","TRANSCODE","EXTERNAL_PLAYER")
-                val labels=arrayOf(R.string.automatic,R.string.direct_play,R.string.remux,R.string.transcode,R.string.external_player).map {getString(it)}.toTypedArray()
-                AlertDialog.Builder(this).setTitle(R.string.playback_backend).setSingleChoiceItems(labels,modes.indexOf(prefs.getString("playbackMode","AUTO"))) {dialog,selection -> prefs.edit().putString("playbackMode",modes[selection]).commit();dialog.dismiss()}.setNegativeButton(R.string.close,null).show()
-            }
-        }.setNegativeButton(R.string.close,null).show()
-    }
-    private fun audioSettings() {
-        AlertDialog.Builder(this).setTitle(R.string.audio_focus_backend)
-            .setSingleChoiceItems(arrayOf(getString(R.string.backend_auto), getString(R.string.backend_compatibility)),
-                if (prefs.getBoolean("audioFocusCompatibility", false)) 1 else 0) { dialog, index ->
-                player.pause(); audioController.release()
-                prefs.edit().putBoolean("audioFocusCompatibility", index == 1).commit()
-                audioController = AudioFocusFactory.create(Build.VERSION.SDK_INT, getSystemService(AUDIO_SERVICE) as AudioManager, audioFocus, index == 1)
-                dialog.dismiss()
-            }.setNegativeButton(R.string.close, null).show()
-    }
-    private fun diagnostics() {
-        val report=getString(R.string.diagnostics_report,Build.VERSION.SDK_INT,Build.MANUFACTURER,Build.MODEL,Build.CPU_ABI)
-        val model=io.github.diegog0477.zombiebox.client.presentation.DiagnosticsViewModel(
-            io.github.diegog0477.zombiebox.client.data.GatewayDiagnosticsRepository(api,io.github.diegog0477.zombiebox.client.platform.HardwareScanner(applicationContext)),
-            {work->worker.execute{work()}},{work->handler.post{work()}})
-        diagnosticsModel?.close();diagnosticsModel=model
-        val dialog=AlertDialog.Builder(this).setTitle(R.string.diagnostics).setMessage(report)
-            .setNeutralButton(R.string.run_probes){_,_->startActivity(Intent(this,ProbesActivity::class.java))}
-            .setNegativeButton(R.string.rescan_hardware,null).setPositiveButton(R.string.close,null).create()
-        model.observer={hardware,failed->dialog.setMessage(if(failed)getString(R.string.error_request) else if(hardware==null)report else getString(R.string.hardware_report,hardware.abis.joinToString(", "),hardware.cores,hardware.memoryMb,hardware.storageFreeMb,hardware.network,hardware.latencyMs,hardware.decoders.size,hardware.externalPlayers.size))}
-        dialog.setOnDismissListener{model.close();if(diagnosticsModel===model)diagnosticsModel=null}
-        dialog.setOnShowListener{dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener{dialog.setMessage(getString(R.string.loading));model.scan()}}
+        }
+        dialog.setOnDismissListener {
+            code.setText("")
+            token.setText("")
+            address.setText("")
+            epg?.setText("")
+        }
         dialog.show()
     }
 
-    private fun language() { AlertDialog.Builder(this).setTitle(R.string.language).setItems(arrayOf("English", "Español")) { _, which ->
-        prefs.edit().putString("language", if (which == 0) "en" else "es").commit()
-        savePreferences(); Toast.makeText(this, R.string.restart_language, Toast.LENGTH_LONG).show()
-    }.show() }
-    private fun mode() { AlertDialog.Builder(this).setTitle(R.string.presentation_mode).setItems(arrayOf(getString(R.string.automatic), getString(R.string.tv), getString(R.string.docked), getString(R.string.handheld))) { _, which ->
-        prefs.edit().putString("mode", arrayOf("AUTO", "TV", "DOCKED", "HANDHELD")[which]).commit(); savePreferences(); render()
-    }.show() }
+    private fun advanced() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.advanced)
+            .setItems(
+                arrayOf(
+                    getString(R.string.audio_focus_backend),
+                    getString(R.string.playback_backend),
+                )
+            ) { _, index ->
+                if (index == 0) audioSettings()
+                else {
+                    val modes =
+                        arrayOf("AUTO", "DIRECT_PLAY", "REMUX", "TRANSCODE", "EXTERNAL_PLAYER")
+                    val labels =
+                        arrayOf(
+                                R.string.automatic,
+                                R.string.direct_play,
+                                R.string.remux,
+                                R.string.transcode,
+                                R.string.external_player,
+                            )
+                            .map { getString(it) }
+                            .toTypedArray()
+                    AlertDialog.Builder(this)
+                        .setTitle(R.string.playback_backend)
+                        .setSingleChoiceItems(
+                            labels,
+                            modes.indexOf(prefs.getString("playbackMode", "AUTO")),
+                        ) { dialog, selection ->
+                            prefs.edit().putString("playbackMode", modes[selection]).commit()
+                            dialog.dismiss()
+                        }
+                        .setNegativeButton(R.string.close, null)
+                        .show()
+                }
+            }
+            .setNegativeButton(R.string.close, null)
+            .show()
+    }
+
+    private fun audioSettings() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.audio_focus_backend)
+            .setSingleChoiceItems(
+                arrayOf(
+                    getString(R.string.backend_auto),
+                    getString(R.string.backend_compatibility),
+                ),
+                if (prefs.getBoolean("audioFocusCompatibility", false)) 1 else 0,
+            ) { dialog, index ->
+                player.pause()
+                audioController.release()
+                prefs.edit().putBoolean("audioFocusCompatibility", index == 1).commit()
+                audioController =
+                    AudioFocusFactory.create(
+                        Build.VERSION.SDK_INT,
+                        getSystemService(AUDIO_SERVICE) as AudioManager,
+                        audioFocus,
+                        index == 1,
+                    )
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.close, null)
+            .show()
+    }
+
+    private fun diagnostics() {
+        val report =
+            getString(
+                R.string.diagnostics_report,
+                Build.VERSION.SDK_INT,
+                Build.MANUFACTURER,
+                Build.MODEL,
+                Build.CPU_ABI,
+            )
+        val model =
+            io.github.diegog0477.zombiebox.client.presentation.DiagnosticsViewModel(
+                io.github.diegog0477.zombiebox.client.data.GatewayDiagnosticsRepository(
+                    api,
+                    io.github.diegog0477.zombiebox.client.platform.HardwareScanner(
+                        applicationContext
+                    ),
+                ),
+                { work -> worker.execute { work() } },
+                { work -> handler.post { work() } },
+            )
+        diagnosticsModel?.close()
+        diagnosticsModel = model
+        val dialog =
+            AlertDialog.Builder(this)
+                .setTitle(R.string.diagnostics)
+                .setMessage(report)
+                .setNeutralButton(R.string.run_probes) { _, _ ->
+                    startActivity(Intent(this, ProbesActivity::class.java))
+                }
+                .setNegativeButton(R.string.rescan_hardware, null)
+                .setPositiveButton(R.string.close, null)
+                .create()
+        model.observer = { hardware, failed ->
+            dialog.setMessage(
+                if (failed) getString(R.string.error_request)
+                else if (hardware == null) report
+                else
+                    getString(
+                        R.string.hardware_report,
+                        hardware.abis.joinToString(", "),
+                        hardware.cores,
+                        hardware.memoryMb,
+                        hardware.storageFreeMb,
+                        hardware.network,
+                        hardware.latencyMs,
+                        hardware.decoders.size,
+                        hardware.externalPlayers.size,
+                    )
+            )
+        }
+        dialog.setOnDismissListener {
+            model.close()
+            if (diagnosticsModel === model) diagnosticsModel = null
+        }
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+                dialog.setMessage(getString(R.string.loading))
+                model.scan()
+            }
+        }
+        dialog.show()
+    }
+
+    private fun language() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.language)
+            .setItems(arrayOf("English", "Español")) { _, which ->
+                prefs.edit().putString("language", if (which == 0) "en" else "es").commit()
+                savePreferences()
+                Toast.makeText(this, R.string.restart_language, Toast.LENGTH_LONG).show()
+            }
+            .show()
+    }
+
+    private fun mode() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.presentation_mode)
+            .setItems(
+                arrayOf(
+                    getString(R.string.automatic),
+                    getString(R.string.tv),
+                    getString(R.string.docked),
+                    getString(R.string.handheld),
+                )
+            ) { _, which ->
+                prefs
+                    .edit()
+                    .putString("mode", arrayOf("AUTO", "TV", "DOCKED", "HANDHELD")[which])
+                    .commit()
+                savePreferences()
+                render()
+            }
+            .show()
+    }
+
     private fun savePreferences() {
         if (api.token.isEmpty()) return
-        val payload = JSONObject().put("mode", prefs.getString("mode", "AUTO")).put("uiLanguage", prefs.getString("language", "en"))
-            .put("audioLanguages", JSONArray().put("en").put("es")).put("subtitleLanguages", JSONArray().put("en").put("es")).put("subtitleMode", "auto")
-        async({ val current=api.request("GET", "/v1/device/preferences"); payload.put("allowCasting",current.optBoolean("allowCasting")); api.request("PUT", "/v1/device/preferences", payload) }, {})
+        val payload =
+            JSONObject()
+                .put("mode", prefs.getString("mode", "AUTO"))
+                .put("uiLanguage", prefs.getString("language", "en"))
+                .put("audioLanguages", JSONArray().put("en").put("es"))
+                .put("subtitleLanguages", JSONArray().put("en").put("es"))
+                .put("subtitleMode", "auto")
+        async(
+            {
+                val current = api.request("GET", "/v1/device/preferences")
+                payload.put("allowCasting", current.optBoolean("allowCasting"))
+                api.request("PUT", "/v1/device/preferences", payload)
+            },
+            {},
+        )
     }
+
     private fun youtubeReceiverMessage(): String {
-        val value=youtubeReceiver.receiver
-        return when { youtubeReceiver.failed -> getString(R.string.unavailable)
-            value==null -> getString(R.string.youtube_receiver_detail)
+        val value = youtubeReceiver.receiver
+        return when {
+            youtubeReceiver.failed -> getString(R.string.unavailable)
+            value == null -> getString(R.string.youtube_receiver_detail)
             value.code.isEmpty() -> getString(R.string.loading)
-            else -> getString(R.string.youtube_tv_code,value.code) }
-    }
-    private fun youtubeReceiverSettings() {
-        if(api.token.isEmpty()){pairing();return}
-        val dialog=AlertDialog.Builder(this).setTitle(R.string.youtube_receiver).setMessage(youtubeReceiverMessage())
-            .setPositiveButton(R.string.enable) { _,_ -> youtubeReceiver.open();youtubeReceiverSettings() }
-            .setNeutralButton(R.string.disable) { _,_ -> youtubeReceiver.disable() }
-            .setNegativeButton(R.string.close,null).create()
-        youtubeDialog=dialog;dialog.setOnDismissListener { if(youtubeDialog===dialog)youtubeDialog=null };dialog.show()
-    }
-    private fun receiveYouTube(command:YouTubeCommand) {
-        if(!foreground || receiverViewModel.activeSession.isNotEmpty()){youtubeReceiver.complete(false,command.id);return}
-        if(session.isEmpty() && command.action !in listOf("play","stop")){youtubeReceiver.complete(false,command.id);return}
-        when(command.action){
-            "play" -> startPlayback(MediaItem(command.itemId,"youtube",getString(R.string.youtube)),remote=command)
-            "pause" -> player.pause()
-            "resume" -> if(audioController.acquire())player.resume() else youtubeReceiver.complete(false,command.id)
-            "stop" -> stopPlayback()
-            "seek" -> player.seekTo(command.positionMs)
-            "volume" -> player.volume(command.volume,command.muted){ok->youtubeReceiver.volumeApplied(command.id,command.volume,command.muted,ok)}
-            else -> youtubeReceiver.complete(false,command.id)
+            else -> getString(R.string.youtube_tv_code, value.code)
         }
     }
-    private fun receiverSettings() {
-        if(api.token.isEmpty()){pairing();return}
-        val repository=GatewayReceiverRepository(api)
-        async({repository.enabled()},{enabled ->
-            AlertDialog.Builder(this).setTitle(R.string.receive_cast).setMessage(R.string.receive_cast_detail)
-                .setPositiveButton(if(enabled)R.string.disable else R.string.enable){_,_ -> async({repository.setEnabled(!enabled)},{receiverViewModel.refresh()})}
-                .setNegativeButton(R.string.cancel,null).show()
-        })
+
+    private fun youtubeReceiverSettings() {
+        if (api.token.isEmpty()) {
+            pairing()
+            return
+        }
+        val dialog =
+            AlertDialog.Builder(this)
+                .setTitle(R.string.youtube_receiver)
+                .setMessage(youtubeReceiverMessage())
+                .setPositiveButton(R.string.enable) { _, _ ->
+                    youtubeReceiver.open()
+                    youtubeReceiverSettings()
+                }
+                .setNeutralButton(R.string.disable) { _, _ -> youtubeReceiver.disable() }
+                .setNegativeButton(R.string.close, null)
+                .create()
+        youtubeDialog = dialog
+        dialog.setOnDismissListener { if (youtubeDialog === dialog) youtubeDialog = null }
+        dialog.show()
     }
-    private fun receiveCast(plan:ReceiverPlan?) {
-        if(!foreground)return
-        when(val change=receiverViewModel.transition(plan,PlaybackContext(currentItem,full,lastState=="PLAYING"))) {
+
+    private fun receiveYouTube(command: YouTubeCommand) {
+        if (!foreground || receiverViewModel.activeSession.isNotEmpty()) {
+            youtubeReceiver.complete(false, command.id)
+            return
+        }
+        if (session.isEmpty() && command.action !in listOf("play", "stop")) {
+            youtubeReceiver.complete(false, command.id)
+            return
+        }
+        when (command.action) {
+            "play" ->
+                startPlayback(
+                    MediaItem(command.itemId, "youtube", getString(R.string.youtube)),
+                    remote = command,
+                )
+            "pause" -> player.pause()
+            "resume" ->
+                if (audioController.acquire()) player.resume()
+                else youtubeReceiver.complete(false, command.id)
+            "stop" -> stopPlayback()
+            "seek" -> player.seekTo(command.positionMs)
+            "volume" ->
+                player.volume(command.volume, command.muted) { ok ->
+                    youtubeReceiver.volumeApplied(command.id, command.volume, command.muted, ok)
+                }
+            else -> youtubeReceiver.complete(false, command.id)
+        }
+    }
+
+    private fun receiverSettings() {
+        if (api.token.isEmpty()) {
+            pairing()
+            return
+        }
+        val repository = GatewayReceiverRepository(api)
+        async(
+            { repository.enabled() },
+            { enabled ->
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.receive_cast)
+                    .setMessage(R.string.receive_cast_detail)
+                    .setPositiveButton(if (enabled) R.string.disable else R.string.enable) { _, _ ->
+                        async({ repository.setEnabled(!enabled) }, { receiverViewModel.refresh() })
+                    }
+                    .setNegativeButton(R.string.cancel, null)
+                    .show()
+            },
+        )
+    }
+
+    private fun receiveCast(plan: ReceiverPlan?) {
+        if (!foreground) return
+        when (
+            val change =
+                receiverViewModel.transition(
+                    plan,
+                    PlaybackContext(currentItem, full, lastState == "PLAYING"),
+                )
+        ) {
             is ReceiverChange.Restore -> {
-                stopPlayback(keepReceiver=true)
-                change.previous?.let { previous -> previous.item?.let { startPlayback(it,previous.fullscreen,previous.playing) } }
+                stopPlayback(keepReceiver = true)
+                change.previous?.let { previous ->
+                    previous.item?.let { startPlayback(it, previous.fullscreen, previous.playing) }
+                }
             }
             is ReceiverChange.Begin -> {
                 youtubeReceiver.disable()
-                stopPlayback(keepReceiver=true)
-                session=change.plan.sessionId;stream=api.base+change.plan.path;mime=change.plan.mime
-                itemTitle=getString(R.string.screen_mirroring);lastReport=0;lastState="";setFullscreen(true)
-                if(audioController.acquire())player.play(stream,0)
+                stopPlayback(keepReceiver = true)
+                session = change.plan.sessionId
+                stream = api.base + change.plan.path
+                mime = change.plan.mime
+                itemTitle = getString(R.string.screen_mirroring)
+                lastReport = 0
+                lastState = ""
+                setFullscreen(true)
+                if (audioController.acquire()) player.play(stream, 0)
             }
             null -> Unit
         }
     }
-    private fun isTV(): Boolean = when (prefs.getString("mode", "AUTO")) {
-        "TV", "DOCKED" -> true; "HANDHELD" -> false; else -> !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
-    }
+
+    private fun isTV(): Boolean =
+        when (prefs.getString("mode", "AUTO")) {
+            "TV",
+            "DOCKED" -> true
+            "HANDHELD" -> false
+            else -> !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
+        }
+
     private fun search() {
-        val input = EditText(this); input.setSingleLine(true)
-        AlertDialog.Builder(this).setTitle(R.string.search).setView(input).setPositiveButton(R.string.search) { _, _ -> refresh(query = input.text.toString()) }.setNegativeButton(R.string.cancel, null).show()
+        val input = EditText(this)
+        input.setSingleLine(true)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.search)
+            .setView(input)
+            .setPositiveButton(R.string.search) { _, _ -> refresh(query = input.text.toString()) }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
+
     private fun catalogPage(provider: String, offset: Int = 0) {
-        async({ api.request("GET", "/v1/catalog?provider=" + URLEncoder.encode(provider, "UTF-8") + "&offset=$offset&q=" + URLEncoder.encode(homeViewModel.state.scope.query, "UTF-8")) }, { page ->
-            val items = page.getJSONArray("items")
-            val labels = Array(items.length()) { i -> val item = items.getJSONObject(i); item.optString("title") + item.optString("subtitle").takeIf { it.isNotEmpty() }?.let { " — $it" }.orEmpty() }
-            val dialog = AlertDialog.Builder(this).setTitle(serviceTitle(provider)).setItems(labels) { _, index -> details(GatewayHomeRepository.decodeItem(items.getJSONObject(index))) }.setNegativeButton(R.string.close, null)
-            val next = page.optInt("nextOffset", -1)
-            if (next >= 0) dialog.setPositiveButton(R.string.next_page) { _, _ -> catalogPage(provider, next) }
-            if (offset > 0) dialog.setNeutralButton(R.string.previous_page) { _, _ -> catalogPage(provider, (offset - 40).coerceAtLeast(0)) }
-            dialog.show()
-        })
+        async(
+            {
+                api.request(
+                    "GET",
+                    "/v1/catalog?provider=" +
+                        URLEncoder.encode(provider, "UTF-8") +
+                        "&offset=$offset&q=" +
+                        URLEncoder.encode(homeViewModel.state.scope.query, "UTF-8"),
+                )
+            },
+            { page ->
+                val items = page.getJSONArray("items")
+                val labels =
+                    Array(items.length()) { i ->
+                        val item = items.getJSONObject(i)
+                        item.optString("title") +
+                            item
+                                .optString("subtitle")
+                                .takeIf { it.isNotEmpty() }
+                                ?.let { " — $it" }
+                                .orEmpty()
+                    }
+                val dialog =
+                    AlertDialog.Builder(this)
+                        .setTitle(serviceTitle(provider))
+                        .setItems(labels) { _, index ->
+                            details(GatewayHomeRepository.decodeItem(items.getJSONObject(index)))
+                        }
+                        .setNegativeButton(R.string.close, null)
+                val next = page.optInt("nextOffset", -1)
+                if (next >= 0)
+                    dialog.setPositiveButton(R.string.next_page) { _, _ ->
+                        catalogPage(provider, next)
+                    }
+                if (offset > 0)
+                    dialog.setNeutralButton(R.string.previous_page) { _, _ ->
+                        catalogPage(provider, (offset - 40).coerceAtLeast(0))
+                    }
+                dialog.show()
+            },
+        )
     }
+
     private fun details(item: MediaItem) {
-        val description = StringBuilder(item.description.takeIf { it.isNotEmpty() } ?: serviceTitle(item.provider))
+        val description =
+            StringBuilder(
+                item.description.takeIf { it.isNotEmpty() } ?: serviceTitle(item.provider)
+            )
         for (programme in item.programmes) {
-            val time = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(programme.start * 1000))
+            val time =
+                java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+                    .format(java.util.Date(programme.start * 1000))
             description.append("\n\n").append(time).append(" · ").append(programme.title)
         }
-        AlertDialog.Builder(this).setTitle(item.title).setMessage(description.toString())
-            .setPositiveButton(R.string.play) { _, _ -> startPlayback(item) }.setNegativeButton(R.string.close, null).show()
+        AlertDialog.Builder(this)
+            .setTitle(item.title)
+            .setMessage(description.toString())
+            .setPositiveButton(R.string.play) { _, _ -> startPlayback(item) }
+            .setNegativeButton(R.string.close, null)
+            .show()
     }
+
     private fun createPlayer() {
-        playerLayer = column(); playerLayer.setBackgroundColor(Color.BLACK); playerLayer.visibility = View.GONE
+        playerLayer = column()
+        playerLayer.setBackgroundColor(Color.BLACK)
+        playerLayer.visibility = View.GONE
         val surface = VideoSurface(this)
         videoSurface = surface
         surface.holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS)
-        surface.holder.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(holder: SurfaceHolder) { player.surface(holder) }
-            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) { }
-            override fun surfaceDestroyed(holder: SurfaceHolder) { player.surface(null) }
-        })
+        surface.holder.addCallback(
+            object : SurfaceHolder.Callback {
+                override fun surfaceCreated(holder: SurfaceHolder) {
+                    player.surface(holder)
+                }
+
+                override fun surfaceChanged(
+                    holder: SurfaceHolder,
+                    format: Int,
+                    width: Int,
+                    height: Int,
+                ) {}
+
+                override fun surfaceDestroyed(holder: SurfaceHolder) {
+                    player.surface(null)
+                }
+            }
+        )
         val viewport = FrameLayout(this)
         viewport.addView(surface, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
         playerLayer.addView(viewport, LinearLayout.LayoutParams(-1, 0, 1f))
-        playerStatus = text("", 12f, muted); playerLayer.addView(playerStatus)
+        playerStatus = text("", 12f, muted)
+        playerLayer.addView(playerStatus)
         val controls = horizontal(playerLayer)
         controls.addView(button(R.string.seek_back) { player.seek(-10000) })
         controls.addView(button(R.string.play_pause) { togglePlayback() })
@@ -536,82 +1273,200 @@ class MainActivity : Activity() {
         playerFocus.rebuild(listOf(Pair("player", controls)), false)
         root.addView(playerLayer, FrameLayout.LayoutParams(-1, -1))
     }
-    private fun togglePlayback() { if (session.isNotEmpty() && foreground && audioController.acquire()) player.toggle() }
-    private fun startPlayback(item: MediaItem, fullscreen:Boolean=true,autoplay:Boolean=true, remote:YouTubeCommand?=null) {
-        if(remote==null)youtubeReceiver.disable()
+
+    private fun togglePlayback() {
+        if (session.isNotEmpty() && foreground && audioController.acquire()) player.toggle()
+    }
+
+    private fun startPlayback(
+        item: MediaItem,
+        fullscreen: Boolean = true,
+        autoplay: Boolean = true,
+        remote: YouTubeCommand? = null,
+    ) {
+        if (remote == null) youtubeReceiver.disable()
         stopPlayback()
         val generation = playbackGeneration
-        async({ api.request("POST", "/v1/playback", JSONObject().put("itemId", item.id).put("mode",if(remote!=null)"AUTO" else prefs.getString("playbackMode","AUTO"))) }, { plan ->
-            if (generation != playbackGeneration) {
-                val abandoned = plan.getString("sessionId")
-                async({ api.request("DELETE", "/v1/playback/$abandoned") }, {}, false)
-                return@async
-            }
-            session = plan.getString("sessionId"); stream = api.base + plan.getString("url"); mime = plan.optString("mimeType", "video/mp4")
-            currentItem=item; itemTitle = item.title; now.text = itemTitle; lastState = ""; lastReport = 0; lastPosition = 0; lastDuration = 0
-            setFullscreen(fullscreen)
-            if(plan.optString("mode")=="EXTERNAL_PLAYER"){if(remote!=null){youtubeReceiver.complete(false,remote.id);stopPlayback()}else external();return@async}
-            if (audioController.acquire()) {
-                player.play(stream, remote?.positionMs ?: plan.optInt("resumePositionMs"))
-                if (!foreground || !autoplay) player.pause()
-            } else if(remote!=null) youtubeReceiver.complete(false,remote.id)
-        }, onError = { if(remote!=null) youtubeReceiver.complete(false,remote.id) })
+        async(
+            {
+                api.request(
+                    "POST",
+                    "/v1/playback",
+                    JSONObject()
+                        .put("itemId", item.id)
+                        .put(
+                            "mode",
+                            if (remote != null) "AUTO" else prefs.getString("playbackMode", "AUTO"),
+                        ),
+                )
+            },
+            { plan ->
+                if (generation != playbackGeneration) {
+                    val abandoned = plan.getString("sessionId")
+                    async({ api.request("DELETE", "/v1/playback/$abandoned") }, {}, false)
+                    return@async
+                }
+                session = plan.getString("sessionId")
+                stream = api.base + plan.getString("url")
+                mime = plan.optString("mimeType", "video/mp4")
+                currentItem = item
+                itemTitle = item.title
+                now.text = itemTitle
+                lastState = ""
+                lastReport = 0
+                lastPosition = 0
+                lastDuration = 0
+                setFullscreen(fullscreen)
+                if (plan.optString("mode") == "EXTERNAL_PLAYER") {
+                    if (remote != null) {
+                        youtubeReceiver.complete(false, remote.id)
+                        stopPlayback()
+                    } else external()
+                    return@async
+                }
+                if (audioController.acquire()) {
+                    player.play(stream, remote?.positionMs ?: plan.optInt("resumePositionMs"))
+                    if (!foreground || !autoplay) player.pause()
+                } else if (remote != null) youtubeReceiver.complete(false, remote.id)
+            },
+            onError = { if (remote != null) youtubeReceiver.complete(false, remote.id) },
+        )
     }
+
     private fun setFullscreen(value: Boolean) {
-        full = value; playerLayer.visibility = View.VISIBLE
-        playerLayer.layoutParams = if (full) FrameLayout.LayoutParams(-1, -1) else FrameLayout.LayoutParams(dp(320), dp(230), Gravity.BOTTOM or Gravity.RIGHT).apply { bottomMargin = dp(58); rightMargin = dp(12) }
-        content.descendantFocusability = if (full) ViewGroup.FOCUS_BLOCK_DESCENDANTS else ViewGroup.FOCUS_AFTER_DESCENDANTS
+        full = value
+        playerLayer.visibility = View.VISIBLE
+        playerLayer.layoutParams =
+            if (full) FrameLayout.LayoutParams(-1, -1)
+            else
+                FrameLayout.LayoutParams(dp(320), dp(230), Gravity.BOTTOM or Gravity.RIGHT).apply {
+                    bottomMargin = dp(58)
+                    rightMargin = dp(12)
+                }
+        content.descendantFocusability =
+            if (full) ViewGroup.FOCUS_BLOCK_DESCENDANTS else ViewGroup.FOCUS_AFTER_DESCENDANTS
         bottom.descendantFocusability = content.descendantFocusability
         playerLayer.bringToFront()
         if (full) playerFocus.restore() else homeFocus.restore()
     }
-    private fun stopPlayback(keepReceiver:Boolean=false) {
-        if(!keepReceiver && receiverViewModel.activeSession.isNotEmpty())receiverViewModel.dismiss(receiverViewModel.activeSession)
-        currentItem=null
+
+    private fun stopPlayback(keepReceiver: Boolean = false) {
+        if (!keepReceiver && receiverViewModel.activeSession.isNotEmpty())
+            receiverViewModel.dismiss(receiverViewModel.activeSession)
+        currentItem = null
         audioController.release()
         playbackGeneration++
         if (session.isNotEmpty()) {
             val old = session
-            val progress = JSONObject().put("state", if (lastState == "ENDED") "ENDED" else "STOPPED").put("positionMs", lastPosition).put("durationMs", lastDuration)
-            async({ try { api.request("PUT", "/v1/playback/$old/progress", progress) } finally { api.request("DELETE", "/v1/playback/$old") } }, {}, false)
+            val progress =
+                JSONObject()
+                    .put("state", if (lastState == "ENDED") "ENDED" else "STOPPED")
+                    .put("positionMs", lastPosition)
+                    .put("durationMs", lastDuration)
+            async(
+                {
+                    try {
+                        api.request("PUT", "/v1/playback/$old/progress", progress)
+                    } finally {
+                        api.request("DELETE", "/v1/playback/$old")
+                    }
+                },
+                {},
+                false,
+            )
         }
-        session = ""; stream = ""; full = false; player.stop(); playerLayer.visibility = View.GONE; now.setText(R.string.nothing_playing)
+        session = ""
+        stream = ""
+        full = false
+        player.stop()
+        playerLayer.visibility = View.GONE
+        now.setText(R.string.nothing_playing)
         content.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         bottom.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         homeFocus.restore()
     }
+
     private fun external() {
         if (stream.isEmpty()) return
         player.pause()
-        try { startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(stream), mime)) }
-        catch (_: Exception) { Toast.makeText(this, R.string.no_external_player, Toast.LENGTH_LONG).show() }
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(stream), mime))
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.no_external_player, Toast.LENGTH_LONG).show()
+        }
     }
-    private fun formatTime(ms: Int): String { val seconds = ms.coerceAtLeast(0) / 1000; return String.format(Locale.US, "%d:%02d", seconds / 60, seconds % 60) }
-    private fun contextAccent(): Int = providerAccent(if (::homeViewModel.isInitialized) homeViewModel.state.scope.provider else "")
-    private fun providerAccent(id: String): Int = resources.getColor(when(id) {
-        "youtube" -> R.color.accent_youtube; "plex" -> R.color.accent_plex; "stremio" -> R.color.accent_stremio
-        "jellyfin" -> R.color.accent_jellyfin; "iptv" -> R.color.accent_iptv; "spotify" -> R.color.accent_spotify
-        "airplay" -> R.color.accent_airplay; else -> R.color.accent_zombie
-    })
-    private fun serviceTitle(id: String): String = getString(when (id) {
-        "local" -> R.string.local_library; "youtube" -> R.string.youtube; "plex" -> R.string.plex; "jellyfin" -> R.string.jellyfin; "stremio" -> R.string.stremio
-        "spotify" -> R.string.spotify; "iptv" -> R.string.iptv; "airplay" -> R.string.airplay; "android_mirror" -> R.string.android_mirror; "rebrowser" -> R.string.browser
-        else -> R.string.apps_content
-    })
-    private fun localizedState(state: String): String = getString(when (state) {
-        "HEALTHY" -> R.string.ready; "STARTING", "BUFFERING" -> R.string.loading; "DISABLED" -> R.string.disabled
-        "PLAYING" -> R.string.playing; "PAUSED" -> R.string.paused; "ENDED" -> R.string.ended; "STOPPED" -> R.string.stopped
-        else -> R.string.unavailable
-    })
+
+    private fun formatTime(ms: Int): String {
+        val seconds = ms.coerceAtLeast(0) / 1000
+        return String.format(Locale.US, "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    private fun contextAccent(): Int =
+        providerAccent(
+            if (::homeViewModel.isInitialized) homeViewModel.state.scope.provider else ""
+        )
+
+    private fun providerAccent(id: String): Int =
+        resources.getColor(
+            when (id) {
+                "youtube" -> R.color.accent_youtube
+                "plex" -> R.color.accent_plex
+                "stremio" -> R.color.accent_stremio
+                "jellyfin" -> R.color.accent_jellyfin
+                "iptv" -> R.color.accent_iptv
+                "spotify" -> R.color.accent_spotify
+                "airplay" -> R.color.accent_airplay
+                else -> R.color.accent_zombie
+            }
+        )
+
+    private fun serviceTitle(id: String): String =
+        getString(
+            when (id) {
+                "local" -> R.string.local_library
+                "youtube" -> R.string.youtube
+                "plex" -> R.string.plex
+                "jellyfin" -> R.string.jellyfin
+                "stremio" -> R.string.stremio
+                "spotify" -> R.string.spotify
+                "iptv" -> R.string.iptv
+                "airplay" -> R.string.airplay
+                "android_mirror" -> R.string.android_mirror
+                "rebrowser" -> R.string.browser
+                else -> R.string.apps_content
+            }
+        )
+
+    private fun localizedState(state: String): String =
+        getString(
+            when (state) {
+                "HEALTHY" -> R.string.ready
+                "STARTING",
+                "BUFFERING" -> R.string.loading
+                "DISABLED" -> R.string.disabled
+                "PLAYING" -> R.string.playing
+                "PAUSED" -> R.string.paused
+                "ENDED" -> R.string.ended
+                "STOPPED" -> R.string.stopped
+                else -> R.string.unavailable
+            }
+        )
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val key = event.keyCode
         if (currentFocus !is EditText) {
-            if (event.action == KeyEvent.ACTION_DOWN && (if (full) playerFocus else homeFocus).move(key, currentFocus)) return true
+            if (
+                event.action == KeyEvent.ACTION_DOWN &&
+                    (if (full) playerFocus else homeFocus).move(key, currentFocus)
+            )
+                return true
             // Preserve native CENTER/ENTER activation; gamepad A follows the same key-up contract.
             if (key == KeyEvent.KEYCODE_BUTTON_A) {
-                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) gamepadClick = currentFocus
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0)
+                    gamepadClick = currentFocus
                 if (event.action == KeyEvent.ACTION_UP) {
-                    if (!event.isCanceled && gamepadClick === currentFocus) gamepadClick?.performClick()
+                    if (!event.isCanceled && gamepadClick === currentFocus)
+                        gamepadClick?.performClick()
                     gamepadClick = null
                 }
                 return true
@@ -620,27 +1475,70 @@ class MainActivity : Activity() {
                 if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) onBackPressed()
                 return true
             }
-            if (session.isNotEmpty() && key in intArrayOf(KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE,
-                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_MEDIA_STOP,
-                    KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD)) {
-                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) when (key) {
-                    KeyEvent.KEYCODE_MEDIA_PLAY -> if (audioController.acquire()) player.resume()
-                    KeyEvent.KEYCODE_MEDIA_PAUSE -> player.pause()
-                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> togglePlayback()
-                    KeyEvent.KEYCODE_MEDIA_STOP -> stopPlayback()
-                    KeyEvent.KEYCODE_MEDIA_REWIND -> player.seek(-10000)
-                    KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> player.seek(10000)
-                }
+            if (
+                session.isNotEmpty() &&
+                    key in
+                        intArrayOf(
+                            KeyEvent.KEYCODE_MEDIA_PLAY,
+                            KeyEvent.KEYCODE_MEDIA_PAUSE,
+                            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                            KeyEvent.KEYCODE_HEADSETHOOK,
+                            KeyEvent.KEYCODE_MEDIA_STOP,
+                            KeyEvent.KEYCODE_MEDIA_REWIND,
+                            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+                        )
+            ) {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0)
+                    when (key) {
+                        KeyEvent.KEYCODE_MEDIA_PLAY ->
+                            if (audioController.acquire()) player.resume()
+                        KeyEvent.KEYCODE_MEDIA_PAUSE -> player.pause()
+                        KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                        KeyEvent.KEYCODE_HEADSETHOOK -> togglePlayback()
+                        KeyEvent.KEYCODE_MEDIA_STOP -> stopPlayback()
+                        KeyEvent.KEYCODE_MEDIA_REWIND -> player.seek(-10000)
+                        KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> player.seek(10000)
+                    }
                 return true
             }
         }
         return super.dispatchKeyEvent(event)
     }
-    override fun onBackPressed() { if (full) setFullscreen(false) else if (session.isNotEmpty()) stopPlayback() else super.onBackPressed() }
-    override fun onResume() { super.onResume(); foreground = true; if(::receiverViewModel.isInitialized && api.token.isNotEmpty())receiverViewModel.refresh() }
-    override fun onPause() { foreground = false; youtubeReceiver.disable(); player.pause(); super.onPause() }
+
+    override fun onBackPressed() {
+        if (full) setFullscreen(false)
+        else if (session.isNotEmpty()) stopPlayback() else super.onBackPressed()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        foreground = true
+        if (::receiverViewModel.isInitialized && api.token.isNotEmpty()) receiverViewModel.refresh()
+    }
+
+    override fun onPause() {
+        foreground = false
+        youtubeReceiver.disable()
+        player.pause()
+        super.onPause()
+    }
+
     override fun onDestroy() {
         audioController.release()
-        closed = true; diagnosticsModel?.close(); youtubeReceiver.close(); receiverWorker.shutdown(); artwork.close(); imageWorker.shutdownNow(); receiverViewModel.close(); homeViewModel.close(); foreground = false; handler.removeCallbacksAndMessages(null); api.close(); player.close(); worker.shutdownNow(); poller.shutdownNow(); super.onDestroy()
+        closed = true
+        diagnosticsModel?.close()
+        youtubeReceiver.close()
+        receiverWorker.shutdown()
+        artwork.close()
+        imageWorker.shutdownNow()
+        receiverViewModel.close()
+        homeViewModel.close()
+        foreground = false
+        handler.removeCallbacksAndMessages(null)
+        api.close()
+        player.close()
+        worker.shutdownNow()
+        poller.shutdownNow()
+        super.onDestroy()
     }
 }
