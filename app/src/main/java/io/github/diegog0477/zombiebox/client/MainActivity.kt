@@ -42,6 +42,7 @@ import io.github.diegog0477.zombiebox.client.features.mirroring.data.GatewayRece
 import io.github.diegog0477.zombiebox.client.features.mirroring.domain.model.PlaybackContext
 import io.github.diegog0477.zombiebox.client.features.mirroring.domain.model.ReceiverChange
 import io.github.diegog0477.zombiebox.client.features.mirroring.domain.model.ReceiverPlan
+import io.github.diegog0477.zombiebox.client.features.mirroring.presentation.ui.MediaReceiverDialog
 import io.github.diegog0477.zombiebox.client.features.mirroring.presentation.viewmodel.ReceiverViewModel
 import io.github.diegog0477.zombiebox.client.features.playback.data.GatewayPlaybackRepository
 import io.github.diegog0477.zombiebox.client.features.playback.data.GatewayTracksRepository
@@ -130,6 +131,7 @@ class MainActivity : Activity() {
                 ::audioSettings,
                 ::receiverSettings,
                 ::youtubeReceiverSettings,
+                ::mediaReceiverSettings,
             ),
         )
     }
@@ -171,6 +173,16 @@ class MainActivity : Activity() {
                 }
             }
         }
+    private val receiverTick =
+        object : Runnable {
+            override fun run() {
+                if (!closed) {
+                    if (foreground && api.token.isNotEmpty() && ::receiverViewModel.isInitialized)
+                        receiverViewModel.refresh()
+                    handler.postDelayed(this, 3000)
+                }
+            }
+        }
     private val poller = Executors.newSingleThreadExecutor()
     private val api = GatewayApi()
     private val handler = Handler()
@@ -207,6 +219,9 @@ class MainActivity : Activity() {
     private var stream = ""
     private var mime = "video/mp4"
     private var itemTitle = ""
+    private var receiverState = ""
+    private var receiverSuspended = false
+    private lateinit var receiverInfo: TextView
     private var full = false
     private val homeFocus
         get() = content.focus
@@ -278,6 +293,8 @@ class MainActivity : Activity() {
                 status,
                 position,
                 duration ->
+                if (::receiverViewModel.isInitialized && receiverViewModel.activeSession == session)
+                    receiverViewModel.playbackState(status)
                 lastPosition = position + timelineOffset
                 lastDuration = if (duration > 0) duration + timelineOffset else 0
                 subtitleText.text =
@@ -297,7 +314,12 @@ class MainActivity : Activity() {
                         ui.formatTime(lastPosition),
                         ui.formatTime(lastDuration),
                     )
-                if (session.isNotEmpty()) now.text = itemTitle
+                if (
+                    session.isNotEmpty() &&
+                        (!::receiverViewModel.isInitialized ||
+                            receiverViewModel.activeSession.isEmpty())
+                )
+                    now.text = itemTitle
                 if (status == "PLAYING")
                     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -343,6 +365,7 @@ class MainActivity : Activity() {
                 { done -> uiHandler.post { done() } },
             )
         receiverViewModel.observer = { plan -> receiveCast(plan) }
+        handler.post(receiverTick)
         homeViewModel.observer = { state ->
             if (!closed) content.selectScope(state.scope)
             if (!closed && !state.loading) {
@@ -517,6 +540,29 @@ class MainActivity : Activity() {
         )
     }
 
+    private fun mediaReceiverSettings() {
+        if (api.token.isEmpty()) {
+            pairing()
+            return
+        }
+        MediaReceiverDialog(this, receiverViewModel, ::error).show()
+    }
+
+    private fun updateReceiver(plan: ReceiverPlan) {
+        currentItem = plan.item
+        receiverState = plan.state
+        itemTitle = plan.item?.title ?: getString(R.string.screen_mirroring)
+        now.text =
+            listOf(itemTitle, plan.item?.subtitle ?: "")
+                .filter { it.isNotEmpty() }
+                .joinToString(" — ")
+        receiverInfo.text =
+            listOf(itemTitle, plan.item?.subtitle ?: "", ui.localizedState(plan.state))
+                .filter { it.isNotEmpty() }
+                .joinToString("\n")
+        receiverInfo.visibility = if (plan.fullscreen) View.GONE else View.VISIBLE
+    }
+
     private fun receiveCast(plan: ReceiverPlan?) {
         if (!foreground) return
         when (
@@ -532,17 +578,26 @@ class MainActivity : Activity() {
                     previous.item?.let { startPlayback(it, previous.fullscreen, previous.playing) }
                 }
             }
+            is ReceiverChange.Update -> {
+                updateReceiver(change.plan)
+                if (receiverSuspended && audioController.acquire()) player.resume()
+                receiverSuspended = false
+            }
+            is ReceiverChange.Reconnect -> {
+                updateReceiver(change.plan)
+                if (audioController.acquire()) player.play(stream, 0)
+            }
             is ReceiverChange.Begin -> {
                 youtubeReceiver.disable()
                 stopPlayback(keepReceiver = true)
                 session = change.plan.sessionId
                 stream = api.base + change.plan.path
                 mime = change.plan.mime
-                itemTitle = getString(R.string.screen_mirroring)
+                updateReceiver(change.plan)
                 lastReport = 0
                 lastState = ""
                 setSeekable(false)
-                setFullscreen(true)
+                setFullscreen(change.plan.fullscreen)
                 if (audioController.acquire()) player.play(stream, 0)
             }
             null -> Unit
@@ -584,6 +639,14 @@ class MainActivity : Activity() {
         )
         val viewport = FrameLayout(this)
         viewport.addView(surface, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
+        receiverInfo =
+            ui.text("", 22f).apply {
+                gravity = Gravity.CENTER
+                visibility = View.GONE
+                setBackgroundColor(panel)
+                setPadding(ui.dp(16), ui.dp(16), ui.dp(16), ui.dp(16))
+            }
+        viewport.addView(receiverInfo, FrameLayout.LayoutParams(-1, -1))
         subtitleText =
             ui.text("", 22f).apply {
                 gravity = Gravity.CENTER
@@ -676,7 +739,19 @@ class MainActivity : Activity() {
         )
     }
 
+    private fun setPlaying(playing: Boolean) {
+        if (currentItem?.provider == "spotify" && receiverViewModel.activeSession == session) {
+            receiverViewModel.command(if (playing) "resume" else "pause", ::error)
+        } else if (playing) {
+            if (audioController.acquire()) player.resume()
+        } else player.pause()
+    }
+
     private fun togglePlayback() {
+        if (currentItem?.provider == "spotify" && receiverViewModel.activeSession == session) {
+            receiverViewModel.command(if (receiverState == "PAUSED") "resume" else "pause", ::error)
+            return
+        }
         if (session.isNotEmpty() && foreground && audioController.acquire()) player.toggle()
     }
 
@@ -743,6 +818,9 @@ class MainActivity : Activity() {
         if (!keepReceiver && receiverViewModel.activeSession.isNotEmpty())
             receiverViewModel.dismiss(receiverViewModel.activeSession)
         currentItem = null
+        receiverState = ""
+        receiverInfo.visibility = View.GONE
+        videoSurface.visibility = View.VISIBLE
         audioController.release()
         playbackModel.stop(
             session,
@@ -820,9 +898,8 @@ class MainActivity : Activity() {
             ) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0)
                     when (key) {
-                        KeyEvent.KEYCODE_MEDIA_PLAY ->
-                            if (audioController.acquire()) player.resume()
-                        KeyEvent.KEYCODE_MEDIA_PAUSE -> player.pause()
+                        KeyEvent.KEYCODE_MEDIA_PLAY -> setPlaying(true)
+                        KeyEvent.KEYCODE_MEDIA_PAUSE -> setPlaying(false)
                         KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                         KeyEvent.KEYCODE_HEADSETHOOK -> togglePlayback()
                         KeyEvent.KEYCODE_MEDIA_STOP -> stopPlayback()
@@ -843,11 +920,13 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         foreground = true
-        if (::receiverViewModel.isInitialized && api.token.isNotEmpty()) receiverViewModel.refresh()
+        if (::receiverViewModel.isInitialized && api.token.isNotEmpty())
+            receiverViewModel.resumeForeground()
     }
 
     override fun onPause() {
         foreground = false
+        receiverSuspended = receiverViewModel.activeSession.isNotEmpty()
         youtubeReceiver.disable()
         player.pause()
         super.onPause()

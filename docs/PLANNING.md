@@ -19,3 +19,7 @@ issues/milestones can be attached to the shared GitHub Project once remotes exis
 
 Recycled provider list, scoped search, bounded history and stable focus/scroll snapshots. Home virtualization and full rich-screen navigation remain open.
 No product milestone or physical/account gate is completed by this checkpoint.
+
+## dev.12 increment
+
+Foreground media-receiver selection, metadata updates, audio panel, interrupted-playback restoration and bounded reconnect. Rich artwork, complete screen stack and background ownership remain open.

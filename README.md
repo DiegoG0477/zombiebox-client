@@ -46,3 +46,8 @@ validation remains pending.
 Dev.11 adds [provider navigation](docs/provider-navigation.md) with recycled native
 rows, scoped search, bounded history and stable focus/scroll snapshots. Deep browse
 is available from “View all”; broader Home virtualization and rich layouts remain open.
+
+Dev.12 adds foreground Spotify/AirPlay selection, automatic active-stream reception,
+metadata updates, bounded receiver reconnect and interrupted-playback restoration.
+The audio panel is an initial semantic Now Playing view; artwork and seamless
+cross-Activity music remain open.

@@ -29,3 +29,17 @@ to the concept remain unfinished; the browser currently uses a native dialog hos
 
 JVM tests cover history, scope, server offsets, stale callbacks and failure
 preservation. Build/lint is not a physical D-pad, Dalvik or scroll benchmark.
+
+## dev.12 receiver integration
+
+Settings → Receive Spotify / AirPlay explicitly selects one shared foreground
+output. The receiving repository reads Cast first, then the media receiver. The
+same ReceiverViewModel owns interruption snapshots, metadata updates and up to
+three consecutive reconnect attempts with backoff. It preserves a plan across
+network errors and restores the interrupted playback on confirmed end. Local stop
+suppresses the incoming item until sender idle or explicit re-arm. The audio panel
+shows title/artist/state; Play/Pause controls the selected Spotify provider.
+
+Reception stops renewing when the Activity leaves the foreground and expires on
+the gateway. Re-select the provider after lease expiry. Cross-Activity/background
+music ownership, artwork and the full Home/catalog/player stack are still pending.

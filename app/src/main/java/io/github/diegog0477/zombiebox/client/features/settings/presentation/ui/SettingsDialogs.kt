@@ -22,6 +22,7 @@ data class SettingsActions(
     val audioSettings: () -> Unit,
     val receiverSettings: () -> Unit,
     val youtubeReceiverSettings: () -> Unit,
+    val mediaReceiverSettings: () -> Unit,
 )
 
 /** Dialog inputs/rendering only. Provider JSON and persistence stay behind the ViewModel. */
@@ -113,6 +114,7 @@ class SettingsDialogs(
                     activity.getString(R.string.receive_cast),
                     activity.getString(R.string.gateway_services),
                     activity.getString(R.string.youtube_receiver),
+                    activity.getString(R.string.media_receiver),
                 )
             ) { _, index ->
                 when (index) {
@@ -125,6 +127,7 @@ class SettingsDialogs(
                     6 -> actions.receiverSettings()
                     7 -> activity.startActivity(Intent(activity, ServicesActivity::class.java))
                     8 -> actions.youtubeReceiverSettings()
+                    9 -> actions.mediaReceiverSettings()
                 }
             }
             .setNegativeButton(R.string.close, null)

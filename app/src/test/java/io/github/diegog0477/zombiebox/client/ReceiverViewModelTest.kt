@@ -20,6 +20,12 @@ class ReceiverViewModelTest {
             stopped.add(sessionId)
         }
 
+        override fun mediaProvider() = ""
+
+        override fun selectMediaProvider(provider: String) {}
+
+        override fun command(action: String) {}
+
         override fun enabled() = true
 
         override fun setEnabled(enabled: Boolean) {}
@@ -70,5 +76,33 @@ class ReceiverViewModelTest {
         model.dismiss("cast")
         assertNull(model.transition(cast, previous))
         assertNull(model.transition(null, previous))
+    }
+
+    @Test
+    fun metadataAndBoundedReconnectPreserveInterruptedContext() {
+        var now = 0L
+        val model = ReceiverViewModel(Repo(), { it() }, { it() }, { now })
+        val previous = PlaybackContext(MediaItem("movie", "local", "Movie"), false, true)
+        var plan =
+            ReceiverPlan(
+                "music",
+                "/v1/streams/music",
+                "audio/mpeg",
+                MediaItem("spotify-connect", "spotify", "First"),
+                false,
+            )
+        assertTrue(model.transition(plan, previous) is ReceiverChange.Begin)
+        plan = plan.copy(item = plan.item!!.copy(title = "Second"))
+        assertTrue(model.transition(plan, previous) is ReceiverChange.Update)
+        repeat(3) {
+            model.playbackState("FAILED")
+            assertNull(model.transition(plan, previous))
+            now += 16000
+            assertTrue(model.transition(plan, previous) is ReceiverChange.Reconnect)
+        }
+        model.playbackState("FAILED")
+        now += 60000
+        assertNull(model.transition(plan, previous))
+        assertEquals(ReceiverChange.Restore(previous), model.transition(null, previous))
     }
 }

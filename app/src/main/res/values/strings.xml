@@ -200,4 +200,5 @@
     <string name="catalog_scope">Search scope: %1$s</string>
     <string name="catalog_empty">No items found. Try another search or go back.</string>
     <string name="catalog_folder">Open collection</string>
+    <string name="media_receiver">Receive Spotify / AirPlay</string>
 </resources>

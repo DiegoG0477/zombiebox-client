@@ -1,15 +1,50 @@
 package io.github.diegog0477.zombiebox.client.features.mirroring.data
 
+import io.github.diegog0477.zombiebox.client.core.data.MediaItemDecoder
 import io.github.diegog0477.zombiebox.client.features.mirroring.domain.model.ReceiverPlan
 import io.github.diegog0477.zombiebox.client.features.mirroring.domain.repository.ReceiverRepository
 import io.github.diegog0477.zombiebox.shared.GatewayApi
+import io.github.diegog0477.zombiebox.shared.GatewayFailure
+import org.json.JSONObject
 
 class GatewayReceiverRepository(private val api: GatewayApi) : ReceiverRepository {
+    override fun mediaProvider(): String =
+        api.request("GET", "/v1/media-receiver").optString("provider")
+
+    override fun selectMediaProvider(provider: String) {
+        if (provider.isEmpty()) api.request("DELETE", "/v1/media-receiver")
+        else api.request("PUT", "/v1/media-receiver", JSONObject().put("provider", provider))
+    }
+
+    override fun command(action: String) {
+        api.request("POST", "/v1/player/spotify", JSONObject().put("action", action))
+    }
+
     override fun active(): ReceiverPlan? {
-        val plan = api.request("GET", "/v1/cast/active").optJSONObject("plan") ?: return null
+        val cast = api.request("GET", "/v1/cast/active").optJSONObject("plan")
+        if (cast != null) return decode(cast, "PLAYING")
+        val receiver =
+            try {
+                api.request("GET", "/v1/media-receiver")
+            } catch (error: GatewayFailure) {
+                if (error.status == 404) return null else throw error
+            }
+        val plan = receiver.optJSONObject("plan") ?: return null
+        return decode(plan, receiver.optJSONObject("nowPlaying")?.optString("state") ?: "PLAYING")
+    }
+
+    private fun decode(plan: JSONObject, state: String): ReceiverPlan {
         val path = plan.getString("url")
         require(path.startsWith("/v1/streams/") && !path.contains("\\") && !path.contains("#"))
-        return ReceiverPlan(plan.getString("sessionId"), path, plan.getString("mimeType"))
+        val item = plan.optJSONObject("item")
+        return ReceiverPlan(
+            plan.getString("sessionId"),
+            path,
+            plan.getString("mimeType"),
+            item?.let { MediaItemDecoder.decodeItem(it) },
+            item?.optString("kind") != "audio",
+            state,
+        )
     }
 
     override fun stop(sessionId: String) {
