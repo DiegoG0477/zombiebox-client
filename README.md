@@ -90,3 +90,7 @@ Full visual/capture policy, extended Remote, HEVC/4K and other product gates rem
 ## dev.25 increment
 
 Isolated API21 decoder candidate discovery and prerequisite-gated extended diagnostics with measurement timestamps. No native libraries; display/encoder/Advanced and physical gates remain open.
+
+## dev.27 increment
+
+Consumes the additive Cast request schema pin. Shared Android transport and Client implementation are unchanged; the thin APK retains the dev.25 version and no-native-library requirement.
