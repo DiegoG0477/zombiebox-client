@@ -137,7 +137,6 @@ class CatalogDialogs(
 
     fun remoteKey(key: Int): Boolean {
         val dialog = remoteDialog() ?: return false
-        if (dialog.currentFocus is EditText) return false
         val down =
             dialog.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, key))
         val up =
