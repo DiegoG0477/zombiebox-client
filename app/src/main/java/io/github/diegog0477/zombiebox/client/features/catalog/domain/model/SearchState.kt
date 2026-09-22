@@ -14,3 +14,10 @@ data class SearchState(
     val phase: String = "IDLE",
     val sections: List<SearchSection> = emptyList(),
 )
+
+/** Small return location; result pages and artwork never enter saved instance state. */
+data class SearchBookmark(
+    val query: String,
+    val viewport: CatalogViewport = CatalogViewport(),
+    val resultsFocused: Boolean = false,
+)

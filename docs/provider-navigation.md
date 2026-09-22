@@ -43,3 +43,28 @@ shows title/artist/state; Play/Pause controls the selected Spotify provider.
 Reception stops renewing when the Activity leaves the foreground and expires on
 the gateway. Re-select the provider after lease expiry. Cross-Activity/background
 music ownership, artwork and the full Home/catalog/player stack are still pending.
+
+## dev.39 search return path
+
+Global search now retains one result set (at most six sections of twenty items)
+for sixty seconds. Returning from details, playback or a provider root restores the
+query, selected semantic item and list geometry without issuing another request
+inside that window. Older results are fetched again; explicit Search always
+refreshes. A query edit resets its viewport. Gateway/profile or provider
+configuration changes discard the retained results and pending callbacks.
+
+Provider roots opened from search expose Back to search; nested catalogs still
+use their existing bounded history. Loading cancellation/failure also returns to
+search if no provider page has been loaded. Close explicitly exits the route.
+An old dialog's delayed dismissal cannot detach a replacement search observer.
+
+Activity saved state contains only the query/focus/scroll bookmark, alongside the
+existing catalog path. Pages, credentials, bitmaps and provider DTOs are not saved.
+Recreation fetches results again; a search-owned details dialog falls back to its
+search results instead of serializing the selected media object. This is a bounded
+return path, not durable multi-query history or a unified browser/guide stack.
+Those remaining navigation boundaries stay open in the workspace gap audit.
+
+Host fixtures cover freshness expiry, stale requests, bookmark restoration and
+profile reset. Android dialog/focus behavior still requires the deferred physical
+acceptance phase. No device or visual-match claim follows from those fixtures.

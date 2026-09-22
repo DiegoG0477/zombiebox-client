@@ -127,3 +127,7 @@ Memory-tier Home realization (3/5/7 cards), focus-preserving window policy and v
 ## dev.38 implementation checkpoint
 
 Dev.38: service-owned YouTube listening/commands, typed foreground notification and bounded expiry/late-command policy; physical background/OEM acceptance remains open.
+
+## dev.39 navigation increment
+
+Dev.39: bounded search return bookmarks, one-minute result reuse, explicit provider-to-search Back and profile/configuration invalidation. Wider navigation, other V1 packages and physical acceptance remain open.

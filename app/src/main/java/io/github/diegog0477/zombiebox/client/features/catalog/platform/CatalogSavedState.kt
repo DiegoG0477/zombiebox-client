@@ -5,6 +5,35 @@ import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.*
 
 /** Small semantic bookmarks only; never bitmaps, DTOs, tokens or full pages in Binder. */
 object CatalogSavedState {
+    fun writeSearch(target: Bundle, value: SearchBookmark?) {
+        if (value == null) return
+        target.putBundle(
+            "searchReturn",
+            Bundle().apply {
+                putString("query", value.query.take(100))
+                putBoolean("focused", value.resultsFocused)
+                putString("selected", value.viewport.selectedId.take(200))
+                putString("first", value.viewport.firstVisibleId.take(200))
+                putInt("top", value.viewport.firstTop)
+                value.viewport.selectedTop?.let { putInt("selectedTop", it) }
+            },
+        )
+    }
+
+    fun readSearch(source: Bundle?): SearchBookmark? =
+        source?.getBundle("searchReturn")?.let {
+            SearchBookmark(
+                (it.getString("query") ?: "").take(100),
+                CatalogViewport(
+                    (it.getString("selected") ?: "").take(200),
+                    (it.getString("first") ?: "").take(200),
+                    it.getInt("top"),
+                    if (it.containsKey("selectedTop")) it.getInt("selectedTop") else null,
+                ),
+                it.getBoolean("focused"),
+            )
+        }
+
     fun writeOverlay(target: Bundle, value: CatalogOverlay) {
         target.putString("overlayKind", value.kind.take(24))
         target.putString("overlayDraft", value.draft.take(256))

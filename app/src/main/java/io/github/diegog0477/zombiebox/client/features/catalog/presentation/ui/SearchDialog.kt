@@ -10,6 +10,8 @@ import android.widget.*
 import io.github.diegog0477.zombiebox.client.R
 import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.core.ui.TvWidgets
+import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogViewport
+import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.SearchState
 import io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel.SearchViewModel
 
 /** Recycled results with provider labels and accents; query entry never takes result focus. */
@@ -18,6 +20,7 @@ class SearchDialog(private val activity: Activity, private val model: SearchView
         draft: String,
         selected: (MediaItem) -> Unit,
         capture: (() -> String) -> Unit,
+        closed: () -> Unit,
     ): AlertDialog {
         val ui = TvWidgets(activity)
         val input =
@@ -30,6 +33,22 @@ class SearchDialog(private val activity: Activity, private val model: SearchView
         val status = ui.text("", 14f, ui.muted)
         val list = ListView(activity).apply { itemsCanFocus = false }
         var items = emptyList<MediaItem>()
+        var navigating = false
+        fun remember(selectedIndex: Int = list.selectedItemPosition) {
+            if (items.isEmpty()) return
+            val first = list.firstVisiblePosition
+            model.rememberViewport(
+                CatalogViewport(
+                    items.getOrNull(selectedIndex)?.id ?: model.bookmark.viewport.selectedId,
+                    items.getOrNull(first)?.id ?: "",
+                    list.getChildAt(0)?.top ?: 0,
+                    if (selectedIndex >= first && selectedIndex < first + list.childCount)
+                        list.getChildAt(selectedIndex - first)?.top
+                    else null,
+                ),
+                list.hasFocus() || navigating,
+            )
+        }
         val adapter =
             object : BaseAdapter() {
                 override fun getCount() = items.size
@@ -89,7 +108,7 @@ class SearchDialog(private val activity: Activity, private val model: SearchView
                 .setPositiveButton(R.string.search, null)
                 .setNegativeButton(R.string.close, null)
                 .create()
-        model.observer = { state ->
+        val render: (SearchState) -> Unit = { state ->
             items =
                 state.sections.flatMap { section ->
                     section.items +
@@ -109,6 +128,23 @@ class SearchDialog(private val activity: Activity, private val model: SearchView
                         else emptyList()
                 }
             adapter.notifyDataSetChanged()
+            if (state.phase == "READY" && model.bookmark.resultsFocused) {
+                val bookmark = model.bookmark
+                list.post {
+                    if (dialog.isShowing && model.bookmark == bookmark) {
+                        val selectedIndex =
+                            items.indexOfFirst { it.id == bookmark.viewport.selectedId }
+                        val first =
+                            items
+                                .indexOfFirst { it.id == bookmark.viewport.firstVisibleId }
+                                .coerceAtLeast(0)
+                        list.requestFocus()
+                        if (selectedIndex >= 0 && bookmark.viewport.selectedTop != null)
+                            list.setSelectionFromTop(selectedIndex, bookmark.viewport.selectedTop)
+                        else list.setSelectionFromTop(first, bookmark.viewport.firstTop)
+                    }
+                }
+            }
             status.text =
                 when (state.phase) {
                     "IDLE" -> activity.getString(R.string.search_all_hint)
@@ -122,7 +158,11 @@ class SearchDialog(private val activity: Activity, private val model: SearchView
                                 .map { ui.serviceTitle(it.provider) }
                         val text =
                             if (items.isEmpty()) activity.getString(R.string.catalog_empty)
-                            else activity.getString(R.string.search_count, items.size)
+                            else
+                                activity.getString(
+                                    R.string.search_count,
+                                    state.sections.sumOf { it.items.size },
+                                )
                         text +
                             if (unavailable.isEmpty()) ""
                             else
@@ -134,8 +174,11 @@ class SearchDialog(private val activity: Activity, private val model: SearchView
                     }
                 }
         }
+        model.observer = render
         list.setOnItemClickListener { _, _, index, _ ->
             items.getOrNull(index)?.let {
+                navigating = true
+                remember(index)
                 dialog.dismiss()
                 selected(it)
             }
@@ -156,13 +199,23 @@ class SearchDialog(private val activity: Activity, private val model: SearchView
                 override fun afterTextChanged(s: Editable?) {}
             }
         )
-        dialog.setOnDismissListener { model.dismiss() }
+        dialog.setOnDismissListener {
+            // Android delivers dismissal asynchronously; an older dialog must not
+            // detach the observer or clear the return path of its replacement.
+            if (model.observer === render) {
+                model.dismiss()
+                if (!navigating) closed()
+            }
+        }
         dialog.show()
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             model.edit(input.text.toString(), true)
         }
-        capture { input.text.toString().take(100) }
-        model.edit(draft)
+        capture {
+            remember()
+            input.text.toString().take(100)
+        }
+        model.open(draft)
         return dialog
     }
 }

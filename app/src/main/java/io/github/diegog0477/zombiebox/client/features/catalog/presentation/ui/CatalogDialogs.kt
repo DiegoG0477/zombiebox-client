@@ -10,6 +10,7 @@ import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.Catal
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogLocation
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogOverlay
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogScreen
+import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.SearchBookmark
 import io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel.CatalogViewModel
 import io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel.SearchViewModel
 
@@ -28,6 +29,12 @@ class CatalogDialogs(
     private var overlay: AlertDialog? = null
     private var overlayCapture: () -> CatalogOverlay = { CatalogOverlay() }
     private var guide: GuideDialog? = null
+    private var searchOrigin = false
+
+    fun searchSnapshot(): SearchBookmark? {
+        if (overlay?.isShowing == true) overlayCapture()
+        return if (searchOrigin) searchModel.bookmark else null
+    }
 
     fun overlaySnapshot(): CatalogOverlay =
         guide?.snapshot()?.takeIf { it.kind.isNotEmpty() }
@@ -35,6 +42,12 @@ class CatalogDialogs(
 
     fun search(draft: String = searchModel.state.query.ifEmpty { query() }) {
         overlay?.dismiss()
+        browser?.dismiss()
+        detail?.dismiss()
+        detailItemId = ""
+        captureViewport = null
+        model.dismiss()
+        searchOrigin = true
         overlay =
             SearchDialog(activity, searchModel)
                 .show(
@@ -60,6 +73,7 @@ class CatalogDialogs(
                         } else showDetails(item) { search(searchModel.state.query) }
                     },
                     { capture -> overlayCapture = { CatalogOverlay("home_search", capture()) } },
+                    { searchOrigin = false },
                 )
     }
 
@@ -87,9 +101,16 @@ class CatalogDialogs(
         detailId: String = "",
         display: Boolean = true,
         savedOverlay: CatalogOverlay = CatalogOverlay(),
+        savedSearch: SearchBookmark? = null,
     ) {
+        searchOrigin = savedSearch != null
+        savedSearch?.let(searchModel::restoreBookmark)
         if (path.isEmpty()) {
-            if (display && savedOverlay.kind == "home_search") search(savedOverlay.draft)
+            if (display && (savedOverlay.kind == "home_search" || savedSearch != null))
+                search(
+                    if (savedOverlay.kind == "home_search") savedOverlay.draft
+                    else savedSearch!!.query
+                )
             return
         }
         val work = {
@@ -118,7 +139,12 @@ class CatalogDialogs(
     }
 
     fun resume(): Boolean {
-        val current = model.screen ?: return false
+        val current = model.screen
+        if (current == null) {
+            if (!searchOrigin) return false
+            search(searchModel.bookmark.query)
+            return true
+        }
         showPage(current)
         return true
     }
@@ -145,6 +171,7 @@ class CatalogDialogs(
     }
 
     fun close() {
+        searchOrigin = false
         overlay?.dismiss()
         overlay = null
         guide?.close()
@@ -156,7 +183,14 @@ class CatalogDialogs(
         browser = null
     }
 
+    fun reset() {
+        close()
+        model.dismiss()
+        searchModel.reset()
+    }
+
     fun page(provider: String) {
+        searchOrigin = false
         load { model.open(provider, query(), ::showPage, ::loadFailed) }
     }
 
@@ -176,13 +210,25 @@ class CatalogDialogs(
 
     private fun cancelLoad() {
         model.cancelPending()
-        model.screen?.let(::showPage) ?: model.dismiss()
+        returnToCatalogOrSearch()
     }
 
     private fun loadFailed(failure: Exception) {
         browser?.dismiss()
-        model.screen?.let(::showPage)
+        returnToCatalogOrSearch()
         error(failure)
+    }
+
+    private fun returnToCatalogOrSearch() {
+        val current = model.screen
+        if (current != null) showPage(current)
+        else if (searchOrigin) search(searchModel.bookmark.query) else model.dismiss()
+    }
+
+    private fun back() {
+        if (!model.back(::showPage, ::loadFailed)) {
+            if (searchOrigin) search(searchModel.bookmark.query) else model.dismiss()
+        }
     }
 
     private fun showPage(screen: CatalogScreen) {
@@ -239,19 +285,20 @@ class CatalogDialogs(
             AlertDialog.Builder(activity)
                 .setTitle(screen.page.title.ifEmpty { ui.serviceTitle(provider) })
                 .setView(content)
-                .setNegativeButton(R.string.close) { _, _ -> model.dismiss() }
+                .setNegativeButton(R.string.close) { _, _ ->
+                    searchOrigin = false
+                    model.dismiss()
+                }
         if (screen.page.nextOffset >= 0)
             builder.setPositiveButton(R.string.next_page) { _, _ ->
                 remember()
                 load { model.next(::showPage, ::loadFailed) }
             }
-        if (model.canBack)
-            builder.setNeutralButton(R.string.back) { _, _ -> model.back(::showPage, ::loadFailed) }
+        if (model.canBack || searchOrigin)
+            builder.setNeutralButton(R.string.back) { _, _ -> back() }
         browser =
             builder.create().also { dialog ->
-                dialog.setOnCancelListener {
-                    if (!model.back(::showPage, ::loadFailed)) model.dismiss()
-                }
+                dialog.setOnCancelListener { back() }
                 dialog.show()
                 list.restoreViewport()
             }

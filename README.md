@@ -140,3 +140,7 @@ Home realizes three, five or seven cards per row according to heap/physical-memo
 ## dev.38 increment
 
 [YouTube background reception](docs/youtube-background.md) now belongs to the playback service. Screen recreation/detachment preserves the lease; notification Stop disables it. JVM/build evidence remains separate from physical API9/13 and modern Android acceptance.
+
+## dev.39 navigation increment
+
+Dev.39: bounded search return bookmarks, one-minute result reuse, explicit provider-to-search Back and profile/configuration invalidation. Wider navigation, other V1 packages and physical acceptance remain open.

@@ -184,13 +184,17 @@ class MainActivity : Activity() {
             SettingsActions(
                 { profile ->
                     stopPlayback()
+                    catalogDialogs.reset()
                     settingsModel.activate(profile)
                     receiverViewModel.reset()
                     homeViewModel.reset()
                     refresh()
                     receiverViewModel.refresh()
                 },
-                { refresh() },
+                {
+                    catalogDialogs.reset()
+                    refresh()
+                },
                 ::render,
                 ::diagnostics,
                 ::audioSettings,
@@ -465,6 +469,7 @@ class MainActivity : Activity() {
                     state?.getString("catalogDetail") ?: "",
                     state?.getBoolean("catalogVisible") ?: true,
                     CatalogSavedState.readOverlay(state),
+                    CatalogSavedState.readSearch(state),
                 )
             }
         } else handler.post { pairing() }
@@ -1290,7 +1295,7 @@ class MainActivity : Activity() {
         else if (session.isNotEmpty()) {
             stopPlayback()
             catalogDialogs.resume()
-        } else if (catalogModel.screen != null) catalogDialogs.resume() else super.onBackPressed()
+        } else if (!catalogDialogs.resume()) super.onBackPressed()
     }
 
     override fun onResume() {
@@ -1328,6 +1333,7 @@ class MainActivity : Activity() {
         outState.putString("homeFocus", content.focus.selectedKey)
         CatalogSavedState.write(outState, catalogDialogs.snapshot())
         CatalogSavedState.writeOverlay(outState, catalogDialogs.overlaySnapshot())
+        CatalogSavedState.writeSearch(outState, catalogDialogs.searchSnapshot())
         outState.putString("catalogDetail", catalogDialogs.detailItemId)
         outState.putBoolean("catalogVisible", catalogDialogs.visible)
         super.onSaveInstanceState(outState)

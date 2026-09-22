@@ -1,5 +1,7 @@
 package io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel
 
+import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogViewport
+import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.SearchBookmark
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.SearchState
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.repository.SearchRepository
 
@@ -9,6 +11,7 @@ class SearchViewModel(
     private val execute: (() -> Unit) -> Unit,
     private val deliver: (() -> Unit) -> Unit,
     private val schedule: (Long, () -> Unit) -> (() -> Unit),
+    private val now: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
     var state = SearchState()
         private set
@@ -19,11 +22,43 @@ class SearchViewModel(
     private var settled = false
     private var closed = false
     private var cancelDelay: (() -> Unit)? = null
+    private var fetchedAt = Long.MIN_VALUE
+    var bookmark = SearchBookmark("")
+        private set
 
-    fun edit(draft: String, immediate: Boolean = false) {
+    fun rememberViewport(viewport: CatalogViewport, resultsFocused: Boolean) {
+        bookmark = SearchBookmark(state.query, viewport, resultsFocused)
+    }
+
+    fun restoreBookmark(saved: SearchBookmark) {
+        bookmark = saved.copy(query = normalize(saved.query))
+    }
+
+    /** Reuse only one short-lived result page; expired locators must be fetched again. */
+    fun open(draft: String) {
         if (closed) return
+        val query = normalize(draft)
+        if (bookmark.query != query) bookmark = SearchBookmark(query)
+        if (
+            state.query == query &&
+                state.phase == "READY" &&
+                now() >= fetchedAt &&
+                now() - fetchedAt < 60_000
+        ) {
+            observer?.invoke(state)
+        } else edit(query, true, preserveViewport = true)
+    }
+
+    private fun normalize(draft: String): String {
         var query = draft.trim().take(100)
         while (query.toByteArray(Charsets.UTF_8).size > 200) query = query.dropLast(1)
+        return query
+    }
+
+    fun edit(draft: String, immediate: Boolean = false, preserveViewport: Boolean = false) {
+        if (closed) return
+        val query = normalize(draft)
+        if (!preserveViewport || bookmark.query != query) bookmark = SearchBookmark(query)
         generation++
         cancelDelay?.invoke()
         settled = false
@@ -62,6 +97,7 @@ class SearchViewModel(
                 loading = false
                 if (!closed && request == generation) {
                     settled = false
+                    if (result != null) fetchedAt = now()
                     state =
                         state.copy(
                             phase = if (result == null) "ERROR" else "READY",
@@ -82,7 +118,14 @@ class SearchViewModel(
     }
 
     fun close() {
-        dismiss()
+        reset()
         closed = true
+    }
+
+    fun reset() {
+        dismiss()
+        state = SearchState()
+        bookmark = SearchBookmark("")
+        fetchedAt = Long.MIN_VALUE
     }
 }
