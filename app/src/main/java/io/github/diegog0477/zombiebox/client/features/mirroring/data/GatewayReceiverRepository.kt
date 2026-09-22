@@ -12,6 +12,13 @@ class GatewayReceiverRepository(private val api: GatewayApi) : ReceiverRepositor
         api.request("GET", "/v1/media-receiver").optString("provider")
 
     override fun selectMediaProvider(provider: String) {
+        if (provider == "universal") {
+            val preferences =
+                api.request("GET", "/v1/device/preferences")
+                    .put("allowReceiverHandoff", true)
+                    .put("allowCasting", true)
+            api.request("PUT", "/v1/device/preferences", preferences)
+        }
         if (provider.isEmpty()) api.request("DELETE", "/v1/media-receiver")
         else
             api.request(
@@ -26,15 +33,26 @@ class GatewayReceiverRepository(private val api: GatewayApi) : ReceiverRepositor
     }
 
     override fun active(): ReceiverPlan? {
-        val cast = api.request("GET", "/v1/cast/active").optJSONObject("plan")
-        if (cast != null) return decode(cast, "PLAYING")
+        val reception = api.request("GET", "/v1/cast/active")
+        val cast = reception.optJSONObject("plan")
         val receiver =
             try {
                 api.request("GET", "/v1/media-receiver")
             } catch (error: GatewayFailure) {
-                if (error.status == 404) return null else throw error
+                if (cast != null) return decode(cast, "PLAYING")
+                if (error.status == 404) return null
+                throw error
+            } catch (error: Exception) {
+                if (cast != null) return decode(cast, "PLAYING")
+                throw error
             }
-        val plan = receiver.optJSONObject("plan") ?: return null
+        val plan = receiver.optJSONObject("plan")
+        if (plan == null) {
+            if (cast != null) return decode(cast, "PLAYING")
+            if (reception.optBoolean("preparing"))
+                throw IllegalStateException("Receiver is preparing the next queued item")
+            return null
+        }
         return decode(plan, receiver.optJSONObject("nowPlaying")?.optString("state") ?: "PLAYING")
     }
 
@@ -53,6 +71,10 @@ class GatewayReceiverRepository(private val api: GatewayApi) : ReceiverRepositor
             plan.optBoolean("seekable", false),
             plan.optString("mode", "DIRECT_PLAY"),
         )
+    }
+
+    override fun cancelQueue() {
+        api.request("DELETE", "/v1/cast/queue")
     }
 
     override fun stop(sessionId: String) {

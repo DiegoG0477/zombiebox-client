@@ -69,7 +69,8 @@ class PlaybackService : Service() {
                         !refreshing &&
                         current.incoming &&
                         plan != null &&
-                        current.item?.provider in listOf("spotify", "airplay")
+                        current.item?.provider in
+                            listOf("spotify", "airplay", "android_mirror", "cast")
                 ) {
                     refreshing = true
                     worker.execute {
@@ -90,10 +91,10 @@ class PlaybackService : Service() {
                                                     received.sessionId,
                                                     api.base + received.path,
                                                     received.mime,
-                                                    "DIRECT_PLAY",
+                                                    received.mode,
                                                     0,
-                                                    live = true,
-                                                    seekable = false,
+                                                    live = received.live,
+                                                    seekable = received.seekable,
                                                 )
                                             model.adopt(
                                                 replacement,
@@ -122,6 +123,7 @@ class PlaybackService : Service() {
                                             model.state.progress.state in
                                                 listOf("FAILED", "ENDED") &&
                                                 received.state == "PLAYING" &&
+                                                received.live &&
                                                 receiverAttempts < 3 &&
                                                 now >= receiverRetryAt
                                         ) {
@@ -309,12 +311,22 @@ class PlaybackService : Service() {
             state.incoming && state.item?.provider == "spotify" && receiverPlaybackState == "PAUSED",
         )
 
+    private fun stopFromControls() {
+        if (model.state.incoming)
+            worker.execute {
+                try {
+                    GatewayReceiverRepository(api).cancelQueue()
+                } catch (_: Exception) {}
+            }
+        model.stop()
+    }
+
     private fun systemCommand(command: String, position: Long) {
         if (closed) return
         val state = systemState(model.state)
         if (!state.allows(command)) return
         when (command) {
-            "stop" -> model.stop()
+            "stop" -> stopFromControls()
             "next" -> model.next()
             "seek" -> SystemPlayback.localSeek(model.state, position)?.let { player.seekTo(it) }
             "play",
@@ -368,7 +380,7 @@ class PlaybackService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            "stop" -> model.stop()
+            "stop" -> stopFromControls()
             "next" -> model.next()
             "toggle" -> toggle()
         }

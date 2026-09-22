@@ -13,8 +13,10 @@ class ReceiverViewModelTest {
     private class Repo : ReceiverRepository {
         val stopped = mutableListOf<String>()
 
-        override fun active() =
+        var plan: ReceiverPlan? =
             ReceiverPlan("session", "/v1/streams/session", "application/vnd.apple.mpegurl")
+
+        override fun active() = plan
 
         override fun stop(sessionId: String) {
             stopped.add(sessionId)
@@ -46,6 +48,7 @@ class ReceiverViewModelTest {
         model.refresh()
         work.removeAt(0)()
         model.dismiss("session")
+        while (work.isNotEmpty()) work.removeAt(0)()
         ui.removeAt(0)()
         assertEquals(0, deliveries)
         model.refresh()
@@ -111,7 +114,7 @@ class ReceiverViewModelTest {
     }
 
     @Test
-    fun completedFileStopsAndRestoresInsteadOfReconnecting() {
+    fun completedFileWaitsForGatewayQueueInsteadOfDeletingNextItem() {
         val repo = Repo()
         val model = ReceiverViewModel(repo, { it() }, { it() })
         val previous = PlaybackContext(MediaItem("movie", "local", "Movie"), false, true)
@@ -127,7 +130,10 @@ class ReceiverViewModelTest {
         var delivered: ReceiverPlan? = plan
         model.observer = { delivered = it }
         model.playbackState("ENDED")
-        assertEquals(listOf("session"), repo.stopped)
+        assertTrue(repo.stopped.isEmpty())
+        assertEquals(plan, delivered)
+        repo.plan = null
+        model.refresh()
         assertNull(delivered)
         assertEquals(ReceiverChange.Restore(previous), model.transition(delivered, previous))
         assertNull(model.transition(plan, previous))

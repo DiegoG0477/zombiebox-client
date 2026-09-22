@@ -18,8 +18,15 @@ class ReceiverViewModel(
     fun readMediaProvider(done: (String) -> Unit, failed: (Exception) -> Unit) =
         settingsTasks.run({ repository.mediaProvider() }, done, failed)
 
-    fun selectMediaProvider(provider: String, failed: (Exception) -> Unit) =
-        settingsTasks.run({ repository.selectMediaProvider(provider) }, { refresh() }, failed)
+    fun selectMediaProvider(provider: String, failed: (Exception) -> Unit, done: () -> Unit = {}) =
+        settingsTasks.run(
+            { repository.selectMediaProvider(provider) },
+            {
+                done()
+                refresh()
+            },
+            failed,
+        )
 
     fun command(action: String, failed: (Exception) -> Unit) =
         settingsTasks.run({ repository.command(action) }, { refresh() }, failed)
@@ -41,6 +48,7 @@ class ReceiverViewModel(
     private var loading = false
     private var closed = false
     private var dismissed = ""
+    private var completed = ""
     var activeSession = ""
         private set
 
@@ -50,7 +58,7 @@ class ReceiverViewModel(
 
     fun playbackState(state: String) {
         if (state == "ENDED" && lastPlan?.live == false && activeSession.isNotEmpty()) {
-            dismissed = activeSession
+            completed = activeSession
             generation++
             loading = false
             refresh()
@@ -78,7 +86,7 @@ class ReceiverViewModel(
             interrupted = null
             return ReceiverChange.Restore(previous)
         }
-        if (plan.sessionId == dismissed) return null
+        if (plan.sessionId == dismissed || plan.sessionId == completed) return null
         if (plan.sessionId == activeSession) {
             if (playbackFailed && plan.state == "PLAYING" && attempts < 3 && clock() >= retryAt) {
                 attempts++
@@ -106,6 +114,11 @@ class ReceiverViewModel(
     }
 
     fun dismiss(sessionId: String) {
+        execute {
+            try {
+                repository.cancelQueue()
+            } catch (_: Exception) {}
+        }
         dismissed = sessionId
         activeSession = ""
         interrupted = null
@@ -123,6 +136,7 @@ class ReceiverViewModel(
         loading = true
         val request = ++generation
         val ignored = dismissed
+        val finished = completed
         execute {
             try {
                 var plan = repository.active()
@@ -134,7 +148,7 @@ class ReceiverViewModel(
                 deliver {
                     if (!closed && request == generation) {
                         loading = false
-                        observer?.invoke(result)
+                        if (result == null || result.sessionId != finished) observer?.invoke(result)
                     }
                 }
             } catch (_: Exception) {
@@ -149,6 +163,7 @@ class ReceiverViewModel(
         activeSession = ""
         interrupted = null
         dismissed = ""
+        completed = ""
         lastPlan = null
     }
 

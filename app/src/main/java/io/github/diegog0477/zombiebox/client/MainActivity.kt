@@ -312,6 +312,7 @@ class MainActivity : Activity() {
         get() = homeViewModel.state.snapshot
 
     private lateinit var receiverViewModel: ReceiverViewModel
+    private var universalReception = false
     private var currentItem: MediaItem? = null
     private var session = ""
     private var stream = ""
@@ -691,7 +692,11 @@ class MainActivity : Activity() {
             pairing()
             return
         }
-        MediaReceiverDialog(this, receiverViewModel, ::error).show()
+        MediaReceiverDialog(this, receiverViewModel, ::error) { provider ->
+                universalReception = provider == "universal"
+                if (universalReception) youtubeReceiver.open() else youtubeReceiver.disable()
+            }
+            .show()
     }
 
     private fun updateReceiver(plan: ReceiverPlan) {
@@ -752,7 +757,7 @@ class MainActivity : Activity() {
             }
             is ReceiverChange.Begin -> {
                 player.rememberInterruption()
-                youtubeReceiver.disable()
+                if (universalReception) youtubeReceiver.standby() else youtubeReceiver.disable()
                 stopPlayback(keepReceiver = true)
                 session = change.plan.sessionId
                 stream = api.base + change.plan.path
@@ -1021,7 +1026,9 @@ class MainActivity : Activity() {
         remote: YouTubeCommand? = null,
         positionMs: Int? = null,
     ) {
-        if (remote == null) youtubeReceiver.disable()
+        if (remote == null) {
+            if (universalReception) youtubeReceiver.standby() else youtubeReceiver.disable()
+        }
         val catalog =
             catalogModel.screen?.takeIf { page -> page.page.items.any { it.id == item.id } }
         val queue =
@@ -1043,11 +1050,7 @@ class MainActivity : Activity() {
                         it.page.nextOffset,
                     )
                 }
-        if (remote != null) {
-            player.rememberInterruption()
-            receiverViewModel.reset()
-        }
-        stopPlayback(keepReceiver = remote != null)
+        if (remote == null) stopPlayback()
         playbackPending = true
         playbackModel.start(
             item.id,
@@ -1061,6 +1064,11 @@ class MainActivity : Activity() {
                 ) {
                     playbackModel.stop(plan.sessionId, null)
                     return@start
+                }
+                if (remote != null) {
+                    player.rememberInterruption()
+                    receiverViewModel.reset()
+                    stopPlayback(keepReceiver = true)
                 }
                 adoptPlan(plan)
                 attachTracks(plan)
@@ -1104,7 +1112,6 @@ class MainActivity : Activity() {
                 playbackPending = false
                 if (remote != null) {
                     youtubeReceiver.complete(false, remote.id)
-                    player.restoreInterrupted()
                 }
                 error(failure)
             },
@@ -1393,8 +1400,16 @@ class MainActivity : Activity() {
             if (session.isNotEmpty() && !audioController.acquire()) player.pause()
             player.foreground(true)
         }
-        if (::receiverViewModel.isInitialized && api.token.isNotEmpty())
+        if (::receiverViewModel.isInitialized && api.token.isNotEmpty()) {
             receiverViewModel.resumeForeground()
+            receiverViewModel.readMediaProvider(
+                { provider ->
+                    universalReception = provider == "universal"
+                    if (universalReception) youtubeReceiver.open()
+                },
+                {},
+            )
+        }
         if (
             !playbackPending &&
                 lastState == "FAILED" &&

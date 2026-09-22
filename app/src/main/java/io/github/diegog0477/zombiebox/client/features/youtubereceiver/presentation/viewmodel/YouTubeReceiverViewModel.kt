@@ -166,6 +166,15 @@ class YouTubeReceiverViewModel(
         pending = null
     }
 
+    fun standby() {
+        generation++
+        busy = false
+        pending = null
+        ready = null
+        dispatched = ""
+        latest = ReceiverFeedback()
+    }
+
     fun disable() {
         val id = receiver?.id
         generation++

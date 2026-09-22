@@ -3,7 +3,7 @@
   "repository": "zombiebox-client",
   "productRegistry": "workspace:docs/milestones.json",
   "notes": [
-    "Local component scope; product exit gates remain open. No hosted milestones exist.",
+    "Local component scope; product exit gates remain open. Hosted milestones are open; see remoteURL entries.",
     "Dev.10: shared local media tracks/text subtitles and client Home refinement. Cast consumes the protocol transport update. Product exit gates remain open.",
     "Dev.11: Recycled provider list, scoped search, bounded history and stable focus/scroll snapshots. Home virtualization and full rich-screen navigation remain open. Product exit gates remain open.",
     "Dev.12: Foreground media-receiver selection, metadata updates, audio panel, interrupted-playback restoration and bounded reconnect. Rich artwork, complete screen stack and background ownership remain open.",
@@ -24,7 +24,8 @@
     "Dev.31: Isolated API16/21 codec-role/profile inventory, API17 logical displays, API23 output modes and API29 acceleration declarations; bounded EN/ES native inventory UI. Inventory remains separate from functional playback evidence. Product gates remain open.",
     "Dev.32: Adds optional API21 native MediaSession/MediaStyle controls, semantic action availability, VOD timeline seek and operation-error fallback with persistent cooldown. Advanced can disable integration. No DIAL/CEC or Bluetooth/HDMI physical qualification is claimed. Product gates remain open.",
     "Dev.33: Optional privileged AOSP HDMI display query/one-touch play with timeout, cooldown and local Advanced policy; quiet Home header icons and a responsive docked status sidebar. VersionCode 33. Native DIAL, broad vendor bindings and physical acceptance remain open.",
-    "Dev.34: Network pairing consent/24-hour ignore, five-minute QR display, focus-scoped remote text in owned fields, guarded Whisperplay Home launch, lifecycle clock and Hero refresh/metadata improvements. APK versionCode 34; runtime/OEM acceptance remains open."
+    "Dev.34: Network pairing consent/24-hour ignore, five-minute QR display, focus-scoped remote text in owned fields, guarded Whisperplay Home launch, lifecycle clock and Hero refresh/metadata improvements. APK versionCode 34; runtime/OEM acceptance remains open.",
+    "Dev.35: Periodic opt-in playback adaptation, completion-aware incoming file queues and explicit universal foreground receiver mode. Native DIAL registration and physical qualification remain open."
   ],
   "milestones": [
     {
@@ -32,71 +33,82 @@
       "title": "Handshake + Capability Scanner",
       "status": "in_progress",
       "completedAt": null,
-      "remoteId": null
+      "remoteId": 1,
+      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/1"
     },
     {
       "id": "M2",
       "title": "Embedded Player",
       "status": "in_progress",
       "completedAt": null,
-      "remoteId": null
+      "remoteId": 2,
+      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/2"
     },
     {
       "id": "M3",
       "title": "Media Capability Probes + Playback Planner",
       "status": "in_progress",
       "completedAt": null,
-      "remoteId": null
+      "remoteId": 3,
+      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/3"
     },
     {
       "id": "M4",
       "title": "Unified Media UI",
       "status": "in_progress",
       "completedAt": null,
-      "remoteId": null
+      "remoteId": 4,
+      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/4"
     },
     {
       "id": "M5",
       "title": "YouTube",
       "status": "in_progress",
       "completedAt": null,
-      "remoteId": null
+      "remoteId": 5,
+      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/5"
     },
     {
       "id": "M6",
       "title": "Spotify + AirPlay",
       "status": "in_progress",
       "completedAt": null,
-      "remoteId": null
+      "remoteId": 6,
+      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/6"
     },
     {
       "id": "M7",
       "title": "Android Mirror",
       "status": "in_progress",
       "completedAt": null,
-      "remoteId": null
+      "remoteId": 7,
+      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/7"
     },
     {
       "id": "M8",
       "title": "IPTV",
       "status": "in_progress",
       "completedAt": null,
-      "remoteId": null
+      "remoteId": 8,
+      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/8"
     },
     {
       "id": "M9",
       "title": "Rebrowser",
       "status": "in_progress",
       "completedAt": null,
-      "remoteId": null
+      "remoteId": 9,
+      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/9"
     },
     {
       "id": "M11",
       "title": "Public beta",
       "status": "planned",
       "completedAt": null,
-      "remoteId": null
+      "remoteId": 10,
+      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/10"
     }
   ],
-  "developmentCheckpoint": "v0.1.0-dev.34"
+  "developmentCheckpoint": "v0.1.0-dev.35",
+  "remote": "https://github.com/DiegoG0477/zombiebox-client"
 }

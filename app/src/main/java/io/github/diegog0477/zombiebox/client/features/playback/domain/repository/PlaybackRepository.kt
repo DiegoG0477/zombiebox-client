@@ -11,6 +11,8 @@ interface PlaybackRepository {
     fun recover(itemId: String, positionMs: Int, attempt: Int): PlaybackPlan =
         start(itemId, if (attempt == 1) "AUTO" else "TRANSCODE", positionMs)
 
+    fun adapt(sessionId: String, positionMs: Int): PlaybackPlan? = null
+
     fun progress(sessionId: String, progress: PlaybackProgress)
 
     fun stop(sessionId: String)

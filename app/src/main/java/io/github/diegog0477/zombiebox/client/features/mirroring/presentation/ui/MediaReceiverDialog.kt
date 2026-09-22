@@ -9,24 +9,28 @@ class MediaReceiverDialog(
     private val activity: Activity,
     private val model: ReceiverViewModel,
     private val error: (Exception) -> Unit,
+    private val selected: (String) -> Unit = {},
 ) {
     fun show() {
         model.readMediaProvider(
             { provider ->
-                val providers = listOf("", "spotify", "airplay", "auto")
+                val providers = listOf("", "spotify", "airplay", "auto", "universal")
                 val labels =
                     arrayOf(
                         activity.getString(R.string.disabled),
                         activity.getString(R.string.spotify),
                         activity.getString(R.string.airplay),
                         activity.getString(R.string.media_receiver_auto),
+                        activity.getString(R.string.media_receiver_universal),
                     )
                 AlertDialog.Builder(activity)
                     .setTitle(R.string.media_receiver)
                     .setSingleChoiceItems(labels, providers.indexOf(provider).coerceAtLeast(0)) {
                         dialog,
                         index ->
-                        model.selectMediaProvider(providers[index], error)
+                        model.selectMediaProvider(providers[index], error) {
+                            selected(providers[index])
+                        }
                         dialog.dismiss()
                     }
                     .setNegativeButton(R.string.close, null)

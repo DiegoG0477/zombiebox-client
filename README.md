@@ -2,8 +2,9 @@
 
 Legacy-first Android TV/handheld client; one stable client APK.
 
-This is an independent repository in the Zombie Box workspace. Remotes and hosted
-releases are not configured yet; local commits/tags and dependency pins are real.
+This is an independent repository in the Zombie Box workspace.
+[Source and milestones](https://github.com/DiegoG0477/zombiebox-client) are hosted on GitHub.
+Development checkpoints are not stable releases or physical compatibility claims.
 
 Application ID: `io.github.diegog0477.zombiebox.client`; experimental minSdk9.
 
@@ -122,3 +123,7 @@ Optional privileged AOSP HDMI display query/one-touch play with timeout, cooldow
 ## dev.34 increment
 
 Network pairing consent/24-hour ignore, five-minute QR display, focus-scoped remote text in owned fields, guarded Whisperplay Home launch, lifecycle clock and Hero refresh/metadata improvements. APK versionCode 34; runtime/OEM acceptance remains open.
+
+## dev.35 increment
+
+Periodic opt-in playback adaptation, completion-aware incoming file queues and explicit universal foreground receiver mode. Native DIAL registration and physical qualification remain open.

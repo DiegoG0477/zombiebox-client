@@ -46,6 +46,18 @@ class GatewayPlaybackRepository(
         return PlaybackPlanDecoder.decode(api.base, api.request("POST", "/v1/playback", request))
     }
 
+    override fun adapt(sessionId: String, positionMs: Int): PlaybackPlan? {
+        if (!adaptNetwork()) return null
+        bandwidth.refresh()
+        val response =
+            api.request(
+                "POST",
+                "/v1/playback/$sessionId/adapt",
+                JSONObject().put("positionMs", positionMs),
+            )
+        return response.optJSONObject("plan")?.let { PlaybackPlanDecoder.decode(api.base, it) }
+    }
+
     override fun progress(sessionId: String, progress: PlaybackProgress) {
         api.request(
             "PUT",

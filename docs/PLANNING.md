@@ -113,3 +113,8 @@ Optional privileged AOSP HDMI display query/one-touch play with timeout, cooldow
 
 Network pairing consent/24-hour ignore, five-minute QR display, focus-scoped remote text in owned fields, guarded Whisperplay Home launch, lifecycle clock and Hero refresh/metadata improvements. APK versionCode 34; runtime/OEM acceptance remains open.
 Product exit gates and deferred physical acceptance remain open.
+
+## dev.35 checkpoint
+
+Periodic opt-in playback adaptation, completion-aware incoming file queues and explicit universal foreground receiver mode. Native DIAL registration and physical qualification remain open.
+Product milestone completion still requires its recorded acceptance gates.

@@ -12,6 +12,19 @@ import org.junit.Test
 
 class PlaybackSessionViewModelTest {
     @Test
+    fun incomingFileReportsCompletionButLiveMirrorDoesNot() {
+        val repository = Repository()
+        val vm = model(repository)
+        vm.adopt(plan("file"), item("file"), emptyList(), incoming = true)
+        vm.mediaState("ENDED", 10000, 10000)
+        assertTrue(repository.events.any { it.startsWith("progress:file") })
+        repository.events.clear()
+        vm.adopt(plan("mirror").copy(live = true), item("mirror"), emptyList(), incoming = true)
+        vm.mediaState("ENDED", 0, 0)
+        assertFalse(repository.events.any { it.startsWith("progress:") })
+    }
+
+    @Test
     fun manualReplacementSuspendsNextAndPreservesQueueAndSubtitleChoice() {
         val r = Repository()
         val vm = model(r)
@@ -163,6 +176,12 @@ class PlaybackSessionViewModelTest {
         val events = mutableListOf<String>()
         var page = CatalogPage(emptyList(), -1)
         var onStart: (() -> Unit)? = null
+        var adaptation: PlaybackPlan? = null
+
+        override fun adapt(sessionId: String, positionMs: Int): PlaybackPlan? {
+            events.add("adapt:$sessionId:$positionMs")
+            return adaptation
+        }
 
         override fun start(itemId: String, mode: String, positionMs: Int?): PlaybackPlan {
             events.add("start:$itemId:$positionMs")
@@ -194,6 +213,23 @@ class PlaybackSessionViewModelTest {
         execute: (() -> Unit) -> Unit = { it() },
         deliver: (() -> Unit) -> Unit = { it() },
     ) = PlaybackSessionViewModel(r, r, { r.events.add("receiver-stop:$it") }, execute, deliver)
+
+    @Test
+    fun lateNetworkAdaptationCannotReplaceANewerSession() {
+        val r = Repository()
+        val deliveries = mutableListOf<() -> Unit>()
+        val vm = model(r, deliver = { deliveries.add(it) })
+        vm.adopt(plan("original"), item("original"), listOf(item("original"), item("next")))
+        vm.mediaState("PLAYING", 12000, 60000)
+        r.adaptation = plan("adapted")
+        vm.recoveryTick()
+        assertTrue(r.events.contains("adapt:original:12000"))
+        vm.adopt(plan("newer"), item("newer"))
+        deliveries.forEach { it() }
+        assertEquals("newer", vm.state.plan?.sessionId)
+        assertTrue(r.events.contains("stop:adapted"))
+        assertFalse(r.events.contains("stop:newer"))
+    }
 
     @Test
     fun rebindingObserverKeepsPositionPlanAndPausedIntentWithoutRestarting() {
@@ -291,7 +327,7 @@ class PlaybackSessionViewModelTest {
         assertFalse(r.events.any { it.startsWith("start:") })
         r.events.clear()
         vm.adopt(
-            plan("receiver"),
+            plan("receiver").copy(live = true),
             item("receiver"),
             listOf(item("receiver"), item("b")),
             incoming = true,
@@ -342,7 +378,7 @@ class PlaybackSessionViewModelTest {
         assertNull(vm.state.plan)
         assertTrue(repository.events.contains("stop:a"))
         repository.events.clear()
-        vm.adopt(plan("incoming"), item("a"), emptyList(), incoming = true)
+        vm.adopt(plan("incoming").copy(live = true), item("a"), emptyList(), incoming = true)
         vm.mediaState("FAILED", 0, 0)
         now += 10000
         vm.recoveryTick()

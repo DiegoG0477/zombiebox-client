@@ -367,4 +367,7 @@
         minutos. Muéstralo solo al teléfono que quieras vincular.
     </string>
     <string name="phone_ignore_day">Ignorar solicitudes de este dispositivo por 24 horas</string>
+    <string name="media_receiver_universal">
+        Todos los receptores (permitir cambios automáticos)
+    </string>
 </resources>

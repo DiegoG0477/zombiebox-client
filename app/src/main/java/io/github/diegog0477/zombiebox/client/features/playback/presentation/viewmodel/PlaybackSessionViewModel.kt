@@ -34,6 +34,8 @@ class PlaybackSessionViewModel(
     @Volatile private var closed = false
     private var reported = 0L
     private var ended = ""
+    private var networkAt = 0L
+    private var networkPending = false
     private var interrupted: PlaybackSession? = null
 
     fun adopt(
@@ -86,7 +88,9 @@ class PlaybackSessionViewModel(
             )
         val previous = state.progress.state
         state = state.copy(progress = value)
-        if (!state.incoming && (status != previous || clock() - reported >= 10000)) {
+        if (
+            (!state.incoming || !plan.live) && (status != previous || clock() - reported >= 10000)
+        ) {
             reported = clock()
             checkpoint()
             execute {
@@ -212,6 +216,7 @@ class PlaybackSessionViewModel(
 
     /** Service clock tick; no Activity is needed for bounded reconnection. */
     fun recoveryTick() {
+        adaptationTick()
         if (closed || !automaticRecovery || state.incoming || !state.loading || recoveryPaused)
             return
         val before = state
@@ -250,6 +255,50 @@ class PlaybackSessionViewModel(
                             )
                         scheduleRecovery()
                         observer?.invoke(state)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun adaptationTick() {
+        val before = state
+        val old = before.plan ?: return
+        val item = before.item ?: return
+        if (
+            closed ||
+                before.incoming ||
+                before.loading ||
+                networkPending ||
+                before.progress.state !in listOf("PLAYING", "BUFFERING") ||
+                clock() < networkAt
+        )
+            return
+        networkAt = clock() + 65000
+        networkPending = true
+        val request = generation
+        execute {
+            if (closed || request != generation) {
+                deliver { networkPending = false }
+                return@execute
+            }
+            val plan =
+                try {
+                    repository.adapt(old.sessionId, if (old.live) 0 else before.progress.positionMs)
+                } catch (_: Exception) {
+                    null
+                }
+            deliver {
+                networkPending = false
+                if (plan != null) {
+                    if (closed || request != generation || state.plan?.sessionId != old.sessionId)
+                        execute { discard(plan.sessionId) }
+                    else {
+                        val paused = state.progress.state == "PAUSED"
+                        stopPlayer?.invoke()
+                        adopt(plan, item, paused = paused)
+                        execute { discard(old.sessionId) }
+                        play?.invoke(plan, item)
                     }
                 }
             }

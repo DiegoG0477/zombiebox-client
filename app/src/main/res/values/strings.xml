@@ -344,4 +344,5 @@
         only to the phone you want to pair.
     </string>
     <string name="phone_ignore_day">Ignore requests from this device for 24 hours</string>
+    <string name="media_receiver_universal">All receivers (allow automatic switching)</string>
 </resources>

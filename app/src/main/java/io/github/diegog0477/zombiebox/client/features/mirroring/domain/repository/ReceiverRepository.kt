@@ -13,6 +13,8 @@ interface ReceiverRepository {
 
     fun stop(sessionId: String)
 
+    fun cancelQueue() {}
+
     fun handoffEnabled(): Boolean
 
     fun setHandoffEnabled(enabled: Boolean)
