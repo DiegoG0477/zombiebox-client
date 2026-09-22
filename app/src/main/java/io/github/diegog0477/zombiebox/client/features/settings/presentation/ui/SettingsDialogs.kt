@@ -40,6 +40,12 @@ class SettingsDialogs(
     private val actions: SettingsActions,
 ) {
     private val ui = TvWidgets(activity)
+    private var hdmiDialog: AlertDialog? = null
+
+    fun close() {
+        hdmiDialog?.dismiss()
+        hdmiDialog = null
+    }
 
     private fun field(parent: LinearLayout, label: Int, secret: Boolean = false): EditText {
         parent.addView(ui.text(activity.getString(label), 14f, ui.muted))
@@ -320,10 +326,17 @@ class SettingsDialogs(
                     activity.getString(R.string.network_adaptation),
                     activity.getString(R.string.surface_backend),
                     activity.getString(R.string.system_media_controls),
+                    activity.getString(R.string.hdmi_control),
                 )
             ) { _, index ->
                 if (index == 0) actions.audioSettings()
-                else if (index == 5) {
+                else if (index == 6) {
+                    hdmiDialog?.dismiss()
+                    hdmiDialog =
+                        io.github.diegog0477.zombiebox.client.features.hdmi.presentation.ui
+                            .HdmiDialog
+                            .show(activity)
+                } else if (index == 5) {
                     AlertDialog.Builder(activity)
                         .setTitle(R.string.system_media_controls)
                         .setSingleChoiceItems(

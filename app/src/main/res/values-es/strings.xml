@@ -317,4 +317,38 @@
         dentro de sus límites.
     </string>
     <string name="system_media_controls">Controles multimedia del sistema (Android 5+)</string>
+    <string name="hdmi_control">Control de pantalla HDMI-CEC</string>
+    <string name="hdmi_native_enabled">Usar el control nativo disponible</string>
+    <string name="hdmi_explanation">
+        Integración opcional del sistema. Consultar lee el estado de la TV. Activar puede encenderla
+        y cambiar su entrada. No se ejecuta root ni se modifica el sistema.
+    </string>
+    <string name="hdmi_query">Consultar estado de TV</string>
+    <string name="hdmi_activate">Activar entrada de TV</string>
+    <string name="hdmi_privilege">
+        Android no ha concedido el permiso de sistema HDMI-CEC. La instalación normal puede recibir
+        botones D-pad y multimedia enviados por el sistema.
+    </string>
+    <string name="hdmi_unavailable">
+        No hay un controlador nativo HDMI de reproducción accesible.
+    </string>
+    <string name="hdmi_waiting">Esperando al controlador HDMI…</string>
+    <string name="hdmi_on">La TV informa: encendida</string>
+    <string name="hdmi_standby">La TV informa: en espera</string>
+    <string name="hdmi_transition">La TV informa: cambiando estado de energía</string>
+    <string name="hdmi_success">El controlador nativo confirmó la activación.</string>
+    <string name="hdmi_failed">Falló la operación nativa. La reproducción sigue disponible.</string>
+    <string name="hdmi_timeout">El controlador no respondió en ocho segundos.</string>
+    <string name="hdmi_cooldown">
+        El control nativo está en pausa tras fallos. Reintenta en cinco minutos.
+    </string>
+    <string name="hdmi_unknown">
+        El estado de la TV es desconocido; el soporte nativo no está confirmado.
+    </string>
+    <string name="docked_mode">Modo TV</string>
+    <string name="docked_on">ON</string>
+    <string name="docked_large_ui">Controles más grandes</string>
+    <string name="docked_focus">Foco D-pad visible</string>
+    <string name="docked_touch">Controles táctiles disponibles</string>
+    <string name="docked_motto">Mismo dispositivo.\nUna vida más grande.</string>
 </resources>

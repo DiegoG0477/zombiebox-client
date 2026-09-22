@@ -298,4 +298,34 @@
         Showing the first 16 entries. Export diagnostics for the full bounded report.
     </string>
     <string name="system_media_controls">System media controls (Android 5+)</string>
+    <string name="hdmi_control">HDMI-CEC display control</string>
+    <string name="hdmi_native_enabled">Use available native control</string>
+    <string name="hdmi_explanation">
+        Optional system integration. Querying reads TV power status. Activate can wake the TV and
+        switch its input. No root or system changes are performed.
+    </string>
+    <string name="hdmi_query">Query TV status</string>
+    <string name="hdmi_activate">Activate TV input</string>
+    <string name="hdmi_privilege">
+        Android has not granted HDMI-CEC system permission. Ordinary installs can still receive
+        D-pad and media keys routed by the system.
+    </string>
+    <string name="hdmi_unavailable">No accessible native HDMI playback controller.</string>
+    <string name="hdmi_waiting">Waiting for the HDMI controller…</string>
+    <string name="hdmi_on">TV reports: on</string>
+    <string name="hdmi_standby">TV reports: standby</string>
+    <string name="hdmi_transition">TV reports: changing power state</string>
+    <string name="hdmi_success">Native controller confirmed activation.</string>
+    <string name="hdmi_failed">Native operation failed. Playback remains available.</string>
+    <string name="hdmi_timeout">The controller did not reply within eight seconds.</string>
+    <string name="hdmi_cooldown">
+        Native control is cooling down after failures. Retry in five minutes.
+    </string>
+    <string name="hdmi_unknown">TV status is unknown; native support is not confirmed.</string>
+    <string name="docked_mode">Docked mode</string>
+    <string name="docked_on">ON</string>
+    <string name="docked_large_ui">Larger controls</string>
+    <string name="docked_focus">Visible D-pad focus</string>
+    <string name="docked_touch">Touch controls available</string>
+    <string name="docked_motto">Same device.\nA bigger life.</string>
 </resources>

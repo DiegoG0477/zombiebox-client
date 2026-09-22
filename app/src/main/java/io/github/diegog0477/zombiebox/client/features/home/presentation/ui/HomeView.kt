@@ -40,8 +40,7 @@ class HomeView(
     private val actions: HomeActions,
 ) : LinearLayout(context) {
     val focus = RemoteFocus()
-    private val content
-        get() = this
+    private var content: LinearLayout = this
 
     private val focusRows = ArrayList<Pair<String, ViewGroup>>()
     private var scope = HomeScope()
@@ -83,10 +82,21 @@ class HomeView(
     ) {
         this.scope = scope
         focusRows.clear()
-        content.removeAllViews()
+        content = this
+        removeAllViews()
         val nav = horizontal(content, "navigation")
         nav.addView(
-            ui.text(context.getString(R.string.brand), 25f, ui.green).apply {
+            ui.text(context.getString(R.string.brand), 25f).apply {
+                val label = android.text.SpannableString(text)
+                val suffix = label.toString().lastIndexOf("tv")
+                if (suffix >= 0)
+                    label.setSpan(
+                        android.text.style.ForegroundColorSpan(ui.green),
+                        suffix,
+                        label.length,
+                        0,
+                    )
+                text = label
                 typeface = Typeface.DEFAULT_BOLD
                 setPadding(0, 0, ui.dp(24), 0)
             }
@@ -106,8 +116,8 @@ class HomeView(
             navigation[id] = tab
             nav.addView(tab)
         }
-        nav.addView(ui.button(R.string.search) { actions.search() })
-        nav.addView(ui.button(R.string.settings) { actions.settings() })
+        nav.addView(headerAction(R.string.search, false, actions.search))
+        nav.addView(headerAction(R.string.settings, true, actions.settings))
         val heroFrame = FrameLayout(context)
         val hero = ui.column()
         hero.setPadding(ui.dp(24), ui.dp(18), ui.dp(24), ui.dp(18))
@@ -162,6 +172,21 @@ class HomeView(
                 setMargins(0, ui.dp(14), 0, ui.dp(4))
             },
         )
+        val widthDp = resources.displayMetrics.widthPixels / resources.displayMetrics.density
+        if (tv && widthDp >= 900f) {
+            val body = ui.row().apply { gravity = Gravity.TOP }
+            val rows = ui.column()
+            body.addView(rows, LinearLayout.LayoutParams(0, -2, 1f))
+            body.addView(
+                HomeStatusPanel(context, ui),
+                LinearLayout.LayoutParams(ui.dp(200), -2).apply {
+                    leftMargin = ui.dp(18)
+                    topMargin = ui.dp(20)
+                },
+            )
+            addView(body, LinearLayout.LayoutParams(-1, -2))
+            content = rows
+        }
         if (snapshot.sections.none { it.id == "continue" }) renderServices(snapshot)
         for (section in snapshot.sections.sortedBy { if (it.id == "continue") 0 else 1 }) {
             title(
@@ -282,6 +307,24 @@ class HomeView(
         )
         focus.rebuild(focusRows + Pair("transport", bottom), !full)
     }
+
+    private fun headerAction(label: Int, settings: Boolean, click: () -> Unit): ImageButton =
+        ImageButton(context).apply {
+            contentDescription = context.getString(label)
+            tag = "button:$label"
+            setImageDrawable(HeaderIcon(settings, Color.WHITE))
+            setPadding(ui.dp(13), ui.dp(13), ui.dp(13), ui.dp(13))
+            setBackgroundDrawable(
+                android.graphics.drawable.StateListDrawable().apply {
+                    addState(intArrayOf(android.R.attr.state_focused), ui.box(ui.panel, ui.green))
+                    addState(intArrayOf(android.R.attr.state_pressed), ui.box(ui.panel, ui.green))
+                    addState(intArrayOf(), ui.box(Color.TRANSPARENT))
+                }
+            )
+            isFocusable = true
+            setOnClickListener { click() }
+            layoutParams = LinearLayout.LayoutParams(ui.dp(48), ui.dp(48))
+        }
 
     private fun renderServices(snapshot: HomeSnapshot) {
         title(context.getString(R.string.apps_content))

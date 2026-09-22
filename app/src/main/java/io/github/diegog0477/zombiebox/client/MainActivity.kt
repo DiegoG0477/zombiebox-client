@@ -1413,6 +1413,7 @@ class MainActivity : Activity() {
         closed = true
         events.close()
         companionController.close()
+        settingsDialogs.close()
         settingsModel.close()
         videoSurface.close()
         catalogDialogs.close()
