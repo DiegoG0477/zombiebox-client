@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Development identifier; public DIAL registry approval remains a publication gate. -->
+<whisperplay>
+    <dial>
+        <application>
+            <dialid>ZombieBox</dialid>
+            <authorizedOrigins>
+                <origin>package:io.github.diegog0477.zombiebox.cast</origin>
+            </authorizedOrigins>
+            <startAction>io.github.diegog0477.zombiebox.client.DIAL_HOME</startAction>
+        </application>
+    </dial>
+</whisperplay>

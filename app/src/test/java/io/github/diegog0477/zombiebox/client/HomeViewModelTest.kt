@@ -19,6 +19,21 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun changingProviderDoesNotLabelOldHeroAsNewProviderOnFailure() {
+        val repository = Repository()
+        val work = ArrayList<() -> Unit>()
+        val vm = HomeViewModel(repository, { work.add(it) }, { it() })
+        vm.refresh(HomeScope("plex"))
+        work.removeAt(0)()
+        repository.fail = true
+        vm.refresh(HomeScope("youtube"))
+        assertNull(vm.state.snapshot.hero)
+        work.removeAt(0)()
+        assertNull(vm.state.snapshot.hero)
+        assertNotNull(vm.state.failure)
+    }
+
+    @Test
     fun staleRequestsCannotReplaceNewSelection() {
         val work = ArrayList<() -> Unit>()
         val vm = HomeViewModel(Repository(), { work.add(it) }, { it() })

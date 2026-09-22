@@ -274,8 +274,8 @@
         %1$s wants remote control and permission to request mirroring. Compare code %2$s on both
         screens. Mirroring also requires Receive Cast to be enabled.
     </string>
-    <string name="phone_allow">Allow</string>
-    <string name="phone_deny">Deny</string>
+    <string name="phone_allow">Accept</string>
+    <string name="phone_deny">Reject</string>
     <string name="phone_forget">Revoke %1$s</string>
     <string name="inventory_title">Display and codec inventory</string>
     <string name="inventory_disclaimer">
@@ -328,4 +328,20 @@
     <string name="docked_focus">Visible D-pad focus</string>
     <string name="docked_touch">Touch controls available</string>
     <string name="docked_motto">Same device.\nA bigger life.</string>
+    <string name="home_refreshing">Refreshing your content…</string>
+    <string name="home_stale">Unable to refresh. Showing previously loaded content.</string>
+    <string name="native_dial">Native DIAL launch (experimental)</string>
+    <string name="native_dial_enable">Allow Home launch</string>
+    <string name="native_dial_scope">
+        Opens Home only when a compatible native DIAL service is present. Pairing is still required
+        for control.
+    </string>
+    <string name="native_dial_failed">
+        This device could not change the native launch setting.
+    </string>
+    <string name="phone_pair_qr_consent">
+        Scan with Zombie Cast to pair immediately. This single-use QR expires in 5 minutes. Show it
+        only to the phone you want to pair.
+    </string>
+    <string name="phone_ignore_day">Ignore requests from this device for 24 hours</string>
 </resources>

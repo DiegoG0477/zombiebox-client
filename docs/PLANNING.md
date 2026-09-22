@@ -108,3 +108,8 @@ Product milestones, physical validation and public distribution remain open.
 ## dev.33 increment
 
 Optional privileged AOSP HDMI display query/one-touch play with timeout, cooldown and local Advanced policy; quiet Home header icons and a responsive docked status sidebar. VersionCode 33. Native DIAL, broad vendor bindings and physical acceptance remain open.
+
+## dev.34 implementation checkpoint
+
+Network pairing consent/24-hour ignore, five-minute QR display, focus-scoped remote text in owned fields, guarded Whisperplay Home launch, lifecycle clock and Hero refresh/metadata improvements. APK versionCode 34; runtime/OEM acceptance remains open.
+Product exit gates and deferred physical acceptance remain open.

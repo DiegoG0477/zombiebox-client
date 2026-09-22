@@ -290,7 +290,7 @@
         %1$s solicita control remoto y permiso para solicitar mirroring. Compara el código %2$s en
         ambas pantallas. El mirroring también requiere activar Recibir Cast.
     </string>
-    <string name="phone_allow">Permitir</string>
+    <string name="phone_allow">Aceptar</string>
     <string name="phone_deny">Rechazar</string>
     <string name="phone_forget">Revocar %1$s</string>
     <string name="inventory_title">Inventario de pantallas y códecs</string>
@@ -351,4 +351,20 @@
     <string name="docked_focus">Foco D-pad visible</string>
     <string name="docked_touch">Controles táctiles disponibles</string>
     <string name="docked_motto">Mismo dispositivo.\nUna vida más grande.</string>
+    <string name="home_refreshing">Actualizando tu contenido…</string>
+    <string name="home_stale">No se pudo actualizar. Se muestra el contenido anterior.</string>
+    <string name="native_dial">Inicio DIAL nativo (experimental)</string>
+    <string name="native_dial_enable">Permitir abrir Inicio</string>
+    <string name="native_dial_scope">
+        Solo abre Inicio si existe un servicio DIAL nativo compatible. Controlar requiere
+        emparejamiento.
+    </string>
+    <string name="native_dial_failed">
+        No se pudo cambiar la opción de inicio nativo en este dispositivo.
+    </string>
+    <string name="phone_pair_qr_consent">
+        Escanea con Zombie Cast para emparejar al instante. Este QR es de un solo uso y caduca en 5
+        minutos. Muéstralo solo al teléfono que quieras vincular.
+    </string>
+    <string name="phone_ignore_day">Ignorar solicitudes de este dispositivo por 24 horas</string>
 </resources>

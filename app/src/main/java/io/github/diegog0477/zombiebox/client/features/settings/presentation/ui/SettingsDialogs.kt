@@ -327,10 +327,45 @@ class SettingsDialogs(
                     activity.getString(R.string.surface_backend),
                     activity.getString(R.string.system_media_controls),
                     activity.getString(R.string.hdmi_control),
+                    activity.getString(R.string.native_dial),
                 )
             ) { _, index ->
                 if (index == 0) actions.audioSettings()
-                else if (index == 6) {
+                else if (index == 7) {
+                    val policy =
+                        io.github.diegog0477.zombiebox.client.features.dial.platform
+                            .NativeDialPolicy
+                    AlertDialog.Builder(activity)
+                        .setTitle(R.string.native_dial)
+                        .setSingleChoiceItems(
+                            arrayOf(
+                                activity.getString(R.string.disabled),
+                                activity.getString(R.string.native_dial_enable),
+                            ),
+                            if (policy.enabled(activity)) 1 else 0,
+                        ) { dialog, choice ->
+                            try {
+                                policy.enable(activity, choice == 1)
+                            } catch (_: Exception) {
+                                Toast.makeText(
+                                        activity,
+                                        R.string.native_dial_failed,
+                                        Toast.LENGTH_LONG,
+                                    )
+                                    .show()
+                            }
+                            dialog.dismiss()
+                            if (choice == 1)
+                                Toast.makeText(
+                                        activity,
+                                        R.string.native_dial_scope,
+                                        Toast.LENGTH_LONG,
+                                    )
+                                    .show()
+                        }
+                        .setNegativeButton(R.string.close, null)
+                        .show()
+                } else if (index == 6) {
                     hdmiDialog?.dismiss()
                     hdmiDialog =
                         io.github.diegog0477.zombiebox.client.features.hdmi.presentation.ui

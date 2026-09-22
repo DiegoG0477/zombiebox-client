@@ -9,11 +9,12 @@ class GatewayCompanionRepository(private val api: GatewayApi) : CompanionReposit
 
     override fun inventory() = CompanionWire.inventory(api)
 
-    override fun decide(id: String, accept: Boolean) = CompanionWire.decide(api, id, accept)
+    override fun decide(id: String, accept: Boolean, ignore24h: Boolean) =
+        CompanionWire.decide(api, id, accept, ignore24h)
 
     override fun revoke(id: String) = CompanionWire.revoke(api, id)
 
-    override fun poll(active: Boolean) = CompanionWire.poll(api, active)
+    override fun poll(active: Boolean, inputId: String) = CompanionWire.poll(api, active, inputId)
 
     override fun acknowledge(id: String, status: String) =
         CompanionWire.acknowledge(api, id, status)

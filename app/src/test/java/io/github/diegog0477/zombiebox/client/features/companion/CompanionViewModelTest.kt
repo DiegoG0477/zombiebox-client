@@ -15,11 +15,11 @@ class CompanionViewModelTest {
 
         override fun inventory() = CompanionInventory(emptyList(), emptyList())
 
-        override fun decide(id: String, accept: Boolean) {}
+        override fun decide(id: String, accept: Boolean, ignore24h: Boolean) {}
 
         override fun revoke(id: String) {}
 
-        override fun poll(active: Boolean): List<RemoteCommand> {
+        override fun poll(active: Boolean, inputId: String): List<RemoteCommand> {
             polls++
             return listOf(RemoteCommand("a".repeat(32), "OK", "", 500))
         }

@@ -131,7 +131,9 @@ class CatalogDialogs(
         }
 
     val remoteReady: Boolean
-        get() = remoteDialog()?.let { it.currentFocus !is EditText } == true
+        get() = remoteDialog() != null
+
+    fun remoteTextField(): EditText? = remoteDialog()?.currentFocus as? EditText
 
     fun remoteKey(key: Int): Boolean {
         val dialog = remoteDialog() ?: return false

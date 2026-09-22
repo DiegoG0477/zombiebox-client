@@ -17,8 +17,9 @@ class CompanionController(
     private val model: CompanionViewModel,
     private val paired: () -> Boolean,
     private val inputReady: () -> Boolean,
-    private val command: (String, String) -> String,
+    private val command: (String, String, String, String) -> String,
     private val error: (Exception) -> Unit,
+    private val textInputId: () -> String = { "" },
 ) {
     private val handler = Handler()
     private val ui = TvWidgets(activity)
@@ -44,7 +45,13 @@ class CompanionController(
                                             invitation != null
                                     )
                                         "BUSY"
-                                    else command(value.action, value.provider)
+                                    else
+                                        command(
+                                            value.action,
+                                            value.provider,
+                                            value.text,
+                                            value.inputId,
+                                        )
                                 model.acknowledge(value.id, result)
                             }
                         },
@@ -52,6 +59,7 @@ class CompanionController(
                             if (running && consent == null && pending.isNotEmpty())
                                 showConsent(pending.first())
                         },
+                        if (consent == null && invitation == null) textInputId() else "",
                     )
                 handler.postDelayed(this, 1000)
             }
@@ -106,7 +114,7 @@ class CompanionController(
                     image.setImageBitmap(
                         BitmapFactory.decodeByteArray(value.png, 0, value.png.size)
                     )
-                information.text = activity.getString(R.string.phone_pair_code, value.code)
+                information.text = activity.getString(R.string.phone_pair_qr_consent)
                 // The invitation expires server-side; remove it locally instead of displaying stale
                 // codes.
                 handler.postDelayed(
@@ -144,25 +152,36 @@ class CompanionController(
     private fun showConsent(request: PairingRequest) {
         if (!activity.hasWindowFocus() && invitation == null) return
         var decided = false
+        val form = ui.column().apply { setPadding(ui.dp(20), ui.dp(12), ui.dp(20), ui.dp(12)) }
+        form.addView(
+            ui.text(
+                activity.getString(R.string.phone_pair_accept, request.name, request.comparison),
+                20f,
+            )
+        )
+        val ignore =
+            CheckBox(activity).apply {
+                setText(R.string.phone_ignore_day)
+                isChecked = false
+            }
+        form.addView(ignore)
         val dialog =
             AlertDialog.Builder(activity)
                 .setTitle(R.string.phone_pair_accept_title)
-                .setMessage(
-                    activity.getString(R.string.phone_pair_accept, request.name, request.comparison)
-                )
+                .setView(form)
                 .setPositiveButton(R.string.phone_allow) { _, _ ->
                     decided = true
                     model.decide(request.id, true, error)
                 }
                 .setNegativeButton(R.string.phone_deny) { _, _ ->
                     decided = true
-                    model.decide(request.id, false, error)
+                    model.decide(request.id, false, error, ignore.isChecked)
                 }
                 .create()
         consent = dialog
         dialog.setOnDismissListener {
             consent = null
-            if (!decided && !closed) model.decide(request.id, false, error)
+            if (!decided && !closed) model.decide(request.id, false, error, ignore.isChecked)
         }
         dialog.show()
     }

@@ -7,11 +7,11 @@ interface CompanionRepository {
 
     fun inventory(): CompanionInventory
 
-    fun decide(id: String, accept: Boolean)
+    fun decide(id: String, accept: Boolean, ignore24h: Boolean)
 
     fun revoke(id: String)
 
-    fun poll(active: Boolean): List<RemoteCommand>
+    fun poll(active: Boolean, inputId: String): List<RemoteCommand>
 
     fun acknowledge(id: String, status: String)
 }

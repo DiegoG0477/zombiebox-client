@@ -33,6 +33,19 @@
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config"
     >
+        <meta-data android:name="whisperplay" android:resource="@xml/whisperplay" />
+        <activity
+            android:name=".features.dial.presentation.ui.NativeDialActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.NoDisplay"
+        >
+            <intent-filter>
+                <action android:name="io.github.diegog0477.zombiebox.client.DIAL_HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <service
             android:name=".features.playback.platform.PlaybackService"
             android:exported="false"

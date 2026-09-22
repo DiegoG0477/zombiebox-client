@@ -45,6 +45,14 @@ class HomeView(
     private val focusRows = ArrayList<Pair<String, ViewGroup>>()
     private var scope = HomeScope()
     private val navigation = LinkedHashMap<String, Button>()
+    private var heroStatus: TextView? = null
+
+    fun status(loading: Boolean, failed: Boolean) {
+        heroStatus?.apply {
+            visibility = if (loading || failed) VISIBLE else GONE
+            setText(if (loading) R.string.home_refreshing else R.string.home_stale)
+        }
+    }
 
     fun selectScope(scope: HomeScope) {
         this.scope = scope
@@ -84,7 +92,13 @@ class HomeView(
         focusRows.clear()
         content = this
         removeAllViews()
-        val nav = horizontal(content, "navigation")
+        val widthDp = resources.displayMetrics.widthPixels / resources.displayMetrics.density
+        val header = ui.row()
+        val navigationFrame = ui.column()
+        header.addView(navigationFrame, LinearLayout.LayoutParams(0, -2, 1f))
+        if (widthDp >= 900f) header.addView(HomeClock(context, ui))
+        content.addView(header, LinearLayout.LayoutParams(-1, -2))
+        val nav = horizontal(navigationFrame, "navigation")
         nav.addView(
             ui.text(context.getString(R.string.brand), 25f).apply {
                 val label = android.text.SpannableString(text)
@@ -118,7 +132,7 @@ class HomeView(
         }
         nav.addView(headerAction(R.string.search, false, actions.search))
         nav.addView(headerAction(R.string.settings, true, actions.settings))
-        val heroFrame = FrameLayout(context)
+        val heroFrame = FrameLayout(context).apply { minimumHeight = ui.dp(240) }
         val hero = ui.column()
         hero.setPadding(ui.dp(24), ui.dp(18), ui.dp(24), ui.dp(18))
         hero.setBackgroundDrawable(
@@ -148,6 +162,18 @@ class HomeView(
                 maxLines = 2
             }
         )
+        if (featured != null) {
+            hero.addView(
+                ui.text(
+                        listOf(ui.serviceTitle(featured.provider), featured.subtitle)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" · "),
+                        13f,
+                        ui.muted,
+                    )
+                    .apply { maxLines = 1 }
+            )
+        }
         hero.addView(
             ui.text(
                     featured?.description?.takeIf { it.isNotEmpty() }
@@ -159,20 +185,26 @@ class HomeView(
         )
         val heroActions = ui.row()
         if (featured != null) {
-            heroActions.addView(ui.primary(R.string.play) { actions.play(featured) })
+            if (featured.playable)
+                heroActions.addView(
+                    ui.primary(
+                        if (featured.positionMs > 0) R.string.resume_content else R.string.play
+                    ) {
+                        actions.play(featured)
+                    }
+                )
             heroActions.addView(ui.button(R.string.more_info) { actions.details(featured) })
         } else heroActions.addView(ui.button(R.string.configure_services) { actions.settings() })
         if (scope.provider == "youtube")
             heroActions.addView(ui.button(R.string.youtube_receiver) { actions.youtubeReceiver() })
         focusRows.add(Pair("hero", heroActions))
         hero.addView(heroActions)
+        heroStatus = ui.text("", 12f, ui.muted).apply { visibility = GONE }
+        hero.addView(heroStatus)
         content.addView(
             heroFrame,
-            LinearLayout.LayoutParams(-1, ui.dp(240)).apply {
-                setMargins(0, ui.dp(14), 0, ui.dp(4))
-            },
+            LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, ui.dp(14), 0, ui.dp(4)) },
         )
-        val widthDp = resources.displayMetrics.widthPixels / resources.displayMetrics.density
         if (tv && widthDp >= 900f) {
             val body = ui.row().apply { gravity = Gravity.TOP }
             val rows = ui.column()

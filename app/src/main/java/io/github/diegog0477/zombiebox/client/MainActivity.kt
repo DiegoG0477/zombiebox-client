@@ -92,6 +92,7 @@ class MainActivity : Activity() {
         artworkScope = scope
         imageWorker.queue.clear()
         content.render(snapshot, homeViewModel.state.scope, isTV(), bottom, full)
+        content.status(homeViewModel.state.loading, homeViewModel.state.failure != null)
     }
 
     private val settingsModel by lazy {
@@ -151,6 +152,13 @@ class MainActivity : Activity() {
             { api.base + "\n" + api.device },
         )
     }
+    private val remoteText by lazy {
+        io.github.diegog0477.zombiebox.client.features.companion.presentation.ui.RemoteTextEntry {
+            if (!foreground) null
+            else if (hasWindowFocus()) currentFocus as? EditText
+            else catalogDialogs.remoteTextField()
+        }
+    }
     private val companionController: CompanionController by lazy {
         CompanionController(
             this,
@@ -159,6 +167,7 @@ class MainActivity : Activity() {
             { foreground && (hasWindowFocus() || catalogDialogs.remoteReady) },
             ::remoteCommand,
             ::error,
+            { remoteText.inputId() },
         )
     }
     private val settingsDialogs: SettingsDialogs by lazy {
@@ -461,8 +470,11 @@ class MainActivity : Activity() {
         receiverViewModel.observer = { plan -> receiveCast(plan) }
         handler.post(receiverTick)
         homeViewModel.observer = { state ->
-            if (!closed) content.selectScope(state.scope)
-            if (!closed && !state.loading) {
+            if (!closed) {
+                content.selectScope(state.scope)
+                content.status(state.loading, state.failure != null)
+            }
+            if (!closed && (!state.loading || state.snapshot.hero == null)) {
                 render()
                 state.failure?.let { error(it) }
             }
@@ -1232,8 +1244,14 @@ class MainActivity : Activity() {
             if (::homeViewModel.isInitialized) homeViewModel.state.scope.provider else ""
         )
 
-    private fun remoteCommand(action: String, provider: String): String {
+    private fun remoteCommand(
+        action: String,
+        provider: String,
+        text: String,
+        inputId: String,
+    ): String {
         if (!foreground) return "BUSY"
+        if (action == "TEXT") return remoteText.paste(text, inputId)
         if (!hasWindowFocus()) {
             if (!catalogDialogs.remoteReady) return "BUSY"
             val key =

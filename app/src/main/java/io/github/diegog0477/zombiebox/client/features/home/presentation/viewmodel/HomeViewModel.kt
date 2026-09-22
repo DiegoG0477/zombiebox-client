@@ -22,7 +22,13 @@ class HomeViewModel(
     fun refresh(scope: HomeScope = state.scope) {
         if (closed || (state.loading && scope == state.scope)) return
         val request = ++generation
-        state = state.copy(scope = scope, loading = true, failure = null)
+        state =
+            state.copy(
+                scope = scope,
+                loading = true,
+                failure = null,
+                snapshot = if (scope == state.scope) state.snapshot else HomeSnapshot(),
+            )
         observer?.invoke(state)
         execute {
             var value: HomeSnapshot? = null

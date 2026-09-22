@@ -18,8 +18,12 @@ class CompanionViewModel(
     fun inventory(done: (CompanionInventory) -> Unit, failed: (Exception) -> Unit) =
         tasks.run({ repository.inventory() }, done, failed)
 
-    fun decide(id: String, accept: Boolean, failed: (Exception) -> Unit) =
-        tasks.run({ repository.decide(id, accept) }, {}, failed)
+    fun decide(
+        id: String,
+        accept: Boolean,
+        failed: (Exception) -> Unit,
+        ignore24h: Boolean = false,
+    ) = tasks.run({ repository.decide(id, accept, ignore24h) }, {}, failed)
 
     fun revoke(id: String, done: () -> Unit, failed: (Exception) -> Unit) =
         tasks.run({ repository.revoke(id) }, { done() }, failed)
@@ -28,13 +32,14 @@ class CompanionViewModel(
         active: Boolean,
         commands: (List<RemoteCommand>) -> Unit,
         pending: (List<PairingRequest>) -> Unit,
+        inputId: String = "",
     ) {
         if (polling) return
         polling = true
         val started = now()
         val target = scope()
         tasks.run(
-            { Pair(repository.poll(active), repository.inventory()) },
+            { Pair(repository.poll(active, inputId), repository.inventory()) },
             { result ->
                 polling = false
                 if (scope() != target) return@run
