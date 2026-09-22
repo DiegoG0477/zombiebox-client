@@ -9,4 +9,7 @@ data class ReceiverPlan(
     val item: MediaItem? = null,
     val fullscreen: Boolean = true,
     val state: String = "PLAYING",
+    val live: Boolean = true,
+    val seekable: Boolean = false,
+    val mode: String = "DIRECT_PLAY",
 )

@@ -49,6 +49,13 @@ class ReceiverViewModel(
     private var retryAt = 0L
 
     fun playbackState(state: String) {
+        if (state == "ENDED" && lastPlan?.live == false && activeSession.isNotEmpty()) {
+            dismissed = activeSession
+            generation++
+            loading = false
+            refresh()
+            return
+        }
         if (state == "PLAYING") {
             playbackFailed = false
             attempts = 0

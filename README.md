@@ -99,3 +99,8 @@ Consumes the additive Cast request schema pin. Shared Android transport and Clie
 
 Updates the additive protocol pin only. Client source, APK version and no-native contract remain unchanged. Actual audio-only Cast playback remains a deferred physical gate.
 Product milestones and physical acceptance remain open.
+
+## dev.30 increment
+
+Incoming file plans preserve VOD mode/seekability; completion stops the file and restores interrupted playback instead of live reconnection. No native library added.
+Product milestones and deferred physical gates remain open.

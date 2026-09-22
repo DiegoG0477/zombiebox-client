@@ -49,6 +49,9 @@ class GatewayReceiverRepository(private val api: GatewayApi) : ReceiverRepositor
             item?.let { MediaItemDecoder.decodeItem(it) },
             item?.optString("kind") != "audio",
             state,
+            plan.optBoolean("live", true),
+            plan.optBoolean("seekable", false),
+            plan.optString("mode", "DIRECT_PLAY"),
         )
     }
 

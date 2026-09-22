@@ -731,7 +731,12 @@ class MainActivity : Activity() {
             is ReceiverChange.Reconnect -> {
                 updateReceiver(change.plan)
                 if (audioController.acquire())
-                    player.play(stream, 0, video = change.plan.fullscreen, seekable = false)
+                    player.play(
+                        stream,
+                        0,
+                        video = change.plan.fullscreen,
+                        seekable = change.plan.seekable,
+                    )
             }
             is ReceiverChange.Begin -> {
                 player.rememberInterruption()
@@ -747,10 +752,10 @@ class MainActivity : Activity() {
                         session,
                         stream,
                         mime,
-                        "DIRECT_PLAY",
+                        change.plan.mode,
                         0,
-                        live = true,
-                        seekable = false,
+                        live = change.plan.live,
+                        seekable = change.plan.seekable,
                     ),
                     currentItem ?: MediaItem(session, "cast", getString(R.string.screen_mirroring)),
                     emptyList(),
@@ -758,10 +763,15 @@ class MainActivity : Activity() {
                 )
                 lastReport = 0
                 lastState = ""
-                setSeekable(false)
+                setSeekable(change.plan.seekable && !change.plan.live)
                 setFullscreen(change.plan.fullscreen)
                 if (audioController.acquire())
-                    player.play(stream, 0, video = change.plan.fullscreen, seekable = false)
+                    player.play(
+                        stream,
+                        0,
+                        video = change.plan.fullscreen,
+                        seekable = change.plan.seekable,
+                    )
             }
             null -> Unit
         }
@@ -911,6 +921,9 @@ class MainActivity : Activity() {
                         mime,
                         state.item,
                         state.item?.kind != "audio",
+                        live = plan.live,
+                        seekable = plan.seekable,
+                        mode = plan.mode,
                     )
                 receiverViewModel.restore(receiver)
                 updateReceiver(receiver)

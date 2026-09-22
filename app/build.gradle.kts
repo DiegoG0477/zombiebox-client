@@ -12,8 +12,8 @@ android {
         minSdk = 9
         // Sideload-only spike. Not a Play Store release configuration.
         targetSdk = 35
-        versionCode = 24
-        versionName = "0.1.0-dev.24"
+        versionCode = 30
+        versionName = "0.1.0-dev.30"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8

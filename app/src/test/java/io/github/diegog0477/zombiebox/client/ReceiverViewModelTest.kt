@@ -109,4 +109,27 @@ class ReceiverViewModelTest {
         assertNull(model.transition(plan, previous))
         assertEquals(ReceiverChange.Restore(previous), model.transition(null, previous))
     }
+
+    @Test
+    fun completedFileStopsAndRestoresInsteadOfReconnecting() {
+        val repo = Repo()
+        val model = ReceiverViewModel(repo, { it() }, { it() })
+        val previous = PlaybackContext(MediaItem("movie", "local", "Movie"), false, true)
+        val plan =
+            ReceiverPlan(
+                "session",
+                "/v1/streams/session",
+                "video/mp4",
+                live = false,
+                seekable = true,
+            )
+        model.transition(plan, previous)
+        var delivered: ReceiverPlan? = plan
+        model.observer = { delivered = it }
+        model.playbackState("ENDED")
+        assertEquals(listOf("session"), repo.stopped)
+        assertNull(delivered)
+        assertEquals(ReceiverChange.Restore(previous), model.transition(delivered, previous))
+        assertNull(model.transition(plan, previous))
+    }
 }
