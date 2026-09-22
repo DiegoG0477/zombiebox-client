@@ -319,10 +319,26 @@ class SettingsDialogs(
                     activity.getString(R.string.automatic_recovery),
                     activity.getString(R.string.network_adaptation),
                     activity.getString(R.string.surface_backend),
+                    activity.getString(R.string.system_media_controls),
                 )
             ) { _, index ->
                 if (index == 0) actions.audioSettings()
-                else if (index == 4) {
+                else if (index == 5) {
+                    AlertDialog.Builder(activity)
+                        .setTitle(R.string.system_media_controls)
+                        .setSingleChoiceItems(
+                            arrayOf(
+                                activity.getString(R.string.disabled),
+                                activity.getString(R.string.automatic),
+                            ),
+                            if (model.preferences.systemMediaControls) 1 else 0,
+                        ) { dialog, choice ->
+                            model.systemMediaControls(choice == 1)
+                            dialog.dismiss()
+                        }
+                        .setNegativeButton(R.string.close, null)
+                        .show()
+                } else if (index == 4) {
                     val modes = arrayOf("AUTO", "SURFACE", "TEXTURE")
                     AlertDialog.Builder(activity)
                         .setTitle(R.string.surface_backend)

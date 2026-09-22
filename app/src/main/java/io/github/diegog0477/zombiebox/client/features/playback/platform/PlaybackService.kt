@@ -14,6 +14,7 @@ import io.github.diegog0477.zombiebox.client.features.mirroring.data.GatewayRece
 import io.github.diegog0477.zombiebox.client.features.playback.data.GatewayPlaybackRepository
 import io.github.diegog0477.zombiebox.client.features.playback.data.LocalPlaybackResumeRepository
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.*
+import io.github.diegog0477.zombiebox.client.features.playback.domain.policy.SystemControlCoordinator
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel.PlaybackSessionViewModel
 import io.github.diegog0477.zombiebox.shared.GatewayApi
 import java.util.concurrent.Executors
@@ -38,6 +39,8 @@ class PlaybackService : Service() {
         private set
 
     private lateinit var wake: PowerManager.WakeLock
+    private var systemToken: Any? = null
+    private lateinit var systemControls: SystemControlCoordinator
     private lateinit var notifications: PlaybackNotification
     private var notificationKey = ""
     private var closed = false
@@ -171,6 +174,7 @@ class PlaybackService : Service() {
                 { work -> handler.post { work() } },
                 resumeRepository = LocalPlaybackResumeRepository(applicationContext, api),
             )
+        systemControls = SystemControlsFactory.create(this, ::systemCommand) { systemToken = it }
         model.play = ::playPlan
         model.stopPlayer = { player.stop() }
         model.observer = { state ->
@@ -299,7 +303,43 @@ class PlaybackService : Service() {
         } else if (focus.acquire()) player.toggle()
     }
 
+    private fun systemState(state: PlaybackSession) =
+        SystemPlayback.from(
+            state,
+            state.incoming && state.item?.provider == "spotify" && receiverPlaybackState == "PAUSED",
+        )
+
+    private fun systemCommand(command: String, position: Long) {
+        if (closed) return
+        val state = systemState(model.state)
+        if (!state.allows(command)) return
+        when (command) {
+            "stop" -> model.stop()
+            "next" -> model.next()
+            "seek" -> SystemPlayback.localSeek(model.state, position)?.let { player.seekTo(it) }
+            "play",
+            "pause" -> {
+                val paused = command == "pause"
+                if (model.state.incoming && model.state.item?.provider == "spotify") {
+                    worker.execute {
+                        try {
+                            GatewayReceiverRepository(api)
+                                .command(if (paused) "pause" else "resume")
+                        } catch (_: Exception) {}
+                    }
+                } else if (!model.setRecoveryPaused(paused)) {
+                    if (paused) player.pause() else if (focus.acquire()) player.resume()
+                }
+            }
+        }
+    }
+
     private fun updateNotification(state: PlaybackSession) {
+        systemControls.update(
+            systemState(state),
+            Build.VERSION.SDK_INT >= 21 &&
+                getSharedPreferences("zombie", MODE_PRIVATE).getBoolean("systemMediaControls", true),
+        )
         if (state.plan == null) {
             if (state.loading) return
             notificationKey = ""
@@ -316,13 +356,11 @@ class PlaybackService : Service() {
                 (state.progress.state == "PLAYING" || state.progress.state == "BUFFERING")
         if (active && !wake.isHeld) wake.acquire(6 * 60 * 60 * 1000L)
         if (!active && wake.isHeld) wake.release()
-        val key = "${state.item?.title}:$active"
+        val key =
+            "${state.item?.title}:${state.item?.subtitle}:$active:${systemToken != null}:${systemState(state).canPause}:${state.canNext}"
         if (key != notificationKey) {
             notificationKey = key
-            startForeground(
-                1001,
-                notifications.build(this, state.item?.title ?: "Zombie Box", active),
-            )
+            startForeground(1001, notifications.build(this, systemState(state), systemToken))
         }
     }
 
@@ -343,6 +381,7 @@ class PlaybackService : Service() {
         handler.removeCallbacks(receiverPoll)
         listener = null
         sizeListener = null
+        systemControls.close()
         model.close()
         player.close()
         focus.release()

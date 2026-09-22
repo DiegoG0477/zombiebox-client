@@ -316,4 +316,5 @@
         Se muestran las primeras 16 entradas. Exporta el diagnóstico para ver el informe completo
         dentro de sus límites.
     </string>
+    <string name="system_media_controls">Controles multimedia del sistema (Android 5+)</string>
 </resources>

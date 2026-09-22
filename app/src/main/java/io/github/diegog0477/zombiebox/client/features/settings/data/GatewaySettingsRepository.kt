@@ -21,6 +21,7 @@ class GatewaySettingsRepository(context: Context, private val api: GatewayApi) :
             prefs.getString("playbackMode", "AUTO") ?: "AUTO",
             prefs.getBoolean("automaticRecovery", true),
             prefs.getBoolean("networkAdaptation", true),
+            prefs.getBoolean("systemMediaControls", true),
             prefs.getString("surfaceBackend", "AUTO") ?: "AUTO",
         )
 
@@ -32,6 +33,7 @@ class GatewaySettingsRepository(context: Context, private val api: GatewayApi) :
             .putString("playbackMode", value.playbackMode)
             .putBoolean("automaticRecovery", value.automaticRecovery)
             .putBoolean("networkAdaptation", value.networkAdaptation)
+            .putBoolean("systemMediaControls", value.systemMediaControls)
             .putString("surfaceBackend", value.surfaceBackend)
             .commit()
     }

@@ -36,6 +36,8 @@ class SettingsViewModel(
         update(preferences.copy(networkAdaptation = enabled))
     }
 
+    fun systemMediaControls(value: Boolean) = update(preferences.copy(systemMediaControls = value))
+
     fun automaticRecovery(value: Boolean) = update(preferences.copy(automaticRecovery = value))
 
     private fun update(value: ClientPreferences) {

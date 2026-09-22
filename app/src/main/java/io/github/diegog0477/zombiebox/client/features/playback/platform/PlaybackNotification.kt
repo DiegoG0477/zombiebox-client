@@ -9,9 +9,10 @@ import android.os.Build
 import android.widget.RemoteViews
 import io.github.diegog0477.zombiebox.client.MainActivity
 import io.github.diegog0477.zombiebox.client.R
+import io.github.diegog0477.zombiebox.client.features.playback.domain.model.SystemPlayback
 
 interface PlaybackNotification {
-    fun build(context: Context, title: String, playing: Boolean): Notification
+    fun build(context: Context, state: SystemPlayback, token: Any? = null): Notification
 }
 
 object PlaybackNotifications {
@@ -29,6 +30,13 @@ object PlaybackNotifications {
         if (Build.VERSION.SDK_INT >= 26) {
             return Class.forName(
                     "io.github.diegog0477.zombiebox.client.features.playback.platform.Api26PlaybackNotification"
+                )
+                .getConstructor()
+                .newInstance() as PlaybackNotification
+        }
+        if (Build.VERSION.SDK_INT >= 21) {
+            return Class.forName(
+                    "io.github.diegog0477.zombiebox.client.features.playback.platform.Api21PlaybackNotification"
                 )
                 .getConstructor()
                 .newInstance() as PlaybackNotification
@@ -58,9 +66,17 @@ object PlaybackNotifications {
 
 @Suppress("DEPRECATION")
 class LegacyPlaybackNotification : PlaybackNotification {
-    override fun build(context: Context, title: String, playing: Boolean): Notification {
+    override fun build(context: Context, state: SystemPlayback, token: Any?): Notification {
         val views = RemoteViews(context.packageName, R.layout.notification_playback)
-        views.setTextViewText(R.id.notification_title, title)
+        views.setTextViewText(R.id.notification_title, state.title)
+        views.setViewVisibility(
+            R.id.notification_toggle,
+            if (state.canPause) android.view.View.VISIBLE else android.view.View.GONE,
+        )
+        views.setViewVisibility(
+            R.id.notification_next,
+            if (state.canNext) android.view.View.VISIBLE else android.view.View.GONE,
+        )
         views.setTextViewText(R.id.notification_toggle, context.getString(R.string.play_pause))
         views.setOnClickPendingIntent(
             R.id.notification_toggle,
@@ -74,7 +90,7 @@ class LegacyPlaybackNotification : PlaybackNotification {
             R.id.notification_stop,
             PlaybackNotifications.action(context, "stop"),
         )
-        return Notification(R.drawable.ic_launcher, title, System.currentTimeMillis()).apply {
+        return Notification(R.drawable.ic_launcher, state.title, System.currentTimeMillis()).apply {
             contentView = views
             contentIntent = PlaybackNotifications.open(context)
             flags = Notification.FLAG_ONGOING_EVENT or Notification.FLAG_ONLY_ALERT_ONCE

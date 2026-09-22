@@ -99,3 +99,8 @@ Product milestones and deferred physical gates remain open.
 
 Isolated API16/21 codec-role/profile inventory, API17 logical displays, API23 output modes and API29 acceleration declarations; bounded EN/ES native inventory UI. Inventory remains separate from functional playback evidence.
 Product milestone and physical/public distribution gates remain open.
+
+## dev.32 increment
+
+Adds optional API21 native MediaSession/MediaStyle controls, semantic action availability, VOD timeline seek and operation-error fallback with persistent cooldown. Advanced can disable integration. No DIAL/CEC or Bluetooth/HDMI physical qualification is claimed.
+Product milestones, physical validation and public distribution remain open.
