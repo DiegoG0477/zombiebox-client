@@ -104,9 +104,15 @@ class TvWidgets(
 
     fun primary(label: Int, click: () -> Unit) =
         button(label, click).apply {
-            setTextColor(this@TvWidgets.background)
+            setTextColor(
+                ColorStateList(
+                    arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
+                    intArrayOf(muted, this@TvWidgets.background),
+                )
+            )
             setBackgroundDrawable(
                 StateListDrawable().apply {
+                    addState(intArrayOf(-android.R.attr.state_enabled), box(panel))
                     addState(intArrayOf(android.R.attr.state_focused), box(accent(), Color.WHITE))
                     addState(intArrayOf(android.R.attr.state_pressed), box(accent(), Color.WHITE))
                     addState(intArrayOf(), box(accent()))
