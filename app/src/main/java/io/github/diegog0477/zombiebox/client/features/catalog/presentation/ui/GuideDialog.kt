@@ -6,6 +6,7 @@ import android.os.Handler
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
 import android.widget.BaseAdapter
 import android.widget.LinearLayout
 import android.widget.ListView
@@ -23,13 +24,38 @@ class GuideDialog(
     private val activity: Activity,
     private var channels: List<MediaItem>,
     private val play: (MediaItem) -> Unit,
-    private val reload: (((List<MediaItem>) -> Unit) -> Unit)? = null,
+    private val reload: (((List<MediaItem>) -> Unit, () -> Unit) -> Unit)? = null,
+    private val previousPage: (() -> Unit)? = null,
+    private val nextPage: (() -> Unit)? = null,
+    private val dismissed: () -> Unit = {},
 ) {
     private val handler = Handler()
     private var refreshing = false
+    private var paging = false
+    private var pageStatus: TextView? = null
+    private val pageButtons = ArrayList<View>()
+
+    fun pageFailed() {
+        if (!visible) return
+        paging = false
+        pageButtons.forEach { it.isEnabled = true }
+        pageStatus?.setText(R.string.guide_page_failed)
+    }
+
+    private fun changePage(action: () -> Unit) {
+        if (refreshing || paging) return
+        paging = true
+        pageButtons.forEach { it.isEnabled = false }
+        pageStatus?.setText(R.string.loading)
+        action()
+    }
+
     private var tick: Runnable? = null
     private var dialog: AlertDialog? = null
     private var capture: () -> CatalogOverlay = { CatalogOverlay() }
+    val activeDialog: AlertDialog?
+        get() = dialog?.takeIf { it.isShowing }
+
     val visible: Boolean
         get() = dialog?.isShowing == true
 
@@ -48,6 +74,20 @@ class GuideDialog(
         if (saved.guideTime > 0) model.restore(saved.guideTime)
         val header = ui.text("", 18f)
         val list = ListView(activity)
+        var selectedChannel = saved.selectedChannel
+        list.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(
+                    parent: AdapterView<*>?,
+                    view: View?,
+                    position: Int,
+                    id: Long,
+                ) {
+                    channels.getOrNull(position)?.let { selectedChannel = it.id }
+                }
+
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
         val adapter =
             object : BaseAdapter() {
                 override fun getCount() = channels.size
@@ -96,7 +136,25 @@ class GuideDialog(
                 if (channels.any { it.guideState == "STALE" })
                     addView(ui.text(activity.getString(R.string.guide_stale), 13f, ui.muted))
                 addView(ui.text(activity.getString(R.string.guide_help), 13f, ui.muted))
+                pageStatus = ui.text("", 13f, ui.muted)
+                addView(pageStatus)
                 addView(list, LinearLayout.LayoutParams(-1, ui.dp(320)))
+                addView(
+                    ui.row().apply {
+                        previousPage?.let { action ->
+                            addView(
+                                ui.button(R.string.guide_previous_channels) { changePage(action) }
+                                    .also { pageButtons.add(it) }
+                            )
+                        }
+                        nextPage?.let { action ->
+                            addView(
+                                ui.button(R.string.guide_next_channels) { changePage(action) }
+                                    .also { pageButtons.add(it) }
+                            )
+                        }
+                    }
+                )
                 addView(
                     ui.row().apply {
                         addView(ui.button(R.string.guide_earlier) { shift(-1800) })
@@ -120,35 +178,50 @@ class GuideDialog(
             CatalogOverlay(
                 "guide",
                 guideTime = model.time,
-                selectedChannel = channels.getOrNull(list.selectedItemPosition)?.id ?: "",
+                selectedChannel =
+                    selectedChannel.ifEmpty {
+                        channels.getOrNull(list.firstVisiblePosition)?.id ?: ""
+                    },
             )
         }
         tick =
             object : Runnable {
                 override fun run() {
                     if (dialog !== current || !current.isShowing) return
-                    if (!refreshing && reload != null) {
+                    if (!refreshing && !paging && reload != null) {
                         refreshing = true
-                        reload.invoke { fresh ->
-                            refreshing = false
-                            if (dialog === current && current.isShowing) {
-                                val selectedID = channels.getOrNull(list.selectedItemPosition)?.id
-                                val time = model.time
-                                channels = fresh
-                                model = GuideViewModel(channels, System.currentTimeMillis() / 1000)
-                                model.restore(time)
-                                shift(0)
-                                channels
-                                    .indexOfFirst { it.id == selectedID }
-                                    .takeIf { it >= 0 }
-                                    ?.let { list.setSelection(it) }
-                            }
-                        }
+                        reload.invoke(
+                            { fresh ->
+                                refreshing = false
+                                if (dialog === current && current.isShowing) {
+                                    val selectedID = selectedChannel
+                                    val time = model.time
+                                    channels = fresh
+                                    model =
+                                        GuideViewModel(channels, System.currentTimeMillis() / 1000)
+                                    model.restore(time)
+                                    shift(0)
+                                    pageStatus?.text = ""
+                                    channels
+                                        .indexOfFirst { it.id == selectedID }
+                                        .takeIf { it >= 0 }
+                                        ?.let { list.setSelection(it) }
+                                }
+                            },
+                            {
+                                refreshing = false
+                                if (dialog === current && current.isShowing)
+                                    pageStatus?.setText(R.string.guide_stale)
+                            },
+                        )
                     }
                     handler.postDelayed(this, 60000)
                 }
             }
-        current.setOnDismissListener { tick?.let { handler.removeCallbacks(it) } }
+        current.setOnDismissListener {
+            tick?.let { handler.removeCallbacks(it) }
+            dismissed()
+        }
         current.show()
         tick?.let { handler.postDelayed(it, 60000) }
         val selected = channels.indexOfFirst { it.id == saved.selectedChannel }

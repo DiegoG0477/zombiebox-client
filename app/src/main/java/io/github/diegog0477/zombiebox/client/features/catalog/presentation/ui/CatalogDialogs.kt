@@ -10,6 +10,7 @@ import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.Catal
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogLocation
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogOverlay
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogScreen
+import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogViewport
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.SearchBookmark
 import io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel.CatalogViewModel
 import io.github.diegog0477.zombiebox.client.features.catalog.presentation.viewmodel.SearchViewModel
@@ -92,7 +93,9 @@ class CatalogDialogs(
     private var captureViewport: (() -> Unit)? = null
 
     fun snapshot(): List<CatalogBookmark> {
-        captureViewport?.invoke()
+        if (guide?.visible == true) {
+            model.rememberViewport(CatalogViewport(selectedId = guide!!.snapshot().selectedChannel))
+        } else captureViewport?.invoke()
         return model.bookmarks()
     }
 
@@ -152,7 +155,7 @@ class CatalogDialogs(
     // Only these owned catalog windows accept companion input. Consent/settings/system
     // dialogs are deliberately absent, and focus must belong to the selected window.
     private fun remoteDialog(): AlertDialog? =
-        listOf(overlay, detail, browser).firstOrNull {
+        listOf(guide?.activeDialog, overlay, detail, browser).firstOrNull {
             it?.isShowing == true && it.window?.decorView?.hasWindowFocus() == true
         }
 
@@ -306,22 +309,45 @@ class CatalogDialogs(
 
     private fun openGuide(screen: CatalogScreen, saved: CatalogOverlay = CatalogOverlay()) {
         guide?.close()
-        guide =
+        lateinit var currentGuide: GuideDialog
+        fun page(next: Boolean) {
+            val bookmark = currentGuide.snapshot()
+            model.rememberViewport(CatalogViewport(selectedId = bookmark.selectedChannel))
+            val done: (CatalogScreen) -> Unit = { loaded ->
+                if (guide === currentGuide && currentGuide.visible) {
+                    showPage(loaded)
+                    openGuide(
+                        loaded,
+                        currentGuide.snapshot().copy(selectedChannel = loaded.viewport.selectedId),
+                    )
+                }
+            }
+            val failed: (Exception) -> Unit = { currentGuide.pageFailed() }
+            if (next) model.next(done, failed)
+            else if (!model.previousPage(done, failed)) currentGuide.pageFailed()
+        }
+        currentGuide =
             GuideDialog(
-                    activity,
-                    screen.page.items,
-                    { item ->
-                        browser?.dismiss()
-                        play(item)
-                    },
-                    { updated ->
-                        model.refresh(
-                            { current -> updated(current.page.items) },
-                            { updated(model.screen?.page?.items ?: emptyList()) },
-                        )
-                    },
-                )
-                .also { it.show(saved) }
+                activity,
+                screen.page.items,
+                { item ->
+                    model.rememberViewport(
+                        io.github.diegog0477.zombiebox.client.features.catalog.domain.model
+                            .CatalogViewport(selectedId = item.id)
+                    )
+                    browser?.dismiss()
+                    play(item)
+                },
+                { updated, failed ->
+                    model.refresh({ current -> updated(current.page.items) }, { failed() })
+                },
+                previousPage = if (model.canPreviousPage) ({ page(false) }) else null,
+                nextPage =
+                    if (screen.page.nextOffset > screen.location.offset) ({ page(true) }) else null,
+                dismissed = { if (guide === currentGuide) model.cancelPending() },
+            )
+        guide = currentGuide
+        currentGuide.show(saved)
     }
 
     private fun searchPage(screen: CatalogScreen, draft: String = screen.location.query) {

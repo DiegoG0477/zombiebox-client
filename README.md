@@ -150,3 +150,7 @@ Dev.39: bounded search return bookmarks, one-minute result reuse, explicit provi
 Service-owned idle Spotify/AirPlay/Cast reception, fenced handoff/restoration and bounded live recovery. VersionCode40; no native libraries. Physical background/OEM acceptance remains open. Product milestones remain open.
 
 [Background media reception](docs/background-reception.md).
+
+## dev.41 guide and audio selection increment
+
+Paged IPTV guide with scoped history/focus, failure retry, late-load fencing and owned Cast Remote navigation. VersionCode41. See docs/guide-navigation.md. Product and physical gates remain open.

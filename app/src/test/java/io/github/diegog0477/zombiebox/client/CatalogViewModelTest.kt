@@ -129,4 +129,64 @@ class CatalogViewModelTest {
         assertEquals("", model.screen!!.location.parent)
         assertFalse(model.canBack)
     }
+
+    @Test
+    fun guidePagesKeepScopeAndReturnFocusWithoutLeavingTheFolder() {
+        val repository = Repository(folder)
+        val model = CatalogViewModel(repository, ScreenTasks({ it() }, { it() }))
+        model.open("iptv", "sports", {}, { throw it })
+        model.rememberViewport(CatalogViewport(selectedId = "channel-7"))
+        model.next({}, { throw it })
+        assertTrue(model.canPreviousPage)
+        assertTrue(model.previousPage({}, { throw it }))
+        assertEquals("channel-7", model.screen!!.viewport.selectedId)
+        assertEquals("sports", model.screen!!.location.query)
+        assertFalse(model.previousPage({}, { throw it }))
+        model.enter(folder, {}, { throw it })
+        assertFalse(model.canPreviousPage)
+        assertFalse(model.previousPage({}, { throw it }))
+        assertEquals("opaque", model.screen!!.location.parent)
+    }
+
+    @Test
+    fun restoredGuidePageFailureKeepsCurrentPageAndHistoryForRetry() {
+        val repository = Repository(folder)
+        val model = CatalogViewModel(repository, ScreenTasks({ it() }, { it() }))
+        model.restore(
+            listOf(
+                CatalogBookmark(CatalogLocation("iptv"), CatalogViewport(selectedId = "first")),
+                CatalogBookmark(
+                    CatalogLocation("iptv", offset = 80),
+                    CatalogViewport(selectedId = "second"),
+                ),
+            ),
+            {},
+            { throw it },
+        )
+        repository.fail = true
+        var failures = 0
+        model.previousPage({}, { failures++ })
+        assertEquals(1, failures)
+        assertEquals(80, model.screen!!.location.offset)
+        assertEquals(2, model.bookmarks().size)
+        repository.fail = false
+        model.previousPage({}, { throw it })
+        assertEquals(0, model.screen!!.location.offset)
+        assertEquals("first", model.screen!!.viewport.selectedId)
+    }
+
+    @Test
+    fun closingGuideFencesAnInFlightPageChange() {
+        val repository = Repository(folder)
+        val work = ArrayList<() -> Unit>()
+        val model = CatalogViewModel(repository, ScreenTasks({ work.add(it) }, { it() }))
+        model.open("iptv", "", {}, { throw it })
+        work.removeAt(0)()
+        var displayed = false
+        model.next({ displayed = true }, { throw it })
+        model.cancelPending()
+        work.removeAt(0)()
+        assertFalse(displayed)
+        assertEquals(0, model.screen!!.location.offset)
+    }
 }

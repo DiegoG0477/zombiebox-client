@@ -15,6 +15,32 @@ class CatalogViewModel(private val repository: CatalogRepository, private val ta
     val canBack: Boolean
         get() = history.isNotEmpty()
 
+    val canPreviousPage: Boolean
+        get() {
+            val current = screen?.location ?: return false
+            val previous = history.lastOrNull()?.location ?: return false
+            return previous.offset < current.offset &&
+                previous.copy(offset = current.offset) == current
+        }
+
+    fun previousPage(done: (CatalogScreen) -> Unit, failed: (Exception) -> Unit): Boolean {
+        if (!canPreviousPage) return false
+        val target = history.last()
+        if (target.page.items.isNotEmpty()) return back(done, failed)
+        load(
+            target.location,
+            false,
+            { loaded ->
+                history.removeAt(history.lastIndex)
+                val restored = loaded.copy(viewport = target.viewport)
+                screen = restored
+                done(restored)
+            },
+            failed,
+        )
+        return true
+    }
+
     fun open(
         provider: String,
         query: String,

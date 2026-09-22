@@ -380,4 +380,9 @@
         Escuchando receptores habilitados. Detener termina la recepción en segundo plano hasta que
         abras el Client de nuevo.
     </string>
+    <string name="guide_previous_channels">Canales anteriores</string>
+    <string name="guide_next_channels">Más canales</string>
+    <string name="guide_page_failed">
+        No se pudieron cargar los canales. Intenta de nuevo con el botón de página.
+    </string>
 </resources>

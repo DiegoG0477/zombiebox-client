@@ -353,4 +353,7 @@
     <string name="receiver_background_listening">
         Listening for enabled receivers. Stop ends background reception until you reopen the Client.
     </string>
+    <string name="guide_previous_channels">Previous channels</string>
+    <string name="guide_next_channels">More channels</string>
+    <string name="guide_page_failed">Unable to load channels. Try the page button again.</string>
 </resources>
