@@ -23,7 +23,7 @@ import java.util.Date
 class GuideDialog(
     private val activity: Activity,
     private var channels: List<MediaItem>,
-    private val play: (MediaItem) -> Unit,
+    private val play: (MediaItem, CatalogOverlay) -> Unit,
     private val reload: (((List<MediaItem>) -> Unit, () -> Unit) -> Unit)? = null,
     private val previousPage: (() -> Unit)? = null,
     private val nextPage: (() -> Unit)? = null,
@@ -169,8 +169,10 @@ class GuideDialog(
                 .setNegativeButton(R.string.close, null)
                 .create()
         list.setOnItemClickListener { _, _, index, _ ->
+            val item = channels[index]
+            val returnPoint = snapshot().copy(selectedChannel = item.id)
             current.dismiss()
-            play(channels[index])
+            play(item, returnPoint)
         }
         shift(0)
         dialog = current

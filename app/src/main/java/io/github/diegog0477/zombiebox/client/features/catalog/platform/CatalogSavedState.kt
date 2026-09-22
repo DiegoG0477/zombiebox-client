@@ -5,6 +5,22 @@ import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.*
 
 /** Small semantic bookmarks only; never bitmaps, DTOs, tokens or full pages in Binder. */
 object CatalogSavedState {
+    fun writePlaybackReturn(target: Bundle, value: CatalogPlaybackReturn?) {
+        if (value == null) return
+        target.putBundle(
+            "playbackReturn",
+            Bundle().apply {
+                writeOverlay(this, value.overlay)
+                putString("detail", value.detailId.take(200))
+            },
+        )
+    }
+
+    fun readPlaybackReturn(source: Bundle?): CatalogPlaybackReturn? =
+        source?.getBundle("playbackReturn")?.let {
+            CatalogPlaybackReturn(readOverlay(it), (it.getString("detail") ?: "").take(200))
+        }
+
     fun writeSearch(target: Bundle, value: SearchBookmark?) {
         if (value == null) return
         target.putBundle(

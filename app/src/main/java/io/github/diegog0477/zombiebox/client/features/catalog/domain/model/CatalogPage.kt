@@ -34,3 +34,9 @@ data class CatalogOverlay(
     val guideTime: Long = 0,
     val selectedChannel: String = "",
 )
+
+/** Playback returns to an owned catalog surface, never a retained window or media DTO. */
+data class CatalogPlaybackReturn(
+    val overlay: CatalogOverlay = CatalogOverlay(),
+    val detailId: String = "",
+)

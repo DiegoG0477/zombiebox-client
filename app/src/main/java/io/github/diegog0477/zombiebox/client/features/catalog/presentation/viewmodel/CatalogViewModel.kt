@@ -12,6 +12,31 @@ class CatalogViewModel(private val repository: CatalogRepository, private val ta
     var screen: CatalogScreen? = null
         private set
 
+    var playbackReturn: CatalogPlaybackReturn? = null
+        private set
+
+    fun rememberPlaybackReturn(value: CatalogPlaybackReturn?) {
+        playbackReturn =
+            value?.copy(
+                overlay =
+                    value.overlay.copy(
+                        kind =
+                            value.overlay.kind.takeIf { it == "guide" || it == "home_search" }
+                                ?: "",
+                        draft = value.overlay.draft.take(100),
+                        guideTime = value.overlay.guideTime.coerceAtLeast(0),
+                        selectedChannel = value.overlay.selectedChannel.take(200),
+                    ),
+                detailId = value.detailId.take(200),
+            )
+    }
+
+    fun takePlaybackReturn(): CatalogPlaybackReturn? {
+        val target = playbackReturn
+        playbackReturn = null
+        return target
+    }
+
     val canBack: Boolean
         get() = history.isNotEmpty()
 
@@ -47,8 +72,7 @@ class CatalogViewModel(private val repository: CatalogRepository, private val ta
         done: (CatalogScreen) -> Unit,
         failed: (Exception) -> Unit,
     ) {
-        history.clear()
-        screen = null
+        dismiss()
         load(CatalogLocation(provider, query = query), false, done, failed)
     }
 
@@ -57,8 +81,7 @@ class CatalogViewModel(private val repository: CatalogRepository, private val ta
         done: (CatalogScreen) -> Unit,
         failed: (Exception) -> Unit,
     ) {
-        history.clear()
-        screen = null
+        dismiss()
         load(location, false, done, failed)
     }
 
@@ -106,7 +129,9 @@ class CatalogViewModel(private val repository: CatalogRepository, private val ta
         done: (CatalogScreen) -> Unit,
         failed: (Exception) -> Unit,
     ) {
+        val returnPoint = playbackReturn
         dismiss()
+        playbackReturn = returnPoint
         val path = bookmarks.takeLast(25)
         if (path.isEmpty()) return
         history.addAll(
@@ -114,7 +139,9 @@ class CatalogViewModel(private val repository: CatalogRepository, private val ta
                 CatalogScreen(it.location, CatalogPage(emptyList(), -1), it.viewport)
             }
         )
-        restorePage(path.last(), done, failed)
+        val current = path.last()
+        screen = CatalogScreen(current.location, CatalogPage(emptyList(), -1), current.viewport)
+        restorePage(current, done, failed)
     }
 
     private fun restorePage(
@@ -176,6 +203,7 @@ class CatalogViewModel(private val repository: CatalogRepository, private val ta
     }
 
     fun dismiss() {
+        playbackReturn = null
         generation++
         history.clear()
         screen = null

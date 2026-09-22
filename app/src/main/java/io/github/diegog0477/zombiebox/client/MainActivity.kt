@@ -226,13 +226,13 @@ class MainActivity : Activity() {
             catalogModel,
             { homeViewModel.state.scope.query },
             searchModel,
-            { startPlayback(it) },
+            { startPlayback(it, catalogOrigin = true) },
             ::error,
             { item ->
                 if (item.imageUrl.isEmpty()) null
                 else ArtworkImageView(this, artworkDecoder).apply { bind(artwork, item.imageUrl) }
             },
-            { item -> startPlayback(item, positionMs = 0) },
+            { item -> startPlayback(item, positionMs = 0, catalogOrigin = true) },
         )
     }
 
@@ -361,7 +361,10 @@ class MainActivity : Activity() {
                 artwork,
                 artworkDecoder,
                 HomeActions(
-                    navigate = { provider, query -> refresh(provider, query) },
+                    navigate = { provider, query ->
+                        catalogModel.rememberPlaybackReturn(null)
+                        refresh(provider, query)
+                    },
                     play = { item -> startPlayback(item) },
                     details = { item -> details(item) },
                     settings = { settings() },
@@ -382,9 +385,7 @@ class MainActivity : Activity() {
         now = ui.text(getString(R.string.nothing_playing), 16f)
         bottom.addView(now, LinearLayout.LayoutParams(0, -2, 1f))
         bottom.addView(ui.button(R.string.play_pause) { togglePlayback() })
-        bottom.addView(
-            ui.button(R.string.expand) { if (session.isNotEmpty()) setFullscreen(!full) }
-        )
+        bottom.addView(ui.button(R.string.expand) { if (session.isNotEmpty()) togglePlayerSize() })
         shell.addView(bottom)
         createPlayer()
         player =
@@ -473,6 +474,7 @@ class MainActivity : Activity() {
                     CatalogSavedState.readOverlay(state),
                     CatalogSavedState.readSearch(state),
                 )
+                catalogModel.rememberPlaybackReturn(CatalogSavedState.readPlaybackReturn(state))
             }
         } else handler.post { pairing() }
         events.start({ companionController.wake() }) { changed ->
@@ -679,7 +681,12 @@ class MainActivity : Activity() {
                 if (!player.restoreInterrupted())
                     change.previous?.let { previous ->
                         previous.item?.let {
-                            startPlayback(it, previous.fullscreen, previous.playing)
+                            startPlayback(
+                                it,
+                                previous.fullscreen,
+                                previous.playing,
+                                catalogOrigin = true,
+                            )
                         }
                     }
             }
@@ -814,7 +821,7 @@ class MainActivity : Activity() {
         controls.addView(forward)
         controls.addView(ui.button(R.string.audio_tracks) { showTracks("audio") })
         controls.addView(ui.button(R.string.subtitles) { showTracks("subtitle") })
-        controls.addView(ui.button(R.string.minimize) { setFullscreen(!full) })
+        controls.addView(ui.button(R.string.minimize) { togglePlayerSize() })
         nextButton = ui.button(R.string.next_item) { player.next() }
         nextButton.isEnabled = false
         controls.addView(nextButton)
@@ -966,7 +973,9 @@ class MainActivity : Activity() {
         fullscreen: Boolean = true,
         autoplay: Boolean = true,
         positionMs: Int? = null,
+        catalogOrigin: Boolean = false,
     ) {
+        if (!catalogOrigin) catalogModel.rememberPlaybackReturn(null)
         if (universalReception) player.standbyYouTube() else player.disableYouTube()
         val catalog =
             catalogModel.screen?.takeIf { page -> page.page.items.any { it.id == item.id } }
@@ -1100,6 +1109,12 @@ class MainActivity : Activity() {
         )
     }
 
+    private fun togglePlayerSize() {
+        val returning = full
+        setFullscreen(!full)
+        if (returning) catalogDialogs.resumePlayback()
+    }
+
     private fun setFullscreen(value: Boolean) {
         full = value
         playerLayer.visibility = View.VISIBLE
@@ -1190,11 +1205,13 @@ class MainActivity : Activity() {
         if (currentFocus is EditText) return "BUSY"
         when (action) {
             "HOME" -> {
+                catalogModel.rememberPlaybackReturn(null)
                 if (full) setFullscreen(false)
                 refresh("", "")
                 return "EXECUTED"
             }
             "PROVIDER" -> {
+                catalogModel.rememberPlaybackReturn(null)
                 if (full) setFullscreen(false)
                 refresh(provider, "")
                 return "EXECUTED"
@@ -1296,7 +1313,7 @@ class MainActivity : Activity() {
     }
 
     override fun onBackPressed() {
-        if (full) setFullscreen(false)
+        if (full) togglePlayerSize()
         else if (session.isNotEmpty()) {
             stopPlayback()
             catalogDialogs.resume()
@@ -1352,6 +1369,7 @@ class MainActivity : Activity() {
         CatalogSavedState.write(outState, catalogDialogs.snapshot())
         CatalogSavedState.writeOverlay(outState, catalogDialogs.overlaySnapshot())
         CatalogSavedState.writeSearch(outState, catalogDialogs.searchSnapshot())
+        CatalogSavedState.writePlaybackReturn(outState, catalogModel.playbackReturn)
         outState.putString("catalogDetail", catalogDialogs.detailItemId)
         outState.putBoolean("catalogVisible", catalogDialogs.visible)
         super.onSaveInstanceState(outState)

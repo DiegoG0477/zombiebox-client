@@ -9,6 +9,7 @@ import io.github.diegog0477.zombiebox.client.core.ui.TvWidgets
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogBookmark
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogLocation
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogOverlay
+import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogPlaybackReturn
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogScreen
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.CatalogViewport
 import io.github.diegog0477.zombiebox.client.features.catalog.domain.model.SearchBookmark
@@ -42,6 +43,7 @@ class CatalogDialogs(
             ?: if (overlay?.isShowing == true) overlayCapture() else CatalogOverlay()
 
     fun search(draft: String = searchModel.state.query.ifEmpty { query() }) {
+        guide?.close()
         overlay?.dismiss()
         browser?.dismiss()
         detail?.dismiss()
@@ -121,18 +123,7 @@ class CatalogDialogs(
                 path,
                 { screen ->
                     if (display) {
-                        showPage(screen)
-                        when (savedOverlay.kind) {
-                            "home_search" -> search(savedOverlay.draft)
-                            "provider_search" -> searchPage(screen, savedOverlay.draft)
-                            "guide" -> openGuide(screen, savedOverlay)
-                        }
-                        screen.page.items
-                            .firstOrNull { it.id == detailId }
-                            ?.let { item ->
-                                browser?.dismiss()
-                                showDetails(item) { model.screen?.let(::showPage) }
-                            }
+                        showReturn(screen, CatalogPlaybackReturn(savedOverlay, detailId))
                     }
                 },
                 { failure -> if (display) loadFailed(failure) },
@@ -141,7 +132,48 @@ class CatalogDialogs(
         if (display) load(work) else work()
     }
 
+    /** Consumed only by explicit Back/minimize, never by receiver or lifecycle callbacks. */
+    fun resumePlayback(): Boolean {
+        val target = model.takePlaybackReturn() ?: return false
+        val current = model.screen
+        if (current == null) {
+            if (!searchOrigin) return false
+            search(searchModel.bookmark.query)
+            return true
+        }
+        if (current.page.items.isEmpty()) {
+            val path = model.bookmarks()
+            load {
+                model.restore(
+                    path,
+                    { showReturn(it, target) },
+                    { failure ->
+                        model.rememberPlaybackReturn(target)
+                        loadFailed(failure)
+                    },
+                )
+            }
+        } else showReturn(current, target)
+        return true
+    }
+
+    private fun showReturn(screen: CatalogScreen, target: CatalogPlaybackReturn) {
+        showPage(screen)
+        when (target.overlay.kind) {
+            "home_search" -> search(target.overlay.draft)
+            "provider_search" -> searchPage(screen, target.overlay.draft)
+            "guide" -> openGuide(screen, target.overlay)
+        }
+        screen.page.items
+            .firstOrNull { it.id == target.detailId }
+            ?.let { item ->
+                browser?.dismiss()
+                showDetails(item) { model.screen?.let(::showPage) }
+            }
+    }
+
     fun resume(): Boolean {
+        if (resumePlayback()) return true
         val current = model.screen
         if (current == null) {
             if (!searchOrigin) return false
@@ -174,6 +206,7 @@ class CatalogDialogs(
     }
 
     fun close() {
+        model.rememberPlaybackReturn(null)
         searchOrigin = false
         overlay?.dismiss()
         overlay = null
@@ -330,11 +363,10 @@ class CatalogDialogs(
             GuideDialog(
                 activity,
                 screen.page.items,
-                { item ->
-                    model.rememberViewport(
-                        io.github.diegog0477.zombiebox.client.features.catalog.domain.model
-                            .CatalogViewport(selectedId = item.id)
-                    )
+                { item, returnPoint ->
+                    model.rememberViewport(CatalogViewport(selectedId = item.id))
+                    captureViewport = null
+                    model.rememberPlaybackReturn(CatalogPlaybackReturn(returnPoint))
                     browser?.dismiss()
                     play(item)
                 },
@@ -379,13 +411,36 @@ class CatalogDialogs(
                 }
     }
 
-    fun details(item: MediaItem) = showDetails(item, null)
+    fun details(item: MediaItem) {
+        model.dismiss()
+        searchOrigin = false
+        showDetails(item, null)
+    }
+
+    private fun playDetails(item: MediaItem, fromBeginning: Boolean) {
+        val target =
+            when {
+                model.screen != null -> CatalogPlaybackReturn(detailId = item.id)
+                searchOrigin ->
+                    CatalogPlaybackReturn(CatalogOverlay("home_search", searchModel.bookmark.query))
+                else -> null
+            }
+        model.rememberPlaybackReturn(target)
+        captureViewport = null
+        if (fromBeginning) startOver(item) else play(item)
+    }
 
     private fun showDetails(item: MediaItem, closed: (() -> Unit)?) {
         detail?.dismiss()
         detailItemId = item.id
         detail =
             CatalogDetailsDialog(activity)
-                .show(item, artwork(item), { play(item) }, { startOver(item) }, closed)
+                .show(
+                    item,
+                    artwork(item),
+                    { playDetails(item, false) },
+                    { playDetails(item, true) },
+                    closed,
+                )
     }
 }

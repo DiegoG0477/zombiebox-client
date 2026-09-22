@@ -26,3 +26,23 @@ Host JVM tests cover scoped page return/focus, restored-page failure/retry and
 closing during a request. Build/lint checks are separate from deferred physical
 focus/touch acceptance. Unified guide/player/browser history and remaining provider
 specific actions are still open; this increment does not claim those complete.
+
+## Playback return (dev.42)
+
+Play captures the selected guide channel and time before the window is dismissed.
+Explicit Back or minimize consumes that return point and reopens the guide on its
+catalog page while the service keeps playing. Catalog details return to the same
+item; direct search results return to the saved search/focus. Home details remain
+Home-owned. These bookmarks contain IDs and bounded semantic fields only.
+
+The pending point is saved even while all catalog windows are hidden. A recreated
+Activity retains the complete page path while reloading, including on failure;
+Back can supersede that load without accepting a stale response. A failed return
+reload retains intent for retry. New provider/Home navigation, independent Home
+playback and profile/configuration reset discard old intent. Receiver handoff and
+lifecycle restoration do not independently open catalog windows.
+
+JVM coverage checks pending restoration, full-path failure/retry, single consumption
+and provider/profile invalidation. Actual dialog focus and background playback are
+not physically validated. This implements catalog/player return, not a universal
+stack across Browser, settings and every provider action.

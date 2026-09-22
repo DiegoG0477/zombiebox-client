@@ -189,4 +189,68 @@ class CatalogViewModelTest {
         assertFalse(displayed)
         assertEquals(0, model.screen!!.location.offset)
     }
+
+    @Test
+    fun playbackReturnSurvivesPendingRestoreAndIsConsumedOnce() {
+        val repository = Repository(folder)
+        val work = ArrayList<() -> Unit>()
+        val model = CatalogViewModel(repository, ScreenTasks({ work.add(it) }, { it() }))
+        val point =
+            CatalogPlaybackReturn(
+                CatalogOverlay("guide", guideTime = 123456, selectedChannel = "channel-7")
+            )
+        val path =
+            listOf(
+                CatalogBookmark(
+                    CatalogLocation("iptv", offset = 80),
+                    CatalogViewport(selectedId = "channel-7"),
+                )
+            )
+        model.rememberPlaybackReturn(point)
+        model.restore(path, {}, { throw it })
+        assertEquals(path, model.bookmarks())
+        assertEquals(point, model.playbackReturn)
+        // Back may happen before the recreated Activity's page request completes.
+        assertEquals(point, model.takePlaybackReturn())
+        assertNull(model.takePlaybackReturn())
+        work.removeAt(0)()
+        assertEquals("channel-7", model.screen!!.viewport.selectedId)
+        assertNull(model.playbackReturn)
+    }
+
+    @Test
+    fun failedInitialRestoreRetainsTheWholePathForRetry() {
+        val repository = Repository(folder).apply { fail = true }
+        val model = CatalogViewModel(repository, ScreenTasks({ it() }, { it() }))
+        val path =
+            listOf(
+                CatalogBookmark(CatalogLocation("plex"), CatalogViewport()),
+                CatalogBookmark(
+                    CatalogLocation("plex", parent = "series", offset = 80),
+                    CatalogViewport("episode"),
+                ),
+            )
+        val point = CatalogPlaybackReturn(detailId = "episode")
+        model.rememberPlaybackReturn(point)
+        var failed = false
+        model.restore(path, { fail("unexpected load") }, { failed = true })
+        assertTrue(failed)
+        assertEquals(path, model.bookmarks())
+        assertEquals(point, model.playbackReturn)
+        repository.fail = false
+        model.restore(model.bookmarks(), {}, { throw it })
+        assertEquals(path, model.bookmarks())
+        assertEquals(point, model.takePlaybackReturn())
+    }
+
+    @Test
+    fun newProviderAndProfileResetDiscardOldPlaybackReturn() {
+        val model = CatalogViewModel(Repository(folder), ScreenTasks({ it() }, { it() }))
+        model.rememberPlaybackReturn(CatalogPlaybackReturn(detailId = "old"))
+        model.open("jellyfin", "", {}, { throw it })
+        assertNull(model.playbackReturn)
+        model.rememberPlaybackReturn(CatalogPlaybackReturn(CatalogOverlay("home_search", "query")))
+        model.dismiss()
+        assertNull(model.playbackReturn)
+    }
 }

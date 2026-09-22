@@ -154,3 +154,5 @@ Service-owned idle Spotify/AirPlay/Cast reception, fenced handoff/restoration an
 ## dev.41 guide and audio selection increment
 
 Paged IPTV guide with scoped history/focus, failure retry, late-load fencing and owned Cast Remote navigation. VersionCode41. See docs/guide-navigation.md. Product and physical gates remain open.
+
+Dev.42: one-shot playback return to paged guide, catalog details or search; bounded semantic state survives Activity recreation and failed catalog reloads. Explicit Home/provider navigation clears stale return intent. VersionCode42; physical navigation acceptance remains open.
