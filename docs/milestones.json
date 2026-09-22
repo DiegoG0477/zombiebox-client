@@ -18,7 +18,8 @@
     "Dev.23: Manual URL plus automatic gateway candidates and guarded modern system-bar insets; APK versionCode 23. Product and physical gates remain open.",
     "Dev.24: Gateway-generated QR display, local six-digit consent/revocation and guarded discrete remote input for Home/player/catalog. API9 thin-client/no-native boundary remains; APK versionCode 24. Product and physical gates remain open.",
     "Dev.25: Isolated API21 decoder candidate discovery and prerequisite-gated extended diagnostics with measurement timestamps. No native libraries; display/encoder/Advanced and physical gates remain open.",
-    "Dev.27: Consumes the additive Cast request schema pin. Shared Android transport and Client implementation are unchanged; the thin APK retains the dev.25 version and no-native-library requirement."
+    "Dev.27: Consumes the additive Cast request schema pin. Shared Android transport and Client implementation are unchanged; the thin APK retains the dev.25 version and no-native-library requirement.",
+    "Dev.29: Updates the additive protocol pin only. Client source, APK version and no-native contract remain unchanged. Actual audio-only Cast playback remains a deferred physical gate. Product and physical gates remain open."
   ],
   "milestones": [
     {
@@ -92,5 +93,5 @@
       "remoteId": null
     }
   ],
-  "developmentCheckpoint": "v0.1.0-dev.27"
+  "developmentCheckpoint": "v0.1.0-dev.29"
 }

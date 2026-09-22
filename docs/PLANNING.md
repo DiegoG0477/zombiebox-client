@@ -84,3 +84,8 @@ Isolated API21 decoder candidate discovery and prerequisite-gated extended diagn
 ## dev.27 increment
 
 Consumes the additive Cast request schema pin. Shared Android transport and Client implementation are unchanged; the thin APK retains the dev.25 version and no-native-library requirement.
+
+## dev.29 increment
+
+Updates the additive protocol pin only. Client source, APK version and no-native contract remain unchanged. Actual audio-only Cast playback remains a deferred physical gate.
+Product milestones and physical acceptance remain open.
