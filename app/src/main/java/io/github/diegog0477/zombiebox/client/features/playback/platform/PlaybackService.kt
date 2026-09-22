@@ -12,6 +12,7 @@ import io.github.diegog0477.zombiebox.client.R
 import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.features.catalog.data.GatewayCatalogRepository
 import io.github.diegog0477.zombiebox.client.features.mirroring.data.GatewayReceiverRepository
+import io.github.diegog0477.zombiebox.client.features.mirroring.presentation.viewmodel.BackgroundReceptionViewModel
 import io.github.diegog0477.zombiebox.client.features.playback.data.GatewayPlaybackRepository
 import io.github.diegog0477.zombiebox.client.features.playback.data.LocalPlaybackResumeRepository
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.*
@@ -65,12 +66,8 @@ class PlaybackService : Service() {
             }
         }
     private var closed = false
-    private var refreshing = false
-    private var receiverAttempts = 0
-    private var receiverRetryAt = 0L
-    private var receiverSession = ""
+    private lateinit var backgroundReception: BackgroundReceptionViewModel
     private var receiverPlaybackState = ""
-    private var receiverHealthySince = 0L
     var visible = false
         private set
 
@@ -83,88 +80,7 @@ class PlaybackService : Service() {
             override fun run() {
                 if (closed) return
                 model.recoveryTick()
-                val current = model.state
-                val plan = current.plan
-                if (
-                    !visible &&
-                        !refreshing &&
-                        current.incoming &&
-                        plan != null &&
-                        current.item?.provider in
-                            listOf("spotify", "airplay", "android_mirror", "cast")
-                ) {
-                    refreshing = true
-                    worker.execute {
-                        try {
-                            val received = GatewayReceiverRepository(api).active()
-                            handler.post {
-                                if (
-                                    !closed &&
-                                        !visible &&
-                                        model.state.plan?.sessionId == plan.sessionId
-                                ) {
-                                    if (received == null) {
-                                        if (!model.restoreInterrupted()) model.stop()
-                                    } else if (received.sessionId != plan.sessionId) {
-                                        received.item?.let { item ->
-                                            val replacement =
-                                                PlaybackPlan(
-                                                    received.sessionId,
-                                                    api.base + received.path,
-                                                    received.mime,
-                                                    received.mode,
-                                                    0,
-                                                    live = received.live,
-                                                    seekable = received.seekable,
-                                                )
-                                            model.adopt(
-                                                replacement,
-                                                item,
-                                                emptyList(),
-                                                incoming = true,
-                                            )
-                                            playPlan(replacement, item)
-                                        }
-                                    } else {
-                                        receiverStatus(received.item, received.state)
-                                        if (receiverSession != plan.sessionId) {
-                                            receiverSession = plan.sessionId
-                                            receiverAttempts = 0
-                                            receiverRetryAt = 0
-                                            receiverHealthySince = 0
-                                        }
-                                        val now = android.os.SystemClock.elapsedRealtime()
-                                        if (model.state.progress.state == "PLAYING") {
-                                            if (receiverHealthySince == 0L)
-                                                receiverHealthySince = now
-                                            if (now - receiverHealthySince >= 60000)
-                                                receiverAttempts = 0
-                                        } else receiverHealthySince = 0
-                                        if (
-                                            model.state.progress.state in
-                                                listOf("FAILED", "ENDED") &&
-                                                received.state == "PLAYING" &&
-                                                received.live &&
-                                                receiverAttempts < 3 &&
-                                                now >= receiverRetryAt
-                                        ) {
-                                            receiverAttempts++
-                                            receiverRetryAt = now + (2000L shl receiverAttempts)
-                                            received.item?.let { item ->
-                                                model.mediaState("BUFFERING", 0, 0)
-                                                playPlan(plan, item)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        } catch (_: Exception) {
-                            /* Unknown worker state preserves the confirmed session. */
-                        } finally {
-                            handler.post { refreshing = false }
-                        }
-                    }
-                }
+                backgroundReception.tick()
                 handler.postDelayed(this, 3000)
             }
         }
@@ -234,6 +150,30 @@ class PlaybackService : Service() {
             updateNotification(model.state)
             youtubeListener?.invoke(it)
         }
+        backgroundReception =
+            BackgroundReceptionViewModel(
+                GatewayReceiverRepository(api),
+                model,
+                { work -> worker.execute { work() } },
+                { work -> handler.post { work() } },
+                { received ->
+                    PlaybackPlan(
+                        received.sessionId,
+                        api.base + received.path,
+                        received.mime,
+                        received.mode,
+                        0,
+                        live = received.live,
+                        seekable = received.seekable,
+                    )
+                },
+                ::playPlan,
+                ::receiverStatus,
+                { youtube.standby() },
+                getString(R.string.screen_mirroring),
+                { android.os.SystemClock.elapsedRealtime() },
+            )
+        backgroundReception.observer = { updateNotification(model.state) }
         systemControls = SystemControlsFactory.create(this, ::systemCommand) { systemToken = it }
         model.play = ::playPlan
         model.stopPlayer = { player.stop() }
@@ -255,6 +195,7 @@ class PlaybackService : Service() {
         val nextProfile = Triple(base, device, token)
         if (profile != nextProfile) {
             // Revoke old authority before changing the serialized transport profile.
+            backgroundReception.reset()
             youtube.disable()
             if (profile.first.isNotEmpty()) model.stop()
             profile = nextProfile
@@ -302,7 +243,12 @@ class PlaybackService : Service() {
             )
     }
 
+    fun configureReceivers(mediaProvider: String? = null, castEnabled: Boolean? = null) {
+        backgroundReception.configure(mediaProvider, castEnabled)
+    }
+
     fun foreground(value: Boolean) {
+        backgroundReception.foreground(value)
         visible = value
         player.foreground(value)
     }
@@ -384,6 +330,7 @@ class PlaybackService : Service() {
         )
 
     private fun stopFromControls() {
+        backgroundReception.reset()
         if (model.state.incoming)
             worker.execute {
                 try {
@@ -426,20 +373,29 @@ class PlaybackService : Service() {
                 getSharedPreferences("zombie", MODE_PRIVATE).getBoolean("systemMediaControls", true),
         )
         if (state.plan == null) {
-            if (youtube.state.enabled) {
+            if (youtube.state.enabled || backgroundReception.state.enabled) {
                 if (wake.isHeld) wake.release()
                 focus.release()
                 val listening =
                     SystemPlayback(
                         active = true,
-                        title = getString(R.string.youtube_receiver),
+                        title =
+                            getString(
+                                if (backgroundReception.state.enabled)
+                                    R.string.receiver_background_title
+                                else R.string.youtube_receiver
+                            ),
                         subtitle =
                             getString(
-                                if (youtube.state.failed) R.string.unavailable
+                                if (youtube.state.failed || backgroundReception.state.unavailable)
+                                    R.string.unavailable
+                                else if (backgroundReception.state.enabled)
+                                    R.string.receiver_background_listening
                                 else R.string.youtube_background_listening
                             ),
                     )
-                val key = "youtube-listening:${youtube.state.failed}"
+                val key =
+                    "listening:${youtube.state.enabled}:${youtube.state.failed}:${backgroundReception.state}"
                 if (notificationKey != key) {
                     notificationKey = key
                     foregroundSession.show(
@@ -467,13 +423,13 @@ class PlaybackService : Service() {
         if (active && !wake.isHeld) wake.acquire(6 * 60 * 60 * 1000L)
         if (!active && wake.isHeld) wake.release()
         val key =
-            "${youtube.state.enabled}:${state.item?.title}:${state.item?.subtitle}:$active:${systemToken != null}:${systemState(state).canPause}:${state.canNext}"
+            "${youtube.state.enabled}:${backgroundReception.state.enabled}:${state.item?.title}:${state.item?.subtitle}:$active:${systemToken != null}:${systemState(state).canPause}:${state.canNext}"
         if (key != notificationKey) {
             notificationKey = key
             foregroundSession.show(
                 this,
                 notifications.build(this, systemState(state), systemToken),
-                receiving = youtube.state.enabled,
+                receiving = youtube.state.enabled || backgroundReception.state.enabled,
                 playing = true,
             )
         }
@@ -487,7 +443,12 @@ class PlaybackService : Service() {
             "next" -> model.next()
             "toggle" -> toggle()
         }
-        if (model.state.plan == null && !model.state.loading && !youtube.state.enabled)
+        if (
+            model.state.plan == null &&
+                !model.state.loading &&
+                !youtube.state.enabled &&
+                !backgroundReception.state.enabled
+        )
             stopSelf(startId)
         return START_NOT_STICKY
     }
@@ -498,6 +459,7 @@ class PlaybackService : Service() {
         handler.removeCallbacks(youtubePoll)
         youtubeListener = null
         youtube.close()
+        backgroundReception.close()
         listener = null
         sizeListener = null
         systemControls.close()

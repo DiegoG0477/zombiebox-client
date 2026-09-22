@@ -144,3 +144,9 @@ Home realizes three, five or seven cards per row according to heap/physical-memo
 ## dev.39 navigation increment
 
 Dev.39: bounded search return bookmarks, one-minute result reuse, explicit provider-to-search Back and profile/configuration invalidation. Wider navigation, other V1 packages and physical acceptance remain open.
+
+## dev.40 reception and diagnostics increment
+
+Service-owned idle Spotify/AirPlay/Cast reception, fenced handoff/restoration and bounded live recovery. VersionCode40; no native libraries. Physical background/OEM acceptance remains open. Product milestones remain open.
+
+[Background media reception](docs/background-reception.md).

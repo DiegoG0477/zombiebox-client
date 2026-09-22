@@ -40,8 +40,15 @@ class ReceiverViewModel(
     fun readEnabled(done: (Boolean) -> Unit, failed: (Exception) -> Unit) =
         settingsTasks.run({ repository.enabled() }, done, failed)
 
-    fun setEnabled(enabled: Boolean, failed: (Exception) -> Unit) =
-        settingsTasks.run({ repository.setEnabled(enabled) }, { refresh() }, failed)
+    fun setEnabled(enabled: Boolean, failed: (Exception) -> Unit, done: () -> Unit = {}) =
+        settingsTasks.run(
+            { repository.setEnabled(enabled) },
+            {
+                done()
+                refresh()
+            },
+            failed,
+        )
 
     var observer: ((ReceiverPlan?) -> Unit)? = null
     private var generation = 0

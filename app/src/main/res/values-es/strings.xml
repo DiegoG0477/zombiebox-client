@@ -126,8 +126,10 @@
     <string name="backend_compatibility">Implementación de compatibilidad</string>
     <string name="receive_cast">Recibir pantalla compartida</string>
     <string name="receive_cast_detail">
-        Permitir que dispositivos vinculados al gateway compartan su pantalla aquí mientras este
-        cliente está abierto. Puedes detenerlo con el botón Detener del reproductor.
+        Permite recibir contenido de dispositivos emparejados. La recepción continúa con una
+        notificación al salir del Client. El video espera a que regreses a la pantalla. Detener
+        desde la notificación termina la recepción en segundo plano hasta que abras el Client de
+        nuevo.
     </string>
     <string name="screen_mirroring">Pantalla compartida</string>
     <string name="enable">Activar</string>
@@ -372,5 +374,10 @@
     </string>
     <string name="youtube_background_listening">
         Esperando tu dispositivo de YouTube vinculado. Detén para desactivar la recepción.
+    </string>
+    <string name="receiver_background_title">Recepción multimedia</string>
+    <string name="receiver_background_listening">
+        Escuchando receptores habilitados. Detener termina la recepción en segundo plano hasta que
+        abras el Client de nuevo.
     </string>
 </resources>

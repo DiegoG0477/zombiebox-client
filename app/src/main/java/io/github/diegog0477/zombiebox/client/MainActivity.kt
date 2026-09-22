@@ -186,7 +186,9 @@ class MainActivity : Activity() {
                     stopPlayback()
                     catalogDialogs.reset()
                     settingsModel.activate(profile)
+                    player.configure(api.base, api.device, api.token)
                     receiverViewModel.reset()
+                    refreshReceiverListening()
                     homeViewModel.reset()
                     refresh()
                     receiverViewModel.refresh()
@@ -595,7 +597,9 @@ class MainActivity : Activity() {
                     .setTitle(R.string.receive_cast)
                     .setMessage(R.string.receive_cast_detail)
                     .setPositiveButton(if (enabled) R.string.disable else R.string.enable) { _, _ ->
-                        receiverViewModel.setEnabled(!enabled, ::error)
+                        receiverViewModel.setEnabled(!enabled, ::error) {
+                            player.configureReceivers(castEnabled = !enabled)
+                        }
                     }
                     .setNeutralButton(R.string.receiver_handoff) { _, _ ->
                         receiverHandoffSettings()
@@ -629,6 +633,7 @@ class MainActivity : Activity() {
             return
         }
         MediaReceiverDialog(this, receiverViewModel, ::error) { provider ->
+                player.configureReceivers(mediaProvider = provider)
                 universalReception = provider == "universal"
                 if (universalReception) player.enableYouTube() else player.disableYouTube()
             }
@@ -1298,6 +1303,25 @@ class MainActivity : Activity() {
         } else if (!catalogDialogs.resume()) super.onBackPressed()
     }
 
+    private fun refreshReceiverListening() {
+        val profile = Triple(api.base, api.device, api.token)
+        fun current() = !closed && foreground && profile == Triple(api.base, api.device, api.token)
+        receiverViewModel.readMediaProvider(
+            { provider ->
+                if (current()) {
+                    universalReception = provider == "universal"
+                    player.configureReceivers(mediaProvider = provider)
+                    if (universalReception) player.enableYouTube()
+                }
+            },
+            {},
+        )
+        receiverViewModel.readEnabled(
+            { enabled -> if (current()) player.configureReceivers(castEnabled = enabled) },
+            {},
+        )
+    }
+
     override fun onResume() {
         super.onResume()
         PlaybackNotifications.requestPermission(this)
@@ -1309,13 +1333,7 @@ class MainActivity : Activity() {
         }
         if (::receiverViewModel.isInitialized && api.token.isNotEmpty()) {
             receiverViewModel.resumeForeground()
-            receiverViewModel.readMediaProvider(
-                { provider ->
-                    universalReception = provider == "universal"
-                    if (universalReception) player.enableYouTube()
-                },
-                {},
-            )
+            refreshReceiverListening()
         }
         if (
             !playbackPending &&

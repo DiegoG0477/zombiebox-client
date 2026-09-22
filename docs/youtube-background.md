@@ -30,8 +30,8 @@ listening and stops playback. A normal remote Stop leaves listening enabled.
 Idle listening releases playback wake/audio-focus ownership. Android Doze/OEM
 suspension, surface detach/reattach, notification restrictions and actual background
 A/V still require the deferred physical acceptance. A foreground service is not a
-guarantee against process killing. Automatic background discovery/handoff between
-all non-YouTube receivers remains a separate work item.
+guarantee against process killing. Dev.40 adds [idle non-YouTube reception](background-reception.md) with the same
+service and gateway ownership boundary. Wider metadata/account recovery remains open.
 
 Host evidence: JVM command/lifetime tests, APK/lint and no-native-library audit.
 Those checks are not Android API9/13 or modern-device runtime acceptance.

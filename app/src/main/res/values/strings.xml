@@ -123,8 +123,9 @@
     <string name="backend_compatibility">Compatibility platform backend</string>
     <string name="receive_cast">Receive screen mirroring</string>
     <string name="receive_cast_detail">
-        Allow paired devices on this gateway to share their screen here while this client is
-        open. You can stop sharing with the playback Stop button.
+        Allow paired devices to send media here. Reception continues with a notification when you
+        leave the Client. Video waits for the screen to return. Notification Stop ends background
+        reception until you reopen the Client.
     </string>
     <string name="screen_mirroring">Screen mirroring</string>
     <string name="enable">Enable</string>
@@ -347,5 +348,9 @@
     <string name="media_receiver_universal">All receivers (allow automatic switching)</string>
     <string name="youtube_background_listening">
         Listening for your paired YouTube sender. Stop to disable reception.
+    </string>
+    <string name="receiver_background_title">Media reception</string>
+    <string name="receiver_background_listening">
+        Listening for enabled receivers. Stop ends background reception until you reopen the Client.
     </string>
 </resources>

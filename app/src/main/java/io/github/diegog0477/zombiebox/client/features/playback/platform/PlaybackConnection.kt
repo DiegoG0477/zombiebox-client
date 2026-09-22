@@ -50,6 +50,13 @@ class PlaybackConnection(
 
     fun standbyYouTube() = command { it.youtube.standby() }
 
+    fun configureReceivers(mediaProvider: String? = null, castEnabled: Boolean? = null) = command {
+        if (visible) {
+            it.configureReceivers(mediaProvider, castEnabled)
+            context.startService(Intent(context, PlaybackService::class.java))
+        }
+    }
+
     private var closed = false
     private var visible = false
     private var surface: PlayerSurface? = null
