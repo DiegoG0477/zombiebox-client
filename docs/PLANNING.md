@@ -123,3 +123,7 @@ Product milestone completion still requires its recorded acceptance gates.
 ## dev.37 implementation checkpoint
 
 Memory-tier Home realization (3/5/7 cards), focus-preserving window policy and versionCode37. Physical acceptance and wider navigation remain open.
+
+## dev.38 implementation checkpoint
+
+Dev.38: service-owned YouTube listening/commands, typed foreground notification and bounded expiry/late-command policy; physical background/OEM acceptance remains open.

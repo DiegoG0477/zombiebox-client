@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.PowerManager
+import io.github.diegog0477.zombiebox.client.R
 import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.features.catalog.data.GatewayCatalogRepository
 import io.github.diegog0477.zombiebox.client.features.mirroring.data.GatewayReceiverRepository
@@ -16,6 +17,12 @@ import io.github.diegog0477.zombiebox.client.features.playback.data.LocalPlaybac
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.*
 import io.github.diegog0477.zombiebox.client.features.playback.domain.policy.SystemControlCoordinator
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel.PlaybackSessionViewModel
+import io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel.PlaybackViewModel
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.data.GatewayYouTubeReceiverRepository
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.YouTubeReception
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.repository.YouTubePlaybackControl
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.presentation.viewmodel.YouTubeReceiverViewModel
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.presentation.viewmodel.YouTubeReceptionViewModel
 import io.github.diegog0477.zombiebox.shared.GatewayApi
 import java.util.concurrent.Executors
 
@@ -43,6 +50,20 @@ class PlaybackService : Service() {
     private lateinit var systemControls: SystemControlCoordinator
     private lateinit var notifications: PlaybackNotification
     private var notificationKey = ""
+    private lateinit var foregroundSession: ForegroundSession
+    lateinit var youtube: YouTubeReceptionViewModel
+        private set
+
+    var youtubeListener: ((YouTubeReception) -> Unit)? = null
+    private var profile = Triple("", "", "")
+    private val youtubePoll =
+        object : Runnable {
+            override fun run() {
+                if (closed) return
+                youtube.tick()
+                handler.postDelayed(this, 1000)
+            }
+        }
     private var closed = false
     private var refreshing = false
     private var receiverAttempts = 0
@@ -151,6 +172,7 @@ class PlaybackService : Service() {
     override fun onCreate() {
         super.onCreate()
         notifications = PlaybackNotifications.create()
+        foregroundSession = ForegroundSession.create()
         wake =
             (getSystemService(POWER_SERVICE) as PowerManager)
                 .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "zombiebox:playback")
@@ -176,18 +198,67 @@ class PlaybackService : Service() {
                 { work -> handler.post { work() } },
                 resumeRepository = LocalPlaybackResumeRepository(applicationContext, api),
             )
+        youtube =
+            YouTubeReceptionViewModel(
+                YouTubeReceiverViewModel(
+                    GatewayYouTubeReceiverRepository(api),
+                    { work -> worker.execute { work() } },
+                    { work -> handler.post { work() } },
+                ),
+                PlaybackViewModel(
+                    GatewayPlaybackRepository(api),
+                    { work -> worker.execute { work() } },
+                    { work -> handler.post { work() } },
+                ),
+                model,
+                object : YouTubePlaybackControl {
+                    override fun play(plan: PlaybackPlan, item: MediaItem) = playPlan(plan, item)
+
+                    override fun pause() = player.pause()
+
+                    override fun resume(): Boolean {
+                        if (!focus.acquire()) return false
+                        player.resume()
+                        return true
+                    }
+
+                    override fun seek(positionMs: Int) = player.seekTo(positionMs)
+
+                    override fun volume(value: Int, muted: Boolean, done: (Boolean) -> Unit) =
+                        player.volume(value, muted, done)
+                },
+                getString(R.string.youtube),
+                { android.os.SystemClock.elapsedRealtime() },
+            )
+        youtube.observer = {
+            updateNotification(model.state)
+            youtubeListener?.invoke(it)
+        }
         systemControls = SystemControlsFactory.create(this, ::systemCommand) { systemToken = it }
         model.play = ::playPlan
         model.stopPlayer = { player.stop() }
         model.observer = { state ->
+            youtube.playbackState(
+                state.progress.state,
+                state.progress.positionMs,
+                state.progress.durationMs,
+            )
             updateNotification(state)
             listener?.invoke(state)
         }
         player.background(true)
         handler.post(receiverPoll)
+        handler.post(youtubePoll)
     }
 
     fun configure(base: String, device: String, token: String) {
+        val nextProfile = Triple(base, device, token)
+        if (profile != nextProfile) {
+            // Revoke old authority before changing the serialized transport profile.
+            youtube.disable()
+            if (profile.first.isNotEmpty()) model.stop()
+            profile = nextProfile
+        }
         val preferences = getSharedPreferences("zombie", MODE_PRIVATE)
         model.automaticRecovery =
             preferences.getBoolean("automaticRecovery", true) &&
@@ -247,6 +318,7 @@ class PlaybackService : Service() {
         if (listener === observer) {
             listener = null
             sizeListener = null
+            youtubeListener = null
             player.surface(null)
             foreground(false)
         }
@@ -318,6 +390,7 @@ class PlaybackService : Service() {
                     GatewayReceiverRepository(api).cancelQueue()
                 } catch (_: Exception) {}
             }
+        youtube.disable()
         model.stop()
     }
 
@@ -353,6 +426,31 @@ class PlaybackService : Service() {
                 getSharedPreferences("zombie", MODE_PRIVATE).getBoolean("systemMediaControls", true),
         )
         if (state.plan == null) {
+            if (youtube.state.enabled) {
+                if (wake.isHeld) wake.release()
+                focus.release()
+                val listening =
+                    SystemPlayback(
+                        active = true,
+                        title = getString(R.string.youtube_receiver),
+                        subtitle =
+                            getString(
+                                if (youtube.state.failed) R.string.unavailable
+                                else R.string.youtube_background_listening
+                            ),
+                    )
+                val key = "youtube-listening:${youtube.state.failed}"
+                if (notificationKey != key) {
+                    notificationKey = key
+                    foregroundSession.show(
+                        this,
+                        notifications.build(this, listening),
+                        receiving = true,
+                        playing = false,
+                    )
+                }
+                return
+            }
             if (state.loading) return
             notificationKey = ""
             if (wake.isHeld) wake.release()
@@ -369,10 +467,15 @@ class PlaybackService : Service() {
         if (active && !wake.isHeld) wake.acquire(6 * 60 * 60 * 1000L)
         if (!active && wake.isHeld) wake.release()
         val key =
-            "${state.item?.title}:${state.item?.subtitle}:$active:${systemToken != null}:${systemState(state).canPause}:${state.canNext}"
+            "${youtube.state.enabled}:${state.item?.title}:${state.item?.subtitle}:$active:${systemToken != null}:${systemState(state).canPause}:${state.canNext}"
         if (key != notificationKey) {
             notificationKey = key
-            startForeground(1001, notifications.build(this, systemState(state), systemToken))
+            foregroundSession.show(
+                this,
+                notifications.build(this, systemState(state), systemToken),
+                receiving = youtube.state.enabled,
+                playing = true,
+            )
         }
     }
 
@@ -384,13 +487,17 @@ class PlaybackService : Service() {
             "next" -> model.next()
             "toggle" -> toggle()
         }
-        if (model.state.plan == null && !model.state.loading) stopSelf(startId)
+        if (model.state.plan == null && !model.state.loading && !youtube.state.enabled)
+            stopSelf(startId)
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
         closed = true
         handler.removeCallbacks(receiverPoll)
+        handler.removeCallbacks(youtubePoll)
+        youtubeListener = null
+        youtube.close()
         listener = null
         sizeListener = null
         systemControls.close()

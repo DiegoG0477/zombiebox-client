@@ -15,6 +15,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />
@@ -49,7 +50,7 @@
         <service
             android:name=".features.playback.platform.PlaybackService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback"
+            android:foregroundServiceType="mediaPlayback|connectedDevice"
             android:stopWithTask="false"
         />
         <activity

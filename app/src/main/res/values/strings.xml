@@ -178,8 +178,8 @@
     <string name="probe_fail">Failed</string>
     <string name="probe_unknown">Unknown</string>
     <string name="youtube_receiver_detail">
-        Enable this TV to receive YouTube commands. DIAL is advertised only while this screen
-        remains active. Link from YouTube with the TV code.
+        Enable this TV to receive YouTube commands and link with the TV code. Reception
+        continues in the background. Use Disable or the notification Stop action to end it.
     </string>
     <string name="youtube_tv_code">YouTube TV code: %1$s</string>
     <string name="rescan_hardware">Rescan hardware</string>
@@ -345,4 +345,7 @@
     </string>
     <string name="phone_ignore_day">Ignore requests from this device for 24 hours</string>
     <string name="media_receiver_universal">All receivers (allow automatic switching)</string>
+    <string name="youtube_background_listening">
+        Listening for your paired YouTube sender. Stop to disable reception.
+    </string>
 </resources>

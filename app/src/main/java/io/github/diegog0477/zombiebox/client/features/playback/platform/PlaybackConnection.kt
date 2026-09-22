@@ -9,6 +9,7 @@ import io.github.diegog0477.zombiebox.client.core.model.MediaItem
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.PlaybackPlan
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.PlaybackSession
 import io.github.diegog0477.zombiebox.client.features.playback.domain.model.QueueCursor
+import io.github.diegog0477.zombiebox.client.features.youtubereceiver.domain.model.YouTubeReception
 
 /** Activity-owned binding. Closing a screen detaches UI callbacks, never the session. */
 class PlaybackConnection(
@@ -21,6 +22,33 @@ class PlaybackConnection(
     private var service: PlaybackService? = null
     val ready: Boolean
         get() = service != null
+
+    var youtubeState = YouTubeReception()
+        private set
+
+    var youtubeChanged: (() -> Unit)? = null
+    private val receiverObserver: (YouTubeReception) -> Unit = {
+        if (!closed) {
+            youtubeState = it
+            youtubeChanged?.invoke()
+        }
+    }
+
+    private fun attachReceiver(target: PlaybackService) {
+        target.youtubeListener = receiverObserver
+        receiverObserver(target.youtube.state)
+    }
+
+    fun enableYouTube() = command {
+        if (visible) {
+            it.youtube.enable()
+            context.startService(Intent(context, PlaybackService::class.java))
+        }
+    }
+
+    fun disableYouTube() = command { it.youtube.disable() }
+
+    fun standbyYouTube() = command { it.youtube.standby() }
 
     private var closed = false
     private var visible = false
@@ -54,6 +82,7 @@ class PlaybackConnection(
         pending.clear()
         commands.forEach { it(target) }
         target.attach(observer, size)
+        attachReceiver(target)
     }
 
     override fun onServiceDisconnected(name: ComponentName) {
@@ -97,6 +126,7 @@ class PlaybackConnection(
             if (value) {
                 it.foreground(true)
                 it.attach(observer, size)
+                attachReceiver(it)
                 it.player.surface(surface)
             } else if (it.listener === observer) it.foreground(false)
         }
@@ -166,6 +196,7 @@ class PlaybackConnection(
 
     fun close() {
         closed = true
+        youtubeChanged = null
         pending.clear()
         service?.detach(observer)
         service = null

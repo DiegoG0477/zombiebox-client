@@ -183,6 +183,9 @@ class YouTubeReceiverViewModel(
         pending = null
         ready = null
         dispatched = ""
+        latest = ReceiverFeedback()
+        buffered = false
+        failed = false
         observer?.invoke()
         if (id != null)
             execute {

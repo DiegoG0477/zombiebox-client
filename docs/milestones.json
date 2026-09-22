@@ -27,7 +27,9 @@
     "Dev.34: Network pairing consent/24-hour ignore, five-minute QR display, focus-scoped remote text in owned fields, guarded Whisperplay Home launch, lifecycle clock and Hero refresh/metadata improvements. APK versionCode 34; runtime/OEM acceptance remains open.",
     "Dev.35: Periodic opt-in playback adaptation, completion-aware incoming file queues and explicit universal foreground receiver mode. Native DIAL registration and physical qualification remain open.",
     "Dev.36: Release version 36 includes DIAL notices and the selected shared Android signing identity; physical acceptance remains deferred.",
-    "Dev.37: Memory-tier Home realization (3/5/7 cards), focus-preserving window policy and versionCode37. Physical acceptance and wider navigation remain open."
+    "Dev.37: Memory-tier Home realization (3/5/7 cards), focus-preserving window policy and versionCode37. Physical acceptance and wider navigation remain open.",
+    "Dev.38: service-owned YouTube listening/commands, typed foreground notification and bounded expiry/late-command policy; physical background/OEM acceptance remains open.",
+    "Dev.38: existing repository transferred to ZombieBox-tv with preserved identity/history/releases/milestones. No product completion or physical acceptance is implied."
   ],
   "milestones": [
     {
@@ -36,7 +38,7 @@
       "status": "in_progress",
       "completedAt": null,
       "remoteId": 1,
-      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/1"
+      "remoteURL": "https://github.com/ZombieBox-tv/zombiebox-client/milestone/1"
     },
     {
       "id": "M2",
@@ -44,7 +46,7 @@
       "status": "in_progress",
       "completedAt": null,
       "remoteId": 2,
-      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/2"
+      "remoteURL": "https://github.com/ZombieBox-tv/zombiebox-client/milestone/2"
     },
     {
       "id": "M3",
@@ -52,7 +54,7 @@
       "status": "in_progress",
       "completedAt": null,
       "remoteId": 3,
-      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/3"
+      "remoteURL": "https://github.com/ZombieBox-tv/zombiebox-client/milestone/3"
     },
     {
       "id": "M4",
@@ -60,7 +62,7 @@
       "status": "in_progress",
       "completedAt": null,
       "remoteId": 4,
-      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/4"
+      "remoteURL": "https://github.com/ZombieBox-tv/zombiebox-client/milestone/4"
     },
     {
       "id": "M5",
@@ -68,7 +70,7 @@
       "status": "in_progress",
       "completedAt": null,
       "remoteId": 5,
-      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/5"
+      "remoteURL": "https://github.com/ZombieBox-tv/zombiebox-client/milestone/5"
     },
     {
       "id": "M6",
@@ -76,7 +78,7 @@
       "status": "in_progress",
       "completedAt": null,
       "remoteId": 6,
-      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/6"
+      "remoteURL": "https://github.com/ZombieBox-tv/zombiebox-client/milestone/6"
     },
     {
       "id": "M7",
@@ -84,7 +86,7 @@
       "status": "in_progress",
       "completedAt": null,
       "remoteId": 7,
-      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/7"
+      "remoteURL": "https://github.com/ZombieBox-tv/zombiebox-client/milestone/7"
     },
     {
       "id": "M8",
@@ -92,7 +94,7 @@
       "status": "in_progress",
       "completedAt": null,
       "remoteId": 8,
-      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/8"
+      "remoteURL": "https://github.com/ZombieBox-tv/zombiebox-client/milestone/8"
     },
     {
       "id": "M9",
@@ -100,7 +102,7 @@
       "status": "in_progress",
       "completedAt": null,
       "remoteId": 9,
-      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/9"
+      "remoteURL": "https://github.com/ZombieBox-tv/zombiebox-client/milestone/9"
     },
     {
       "id": "M11",
@@ -108,9 +110,9 @@
       "status": "planned",
       "completedAt": null,
       "remoteId": 10,
-      "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/10"
+      "remoteURL": "https://github.com/ZombieBox-tv/zombiebox-client/milestone/10"
     }
   ],
-  "developmentCheckpoint": "v0.1.0-dev.37",
-  "remote": "https://github.com/DiegoG0477/zombiebox-client"
+  "developmentCheckpoint": "v0.1.0-dev.38",
+  "remote": "https://github.com/ZombieBox-tv/zombiebox-client"
 }

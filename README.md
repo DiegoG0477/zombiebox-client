@@ -3,7 +3,7 @@
 Legacy-first Android TV/handheld client; one stable client APK.
 
 This is an independent repository in the Zombie Box workspace.
-[Source and milestones](https://github.com/DiegoG0477/zombiebox-client) are hosted on GitHub.
+[Source and milestones](https://github.com/ZombieBox-tv/zombiebox-client) are hosted on GitHub.
 Development checkpoints are not stable releases or physical compatibility claims.
 
 Application ID: `io.github.diegog0477.zombiebox.client`; experimental minSdk9.
@@ -136,3 +136,7 @@ Production signing identity is selected for both APKs; see [release signing](doc
 ## dev.37 increment
 
 Home realizes three, five or seven cards per row according to heap/physical-memory and TV/handheld budgets. All semantic items remain reachable through focus or paging. This allocation bound does not establish a physical-device memory/performance result.
+
+## dev.38 increment
+
+[YouTube background reception](docs/youtube-background.md) now belongs to the playback service. Screen recreation/detachment preserves the lease; notification Stop disables it. JVM/build evidence remains separate from physical API9/13 and modern Android acceptance.
