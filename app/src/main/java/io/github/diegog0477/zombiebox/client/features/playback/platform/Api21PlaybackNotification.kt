@@ -55,6 +55,7 @@ class Api21PlaybackNotification : PlaybackNotification {
                     if (actions > 0) style.setShowActionsInCompactView(0, actions)
                     else style.setShowActionsInCompactView(0)
                     builder.setStyle(style)
+                    return builder.build()
                 } catch (_: Exception) {
                     builder.setStyle(null)
                 } catch (_: LinkageError) {
