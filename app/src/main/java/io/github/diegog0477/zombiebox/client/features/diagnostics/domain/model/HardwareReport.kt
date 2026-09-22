@@ -16,4 +16,7 @@ data class HardwareReport(
     val externalPlayers: List<String>,
     val latencyMs: Int = 0,
     val integrationHints: List<String> = emptyList(),
+    val encoders: List<CodecHint> = emptyList(),
+    val displays: List<DisplayHint> = emptyList(),
+    val inventoryLimited: Boolean = false,
 )

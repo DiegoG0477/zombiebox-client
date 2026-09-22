@@ -4,4 +4,6 @@ import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.model.C
 
 interface CodecDiscovery {
     fun decoders(): List<CodecHint>
+
+    fun encoders(): List<CodecHint> = emptyList()
 }

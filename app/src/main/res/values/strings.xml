@@ -277,4 +277,24 @@
     <string name="phone_allow">Allow</string>
     <string name="phone_deny">Deny</string>
     <string name="phone_forget">Revoke %1$s</string>
+    <string name="inventory_title">Display and codec inventory</string>
+    <string name="inventory_disclaimer">
+        Declared by Android/OEM. A display mode, codec profile or hardware label does not confirm
+        playback, HDMI output or capture support. Run functional probes separately.
+    </string>
+    <string name="inventory_limited">Inventory shortened to fit the report budget.</string>
+    <string name="inventory_displays">Displays / output modes</string>
+    <string name="inventory_unknown">Not reported / unknown</string>
+    <string name="inventory_decoders">Decoders</string>
+    <string name="inventory_encoders">Encoders</string>
+    <string name="inventory_hardware">Hardware acceleration declared</string>
+    <string name="inventory_software">Software implementation declared</string>
+    <string name="inventory_native_mode">active mode reported</string>
+    <string name="inventory_logical_mode">logical metrics; native mode unknown</string>
+    <string name="inventory_display">Display %1$d: %2$d × %3$d at %4$.3f Hz (%5$s)</string>
+    <string name="inventory_mode">Mode %1$d: %2$d × %3$d at %4$.3f Hz</string>
+    <string name="inventory_profile">%1$s · profile %2$d · level %3$d</string>
+    <string name="inventory_preview">
+        Showing the first 16 entries. Export diagnostics for the full bounded report.
+    </string>
 </resources>

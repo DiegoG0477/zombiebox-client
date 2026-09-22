@@ -9,7 +9,6 @@ import android.os.Build
 import android.os.StatFs
 import android.view.InputDevice
 import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.model.HardwareReport
-import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.repository.CodecDiscovery
 import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.repository.HardwareSource
 import java.io.File
 import java.security.MessageDigest
@@ -48,23 +47,7 @@ class HardwareScanner(context: Context) : HardwareSource {
                     cpu.contains("intel") || cpu.contains("amd") -> abi("x86-family")
                 }
             } catch (_: Exception) {}
-        val codecs =
-            if (Build.VERSION.SDK_INT >= 16)
-                try {
-                    (Class.forName(
-                                "io.github.diegog0477.zombiebox.client.features.diagnostics.platform." +
-                                    if (Build.VERSION.SDK_INT >= 21) "Api21CodecDiscovery"
-                                    else "Api16CodecDiscovery"
-                            )
-                            .getConstructor()
-                            .newInstance() as CodecDiscovery)
-                        .decoders()
-                } catch (_: Exception) {
-                    emptyList()
-                } catch (_: LinkageError) {
-                    emptyList()
-                }
-            else emptyList()
+        val inventory = PlatformInventory(context).scan()
         var keyboard = false
         var mouse = false
         try {
@@ -129,7 +112,7 @@ class HardwareScanner(context: Context) : HardwareSource {
                     (Build.FINGERPRINT +
                             "|" +
                             abis.joinToString(",") +
-                            "|scanner-3|" +
+                            "|scanner-4|" +
                             context.packageManager
                                 .getPackageInfo(context.packageName, 0)
                                 .versionName)
@@ -148,9 +131,11 @@ class HardwareScanner(context: Context) : HardwareSource {
             keyboard,
             mouse,
             network,
-            codecs,
+            inventory.decoders,
             players,
             integrationHints = integrationHints(),
+            encoders = inventory.encoders,
+            displays = inventory.displays,
         )
     }
 

@@ -9,15 +9,19 @@ import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.reposit
 /** Vendor declarations select diagnostics; they never authorize playback themselves. */
 @TargetApi(21)
 class Api21CodecDiscovery : CodecDiscovery {
-    override fun decoders(): List<CodecHint> {
+    override fun decoders() = inventory(false)
+
+    override fun encoders() = inventory(true)
+
+    private fun inventory(encoder: Boolean): List<CodecHint> {
         val result = ArrayList<CodecHint>()
         for (codec in MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.take(128)) {
-            if (codec.isEncoder) continue
+            if (codec.isEncoder != encoder) continue
             try {
                 val types = codec.supportedTypes.take(16).map { it.take(100) }
                 val candidates = ArrayList<String>()
                 for (mime in types) {
-                    if (mime != "video/avc" && mime != "video/hevc") continue
+                    if (encoder || (mime != "video/avc" && mime != "video/hevc")) continue
                     try {
                         val caps = codec.getCapabilitiesForType(mime)
                         val expected =
@@ -34,7 +38,14 @@ class Api21CodecDiscovery : CodecDiscovery {
                             )
                     } catch (_: Exception) {}
                 }
-                result.add(CodecHint(codec.name.take(200), types, candidates.distinct().take(3)))
+                result.add(
+                    CodecHint(
+                        codec.name.take(200),
+                        types,
+                        candidates.distinct().take(3),
+                        Api16CodecProfiles.read(codec, types),
+                    )
+                )
             } catch (_: Exception) {}
         }
         return result

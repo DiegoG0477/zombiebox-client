@@ -104,3 +104,8 @@ Product milestones and physical acceptance remain open.
 
 Incoming file plans preserve VOD mode/seekability; completion stops the file and restores interrupted playback instead of live reconnection. No native library added.
 Product milestones and deferred physical gates remain open.
+
+## dev.31 increment
+
+Isolated API16/21 codec-role/profile inventory, API17 logical displays, API23 output modes and API29 acceleration declarations; bounded EN/ES native inventory UI. Inventory remains separate from functional playback evidence.
+Product milestone and physical/public distribution gates remain open.

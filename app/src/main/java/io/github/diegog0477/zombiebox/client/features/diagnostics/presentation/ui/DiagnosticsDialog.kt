@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Build
 import android.widget.*
 import io.github.diegog0477.zombiebox.client.R
+import io.github.diegog0477.zombiebox.client.features.diagnostics.domain.model.HardwareReport
 import io.github.diegog0477.zombiebox.client.features.diagnostics.presentation.viewmodel.DiagnosticsViewModel
 
 class DiagnosticsDialog(private val activity: Activity, private val model: DiagnosticsViewModel) {
@@ -61,11 +62,24 @@ class DiagnosticsDialog(private val activity: Activity, private val model: Diagn
                     )
                 }
             }
+        var current: HardwareReport? = null
+        val inventory =
+            Button(activity).apply {
+                setText(R.string.inventory_title)
+                isEnabled = false
+                setOnClickListener { current?.let { HardwareInventoryDialog(activity).show(it) } }
+            }
+        val actions =
+            LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(inventory)
+                addView(export)
+            }
         val dialog =
             AlertDialog.Builder(activity)
                 .setTitle(R.string.diagnostics)
                 .setMessage(report)
-                .setView(export)
+                .setView(actions)
                 .setNeutralButton(R.string.run_probes) { _, _ ->
                     activity.startActivity(Intent(activity, ProbesActivity::class.java))
                 }
@@ -73,6 +87,8 @@ class DiagnosticsDialog(private val activity: Activity, private val model: Diagn
                 .setPositiveButton(R.string.close, null)
                 .create()
         model.observer = { hardware, failed ->
+            current = hardware
+            inventory.isEnabled = hardware != null && !failed
             dialog.setMessage(
                 if (failed) activity.getString(R.string.error_request)
                 else if (hardware == null) report
@@ -99,5 +115,6 @@ class DiagnosticsDialog(private val activity: Activity, private val model: Diagn
             }
         }
         dialog.show()
+        model.scan()
     }
 }

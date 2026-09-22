@@ -293,4 +293,27 @@
     <string name="phone_allow">Permitir</string>
     <string name="phone_deny">Rechazar</string>
     <string name="phone_forget">Revocar %1$s</string>
+    <string name="inventory_title">Inventario de pantallas y códecs</string>
+    <string name="inventory_disclaimer">
+        Declarado por Android/OEM. Un modo de pantalla, perfil o etiqueta de hardware no confirma
+        reproducción, salida HDMI ni captura. Las pruebas funcionales son independientes.
+    </string>
+    <string name="inventory_limited">
+        Inventario reducido para respetar el límite del informe.
+    </string>
+    <string name="inventory_displays">Pantallas / modos de salida</string>
+    <string name="inventory_unknown">No informado / desconocido</string>
+    <string name="inventory_decoders">Decodificadores</string>
+    <string name="inventory_encoders">Codificadores</string>
+    <string name="inventory_hardware">Aceleración por hardware declarada</string>
+    <string name="inventory_software">Implementación de software declarada</string>
+    <string name="inventory_native_mode">modo activo informado</string>
+    <string name="inventory_logical_mode">medidas lógicas; modo nativo desconocido</string>
+    <string name="inventory_display">Pantalla %1$d: %2$d × %3$d a %4$.3f Hz (%5$s)</string>
+    <string name="inventory_mode">Modo %1$d: %2$d × %3$d a %4$.3f Hz</string>
+    <string name="inventory_profile">%1$s · perfil %2$d · nivel %3$d</string>
+    <string name="inventory_preview">
+        Se muestran las primeras 16 entradas. Exporta el diagnóstico para ver el informe completo
+        dentro de sus límites.
+    </string>
 </resources>
