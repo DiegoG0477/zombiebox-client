@@ -14,6 +14,7 @@ import io.github.diegog0477.zombiebox.client.features.services.presentation.ui.S
 import io.github.diegog0477.zombiebox.client.features.settings.domain.model.GatewayProfile
 import io.github.diegog0477.zombiebox.client.features.settings.domain.model.ProviderPatch
 import io.github.diegog0477.zombiebox.client.features.settings.domain.model.ProviderSettings
+import io.github.diegog0477.zombiebox.client.features.settings.presentation.viewmodel.SettingsNavigation
 import io.github.diegog0477.zombiebox.client.features.settings.presentation.viewmodel.SettingsViewModel
 
 data class SettingsActions(
@@ -41,8 +42,37 @@ class SettingsDialogs(
 ) {
     private val ui = TvWidgets(activity)
     private var hdmiDialog: AlertDialog? = null
+    private val menus = SettingsMenuWindows(activity, model.navigation)
+    private val owned = ArrayList<AlertDialog>()
+    private var closed = false
+
+    fun snapshot() = menus.snapshot()
+
+    fun restore(saved: List<SettingsNavigation.Menu>) {
+        val path = model.navigation.sanitize(saved)
+        path.forEach { entry ->
+            when (entry.route) {
+                "settings" -> show()
+                "advanced" -> advanced()
+                "providers" -> providers(entry.selected, entry.selectedKey)
+            }
+            menus.restoreSelection(entry.route, entry.selected, entry.selectedKey)
+        }
+    }
+
+    private fun own(dialog: AlertDialog): AlertDialog {
+        owned.removeAll { !it.isShowing }
+        owned.add(dialog)
+        return dialog
+    }
+
+    private fun AlertDialog.Builder.showOwned(): AlertDialog = own(show())
 
     fun close() {
+        closed = true
+        menus.close()
+        owned.forEach { it.dismiss() }
+        owned.clear()
         hdmiDialog?.dismiss()
         hdmiDialog = null
     }
@@ -100,13 +130,17 @@ class SettingsDialogs(
                 model.pair(
                     candidate,
                     pairingCode,
-                    { profile ->
+                    pairedResult@{ profile ->
+                        if (closed || !dialog.isShowing) return@pairedResult
+                        menus.close()
                         actions.paired(profile)
                         dialog.dismiss()
                     },
                     { failure ->
-                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
-                        error(failure)
+                        if (!closed && dialog.isShowing) {
+                            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                            error(failure)
+                        }
                     },
                 )
             }
@@ -115,48 +149,50 @@ class SettingsDialogs(
             code.setText("")
             discoveryModel.close()
         }
+        own(dialog)
         dialog.show()
         discoveryModel.refresh()
     }
 
     fun show() {
-        AlertDialog.Builder(activity)
-            .setTitle(R.string.settings)
-            .setItems(
-                arrayOf(
-                    activity.getString(R.string.connect_gateway),
-                    activity.getString(R.string.configure_services),
-                    activity.getString(R.string.diagnostics),
-                    activity.getString(R.string.language),
-                    activity.getString(R.string.presentation_mode),
-                    activity.getString(R.string.advanced),
-                    activity.getString(R.string.receive_cast),
-                    activity.getString(R.string.gateway_services),
-                    activity.getString(R.string.youtube_receiver),
-                    activity.getString(R.string.media_receiver),
-                    activity.getString(R.string.media_languages),
-                    activity.getString(R.string.resume_previous),
-                    activity.getString(R.string.phone_pair_title),
-                )
-            ) { _, index ->
-                when (index) {
-                    0 -> pairing()
-                    1 -> providers()
-                    2 -> actions.diagnostics()
-                    3 -> language()
-                    4 -> mode()
-                    5 -> advanced()
-                    6 -> actions.receiverSettings()
-                    7 -> activity.startActivity(Intent(activity, ServicesActivity::class.java))
-                    8 -> actions.youtubeReceiverSettings()
-                    9 -> actions.mediaReceiverSettings()
-                    10 -> mediaLanguages()
-                    11 -> actions.resumePlayback()
-                    12 -> actions.companionSettings()
+        menus.show(
+            "settings",
+            R.string.settings,
+            arrayOf(
+                activity.getString(R.string.connect_gateway),
+                activity.getString(R.string.configure_services),
+                activity.getString(R.string.diagnostics),
+                activity.getString(R.string.language),
+                activity.getString(R.string.presentation_mode),
+                activity.getString(R.string.advanced),
+                activity.getString(R.string.receive_cast),
+                activity.getString(R.string.gateway_services),
+                activity.getString(R.string.youtube_receiver),
+                activity.getString(R.string.media_receiver),
+                activity.getString(R.string.media_languages),
+                activity.getString(R.string.resume_previous),
+                activity.getString(R.string.phone_pair_title),
+            ),
+        ) { index ->
+            when (index) {
+                0 -> pairing()
+                1 -> providers()
+                2 -> actions.diagnostics()
+                3 -> language()
+                4 -> mode()
+                5 -> advanced()
+                6 -> actions.receiverSettings()
+                7 -> activity.startActivity(Intent(activity, ServicesActivity::class.java))
+                8 -> actions.youtubeReceiverSettings()
+                9 -> actions.mediaReceiverSettings()
+                10 -> mediaLanguages()
+                11 -> {
+                    menus.close()
+                    actions.resumePlayback()
                 }
+                12 -> actions.companionSettings()
             }
-            .setNegativeButton(R.string.close, null)
-            .show()
+        }
     }
 
     private fun mediaLanguages() {
@@ -164,19 +200,25 @@ class SettingsDialogs(
             pairing()
             return
         }
+        val generation = model.navigation.generation
         model.mediaPreferences(
-            { value -> MediaLanguageDialog(activity, model, error).show(value) },
+            { value ->
+                if (!closed && generation == model.navigation.generation)
+                    own(MediaLanguageDialog(activity, model, error).show(value))
+            },
             error,
         )
     }
 
-    fun providers() {
+    fun providers(selected: Int = 0, selectedKey: String = "") {
         if (!paired()) {
             pairing()
             return
         }
+        val generation = model.navigation.generation
         model.providers(
-            { providers ->
+            loaded@{ providers ->
+                if (closed || generation != model.navigation.generation) return@loaded
                 val labels =
                     providers
                         .map {
@@ -187,11 +229,15 @@ class SettingsDialogs(
                                 )
                         }
                         .toTypedArray()
-                AlertDialog.Builder(activity)
-                    .setTitle(R.string.configure_services)
-                    .setItems(labels) { _, index -> providerForm(providers[index]) }
-                    .setNegativeButton(R.string.close, null)
-                    .show()
+                menus.show(
+                    "providers",
+                    R.string.configure_services,
+                    labels,
+                    providers.map { it.id },
+                ) { index ->
+                    providerForm(providers[index])
+                }
+                menus.restoreSelection("providers", selected, selectedKey)
             },
             error,
         )
@@ -204,7 +250,7 @@ class SettingsDialogs(
                 .setTitle(ui.serviceTitle(id))
                 .setMessage(R.string.server_managed)
                 .setPositiveButton(R.string.close, null)
-                .show()
+                .showOwned()
             return
         }
         val (scroll, form) = dialogForm()
@@ -294,14 +340,17 @@ class SettingsDialogs(
                     id,
                     ProviderPatch(enabled.isChecked, patch),
                     admin,
-                    {
+                    savedResult@{
+                        if (closed || !dialog.isShowing) return@savedResult
                         dialog.dismiss()
                         Toast.makeText(activity, R.string.saved, Toast.LENGTH_SHORT).show()
                         actions.refresh()
                     },
                     failed = { failure ->
-                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
-                        error(failure)
+                        if (!closed && dialog.isShowing) {
+                            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                            error(failure)
+                        }
                     },
                 )
             }
@@ -311,152 +360,138 @@ class SettingsDialogs(
             token.setText("")
             address.setText("")
             epg?.setText("")
+            discoveryModel.close()
         }
+        own(dialog)
         dialog.show()
     }
 
     private fun advanced() {
-        AlertDialog.Builder(activity)
-            .setTitle(R.string.advanced)
-            .setItems(
-                arrayOf(
-                    activity.getString(R.string.audio_focus_backend),
-                    activity.getString(R.string.playback_backend),
-                    activity.getString(R.string.automatic_recovery),
-                    activity.getString(R.string.network_adaptation),
-                    activity.getString(R.string.surface_backend),
-                    activity.getString(R.string.system_media_controls),
-                    activity.getString(R.string.hdmi_control),
-                    activity.getString(R.string.native_dial),
-                )
-            ) { _, index ->
-                if (index == 0) actions.audioSettings()
-                else if (index == 7) {
-                    val policy =
-                        io.github.diegog0477.zombiebox.client.features.dial.platform
-                            .NativeDialPolicy
-                    AlertDialog.Builder(activity)
-                        .setTitle(R.string.native_dial)
-                        .setSingleChoiceItems(
-                            arrayOf(
-                                activity.getString(R.string.disabled),
-                                activity.getString(R.string.native_dial_enable),
-                            ),
-                            if (policy.enabled(activity)) 1 else 0,
-                        ) { dialog, choice ->
-                            try {
-                                policy.enable(activity, choice == 1)
-                            } catch (_: Exception) {
-                                Toast.makeText(
-                                        activity,
-                                        R.string.native_dial_failed,
-                                        Toast.LENGTH_LONG,
-                                    )
-                                    .show()
-                            }
-                            dialog.dismiss()
-                            if (choice == 1)
-                                Toast.makeText(
-                                        activity,
-                                        R.string.native_dial_scope,
-                                        Toast.LENGTH_LONG,
-                                    )
-                                    .show()
-                        }
-                        .setNegativeButton(R.string.close, null)
-                        .show()
-                } else if (index == 6) {
-                    hdmiDialog?.dismiss()
-                    hdmiDialog =
-                        io.github.diegog0477.zombiebox.client.features.hdmi.presentation.ui
-                            .HdmiDialog
-                            .show(activity)
-                } else if (index == 5) {
-                    AlertDialog.Builder(activity)
-                        .setTitle(R.string.system_media_controls)
-                        .setSingleChoiceItems(
-                            arrayOf(
-                                activity.getString(R.string.disabled),
-                                activity.getString(R.string.automatic),
-                            ),
-                            if (model.preferences.systemMediaControls) 1 else 0,
-                        ) { dialog, choice ->
-                            model.systemMediaControls(choice == 1)
-                            dialog.dismiss()
-                        }
-                        .setNegativeButton(R.string.close, null)
-                        .show()
-                } else if (index == 4) {
-                    val modes = arrayOf("AUTO", "SURFACE", "TEXTURE")
-                    AlertDialog.Builder(activity)
-                        .setTitle(R.string.surface_backend)
-                        .setSingleChoiceItems(
-                            arrayOf(
-                                activity.getString(R.string.automatic),
-                                "SurfaceView",
-                                activity.getString(R.string.texture_verified),
-                            ),
-                            modes.indexOf(model.preferences.surfaceBackend),
-                        ) { dialog, selected ->
-                            model.surfaceBackend(modes[selected])
-                            dialog.dismiss()
-                            Toast.makeText(activity, R.string.surface_restart, Toast.LENGTH_LONG)
+        menus.show(
+            "advanced",
+            R.string.advanced,
+            arrayOf(
+                activity.getString(R.string.audio_focus_backend),
+                activity.getString(R.string.playback_backend),
+                activity.getString(R.string.automatic_recovery),
+                activity.getString(R.string.network_adaptation),
+                activity.getString(R.string.surface_backend),
+                activity.getString(R.string.system_media_controls),
+                activity.getString(R.string.hdmi_control),
+                activity.getString(R.string.native_dial),
+            ),
+        ) { index ->
+            if (index == 0) actions.audioSettings()
+            else if (index == 7) {
+                val policy =
+                    io.github.diegog0477.zombiebox.client.features.dial.platform.NativeDialPolicy
+                AlertDialog.Builder(activity)
+                    .setTitle(R.string.native_dial)
+                    .setSingleChoiceItems(
+                        arrayOf(
+                            activity.getString(R.string.disabled),
+                            activity.getString(R.string.native_dial_enable),
+                        ),
+                        if (policy.enabled(activity)) 1 else 0,
+                    ) { dialog, choice ->
+                        try {
+                            policy.enable(activity, choice == 1)
+                        } catch (_: Exception) {
+                            Toast.makeText(activity, R.string.native_dial_failed, Toast.LENGTH_LONG)
                                 .show()
                         }
-                        .setNegativeButton(R.string.close, null)
-                        .show()
-                } else if (index == 2 || index == 3) {
-                    AlertDialog.Builder(activity)
-                        .setTitle(
-                            if (index == 2) R.string.automatic_recovery
-                            else R.string.network_adaptation
-                        )
-                        .setSingleChoiceItems(
-                            arrayOf(
-                                activity.getString(R.string.disabled),
-                                activity.getString(R.string.enabled),
-                            ),
-                            if (
-                                if (index == 2) model.preferences.automaticRecovery
-                                else model.preferences.networkAdaptation
-                            )
-                                1
-                            else 0,
-                        ) { dialog, choice ->
-                            if (index == 2) model.automaticRecovery(choice == 1)
-                            else model.networkAdaptation(choice == 1)
-                            dialog.dismiss()
-                        }
-                        .setNegativeButton(R.string.close, null)
-                        .show()
-                } else {
-                    val modes =
-                        arrayOf("AUTO", "DIRECT_PLAY", "REMUX", "TRANSCODE", "EXTERNAL_PLAYER")
-                    val labels =
+                        dialog.dismiss()
+                        if (choice == 1)
+                            Toast.makeText(activity, R.string.native_dial_scope, Toast.LENGTH_LONG)
+                                .show()
+                    }
+                    .setNegativeButton(R.string.close, null)
+                    .showOwned()
+            } else if (index == 6) {
+                hdmiDialog?.dismiss()
+                hdmiDialog =
+                    io.github.diegog0477.zombiebox.client.features.hdmi.presentation.ui.HdmiDialog
+                        .show(activity)
+            } else if (index == 5) {
+                AlertDialog.Builder(activity)
+                    .setTitle(R.string.system_media_controls)
+                    .setSingleChoiceItems(
                         arrayOf(
-                                R.string.automatic,
-                                R.string.direct_play,
-                                R.string.remux,
-                                R.string.transcode,
-                                R.string.external_player,
-                            )
-                            .map { activity.getString(it) }
-                            .toTypedArray()
-                    AlertDialog.Builder(activity)
-                        .setTitle(R.string.playback_backend)
-                        .setSingleChoiceItems(
-                            labels,
-                            modes.indexOf(model.preferences.playbackMode),
-                        ) { dialog, selection ->
-                            model.playbackMode(modes[selection])
-                            dialog.dismiss()
-                        }
-                        .setNegativeButton(R.string.close, null)
-                        .show()
-                }
+                            activity.getString(R.string.disabled),
+                            activity.getString(R.string.automatic),
+                        ),
+                        if (model.preferences.systemMediaControls) 1 else 0,
+                    ) { dialog, choice ->
+                        model.systemMediaControls(choice == 1)
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton(R.string.close, null)
+                    .showOwned()
+            } else if (index == 4) {
+                val modes = arrayOf("AUTO", "SURFACE", "TEXTURE")
+                AlertDialog.Builder(activity)
+                    .setTitle(R.string.surface_backend)
+                    .setSingleChoiceItems(
+                        arrayOf(
+                            activity.getString(R.string.automatic),
+                            "SurfaceView",
+                            activity.getString(R.string.texture_verified),
+                        ),
+                        modes.indexOf(model.preferences.surfaceBackend),
+                    ) { dialog, selected ->
+                        model.surfaceBackend(modes[selected])
+                        dialog.dismiss()
+                        Toast.makeText(activity, R.string.surface_restart, Toast.LENGTH_LONG).show()
+                    }
+                    .setNegativeButton(R.string.close, null)
+                    .showOwned()
+            } else if (index == 2 || index == 3) {
+                AlertDialog.Builder(activity)
+                    .setTitle(
+                        if (index == 2) R.string.automatic_recovery else R.string.network_adaptation
+                    )
+                    .setSingleChoiceItems(
+                        arrayOf(
+                            activity.getString(R.string.disabled),
+                            activity.getString(R.string.enabled),
+                        ),
+                        if (
+                            if (index == 2) model.preferences.automaticRecovery
+                            else model.preferences.networkAdaptation
+                        )
+                            1
+                        else 0,
+                    ) { dialog, choice ->
+                        if (index == 2) model.automaticRecovery(choice == 1)
+                        else model.networkAdaptation(choice == 1)
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton(R.string.close, null)
+                    .showOwned()
+            } else {
+                val modes = arrayOf("AUTO", "DIRECT_PLAY", "REMUX", "TRANSCODE", "EXTERNAL_PLAYER")
+                val labels =
+                    arrayOf(
+                            R.string.automatic,
+                            R.string.direct_play,
+                            R.string.remux,
+                            R.string.transcode,
+                            R.string.external_player,
+                        )
+                        .map { activity.getString(it) }
+                        .toTypedArray()
+                AlertDialog.Builder(activity)
+                    .setTitle(R.string.playback_backend)
+                    .setSingleChoiceItems(labels, modes.indexOf(model.preferences.playbackMode)) {
+                        dialog,
+                        selection ->
+                        model.playbackMode(modes[selection])
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton(R.string.close, null)
+                    .showOwned()
             }
-            .setNegativeButton(R.string.close, null)
-            .show()
+        }
     }
 
     private fun language() {
@@ -467,7 +502,7 @@ class SettingsDialogs(
                 savePreferences()
                 Toast.makeText(activity, R.string.restart_language, Toast.LENGTH_LONG).show()
             }
-            .show()
+            .showOwned()
     }
 
     private fun mode() {
@@ -485,7 +520,7 @@ class SettingsDialogs(
                 savePreferences()
                 actions.render()
             }
-            .show()
+            .showOwned()
     }
 
     private fun savePreferences() {

@@ -66,6 +66,7 @@ import io.github.diegog0477.zombiebox.client.features.playback.presentation.ui.V
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel.PlaybackViewModel
 import io.github.diegog0477.zombiebox.client.features.playback.presentation.viewmodel.TracksViewModel
 import io.github.diegog0477.zombiebox.client.features.settings.data.GatewaySettingsRepository
+import io.github.diegog0477.zombiebox.client.features.settings.platform.SettingsSavedState
 import io.github.diegog0477.zombiebox.client.features.settings.presentation.ui.SettingsActions
 import io.github.diegog0477.zombiebox.client.features.settings.presentation.ui.SettingsDialogs
 import io.github.diegog0477.zombiebox.client.features.settings.presentation.viewmodel.SettingsViewModel
@@ -475,6 +476,7 @@ class MainActivity : Activity() {
                     CatalogSavedState.readSearch(state),
                 )
                 catalogModel.rememberPlaybackReturn(CatalogSavedState.readPlaybackReturn(state))
+                settingsDialogs.restore(SettingsSavedState.read(state))
             }
         } else handler.post { pairing() }
         events.start({ companionController.wake() }) { changed ->
@@ -1372,6 +1374,7 @@ class MainActivity : Activity() {
         CatalogSavedState.writePlaybackReturn(outState, catalogModel.playbackReturn)
         outState.putString("catalogDetail", catalogDialogs.detailItemId)
         outState.putBoolean("catalogVisible", catalogDialogs.visible)
+        SettingsSavedState.write(outState, settingsDialogs.snapshot())
         super.onSaveInstanceState(outState)
     }
 

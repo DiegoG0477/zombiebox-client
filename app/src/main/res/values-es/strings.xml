@@ -385,4 +385,7 @@
     <string name="guide_page_failed">
         No se pudieron cargar los canales. Intenta de nuevo con el botón de página.
     </string>
+    <string name="browser_controls_hint">
+        Al controlar la página, pulsa Atrás para volver a los controles. Cerrar vuelve al inicio.
+    </string>
 </resources>

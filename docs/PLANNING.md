@@ -143,3 +143,7 @@ Paged IPTV guide with scoped history/focus, failure retry, late-load fencing and
 ## dev.42 navigation and preferred-audio increment
 
 Dev.42: one-shot playback return to paged guide, catalog details or search; bounded semantic state survives Activity recreation and failed catalog reloads. Explicit Home/provider navigation clears stale return intent. VersionCode42; physical navigation acceptance remains open.
+
+## dev.43 navigation and functional media increment
+
+Dev.43: retained settings parent menus, bounded recreation bookmarks, stale-load fencing and stable provider identity; Browser D-pad escape, semantic focus restoration and stale-frame cleanup. VersionCode43. Physical navigation acceptance remains deferred.

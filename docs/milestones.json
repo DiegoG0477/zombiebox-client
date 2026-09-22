@@ -33,7 +33,8 @@
     "Dev.39: bounded search return bookmarks, one-minute result reuse, explicit provider-to-search Back and profile/configuration invalidation. Wider navigation, other V1 packages and physical acceptance remain open.",
     "Dev.40: Service-owned idle Spotify/AirPlay/Cast reception, fenced handoff/restoration and bounded live recovery. VersionCode40; no native libraries. Physical background/OEM acceptance remains open. No product or physical gate closes.",
     "Dev.41: Paged IPTV guide with scoped history/focus, failure retry, late-load fencing and owned Cast Remote navigation. VersionCode41. See docs/guide-navigation.md. No milestone closes.",
-    "Dev.42: one-shot playback return to paged guide, catalog details or search; bounded semantic state survives Activity recreation and failed catalog reloads. Explicit Home/provider navigation clears stale return intent. VersionCode42; physical navigation acceptance remains open."
+    "Dev.42: one-shot playback return to paged guide, catalog details or search; bounded semantic state survives Activity recreation and failed catalog reloads. Explicit Home/provider navigation clears stale return intent. VersionCode42; physical navigation acceptance remains open.",
+    "Dev.43: retained settings parent menus, bounded recreation bookmarks, stale-load fencing and stable provider identity; Browser D-pad escape, semantic focus restoration and stale-frame cleanup. VersionCode43. Physical navigation acceptance remains deferred."
   ],
   "milestones": [
     {
@@ -117,6 +118,6 @@
       "remoteURL": "https://github.com/ZombieBox-tv/zombiebox-client/milestone/10"
     }
   ],
-  "developmentCheckpoint": "v0.1.0-dev.42",
+  "developmentCheckpoint": "v0.1.0-dev.43",
   "remote": "https://github.com/ZombieBox-tv/zombiebox-client"
 }

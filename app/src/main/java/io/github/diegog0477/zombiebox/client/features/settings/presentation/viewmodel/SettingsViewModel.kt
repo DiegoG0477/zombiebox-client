@@ -9,6 +9,8 @@ class SettingsViewModel(
     private val repository: SettingsRepository,
     private val tasks: ScreenTasks,
 ) {
+    val navigation = SettingsNavigation()
+
     var preferences = repository.preferences()
         private set
 

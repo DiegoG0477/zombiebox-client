@@ -7,8 +7,11 @@ import android.os.Bundle
 import android.os.Handler
 import android.text.InputType
 import android.view.KeyEvent
+import android.view.View
 import android.widget.*
 import io.github.diegog0477.zombiebox.client.R
+import io.github.diegog0477.zombiebox.client.core.platform.WindowInsetsPolicy
+import io.github.diegog0477.zombiebox.client.core.ui.RemoteFocus
 import io.github.diegog0477.zombiebox.client.features.browser.data.GatewayBrowserRepository
 import io.github.diegog0477.zombiebox.client.features.browser.presentation.viewmodel.BrowserViewModel
 import io.github.diegog0477.zombiebox.shared.GatewayApi
@@ -20,6 +23,9 @@ class BrowserActivity : Activity() {
     private val handler = Handler()
     private lateinit var model: BrowserViewModel
     private lateinit var addressField: EditText
+    private lateinit var pageView: ImageView
+    private lateinit var pageControl: View
+    private val focus = RemoteFocus()
     private val poll =
         object : Runnable {
             override fun run() {
@@ -51,6 +57,7 @@ class BrowserActivity : Activity() {
         val toolbar = LinearLayout(this)
         val address =
             EditText(this).apply {
+                tag = "address"
                 setHint(R.string.browser_address)
                 setTextColor(Color.WHITE)
                 setHintTextColor(Color.LTGRAY)
@@ -62,6 +69,7 @@ class BrowserActivity : Activity() {
         toolbar.addView(address, LinearLayout.LayoutParams(0, -2, 1f))
         toolbar.addView(
             Button(this).apply {
+                tag = "open"
                 setText(R.string.browser_open)
                 setOnClickListener { model.open(address.text.toString().trim()) }
             }
@@ -75,11 +83,13 @@ class BrowserActivity : Activity() {
         root.addView(status)
         val image =
             ImageView(this).apply {
+                tag = "page"
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 isFocusable = true
                 isFocusableInTouchMode = true
                 contentDescription = getString(R.string.browser_page)
             }
+        pageView = image
         image.setOnTouchListener { _, event ->
             if (event.action == android.view.MotionEvent.ACTION_UP && image.drawable != null) {
                 val inverse = android.graphics.Matrix()
@@ -116,25 +126,36 @@ class BrowserActivity : Activity() {
                 true
             } else false
         }
-        root.addView(image, LinearLayout.LayoutParams(-1, 0, 1f))
+        val pageRow = FrameLayout(this).apply { addView(image, FrameLayout.LayoutParams(-1, -1)) }
+        root.addView(pageRow, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(
+            TextView(this).apply {
+                setText(R.string.browser_controls_hint)
+                setTextColor(Color.LTGRAY)
+            }
+        )
         val controls = LinearLayout(this)
-        fun control(id: Int, action: () -> Unit) {
+        fun control(key: String, id: Int, action: () -> Unit) {
             controls.addView(
                 Button(this).apply {
+                    tag = key
                     setText(id)
                     setOnClickListener { action() }
+                    if (key == "page-control") pageControl = this
                 }
             )
         }
-        control(R.string.browser_back) { model.input("back") }
-        control(R.string.browser_previous_link) { model.input("key", "Shift+Tab") }
-        control(R.string.browser_next_link) { model.input("key", "Tab") }
-        control(R.string.browser_activate) { model.input("key", "Enter") }
-        control(R.string.browser_page) { image.requestFocus() }
+        control("back", R.string.browser_back) { model.input("back") }
+        control("previous", R.string.browser_previous_link) { model.input("key", "Shift+Tab") }
+        control("next", R.string.browser_next_link) { model.input("key", "Tab") }
+        control("activate", R.string.browser_activate) { model.input("key", "Enter") }
+        control("page-control", R.string.browser_page) { image.requestFocus() }
+        control("exit", R.string.close) { finish() }
         root.addView(HorizontalScrollView(this).apply { addView(controls) })
         val entry = LinearLayout(this)
         val text =
             EditText(this).apply {
+                tag = "text"
                 setHint(R.string.browser_text)
                 setTextColor(Color.WHITE)
                 setHintTextColor(Color.LTGRAY)
@@ -144,6 +165,7 @@ class BrowserActivity : Activity() {
         entry.addView(text, LinearLayout.LayoutParams(0, -2, 1f))
         entry.addView(
             Button(this).apply {
+                tag = "type"
                 setText(R.string.browser_type)
                 setOnClickListener {
                     val value = text.text.toString()
@@ -153,13 +175,28 @@ class BrowserActivity : Activity() {
             }
         )
         root.addView(entry)
+        WindowInsetsPolicy.apply(root)
         setContentView(root)
+        focus.remember(saved?.getString("browserFocus"))
+        focus.rebuild(
+            listOf(
+                "toolbar" to toolbar,
+                "page" to pageRow,
+                "controls" to controls,
+                "entry" to entry,
+            ),
+            true,
+        )
         var lastFrame: ByteArray? = null
         model.observer = { value ->
             status.setText(
                 if (value.failed) R.string.unavailable
                 else if (value.loading) R.string.loading else R.string.browser_detail
             )
+            if (value.frame == null && lastFrame != null) {
+                image.setImageDrawable(null)
+                lastFrame = null
+            }
             value.frame?.let { bytes ->
                 if (bytes !== lastFrame) {
                     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -174,7 +211,23 @@ class BrowserActivity : Activity() {
         model.restore(saved?.getString("browserSession") ?: "")
     }
 
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (
+            event.action == KeyEvent.ACTION_DOWN &&
+                currentFocus !== pageView &&
+                currentFocus !is EditText &&
+                focus.move(event.keyCode, currentFocus)
+        )
+            return true
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun onBackPressed() {
+        if (currentFocus === pageView) pageControl.requestFocus() else super.onBackPressed()
+    }
+
     override fun onSaveInstanceState(state: Bundle) {
+        state.putString("browserFocus", focus.selectedKey)
         state.putString("browserSession", model.state.session)
         state.putString("address", addressField.text.toString().take(2048))
         super.onSaveInstanceState(state)

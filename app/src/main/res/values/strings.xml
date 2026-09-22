@@ -356,4 +356,7 @@
     <string name="guide_previous_channels">Previous channels</string>
     <string name="guide_next_channels">More channels</string>
     <string name="guide_page_failed">Unable to load channels. Try the page button again.</string>
+    <string name="browser_controls_hint">
+        While controlling the page, press Back to return to browser controls. Close returns to Home.
+    </string>
 </resources>

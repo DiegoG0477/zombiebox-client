@@ -15,7 +15,7 @@ class MediaLanguageDialog(
     private val model: SettingsViewModel,
     private val failed: (Exception) -> Unit,
 ) {
-    fun show(value: MediaPreferences) {
+    fun show(value: MediaPreferences): AlertDialog {
         val ui = TvWidgets(activity)
         val content = ui.column()
         content.setPadding(ui.dp(16), ui.dp(8), ui.dp(16), ui.dp(8))
@@ -83,5 +83,6 @@ class MediaLanguageDialog(
             }
         }
         dialog.show()
+        return dialog
     }
 }
