@@ -127,3 +127,7 @@ Network pairing consent/24-hour ignore, five-minute QR display, focus-scoped rem
 ## dev.35 increment
 
 Periodic opt-in playback adaptation, completion-aware incoming file queues and explicit universal foreground receiver mode. Native DIAL registration and physical qualification remain open.
+
+## dev.36 distribution
+
+Production signing identity is selected for both APKs; see [release signing](docs/release-signing.md). DIAL protocol notices are embedded. VersionCode 36; no runtime feature or physical qualification claim.

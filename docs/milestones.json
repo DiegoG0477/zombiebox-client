@@ -25,7 +25,8 @@
     "Dev.32: Adds optional API21 native MediaSession/MediaStyle controls, semantic action availability, VOD timeline seek and operation-error fallback with persistent cooldown. Advanced can disable integration. No DIAL/CEC or Bluetooth/HDMI physical qualification is claimed. Product gates remain open.",
     "Dev.33: Optional privileged AOSP HDMI display query/one-touch play with timeout, cooldown and local Advanced policy; quiet Home header icons and a responsive docked status sidebar. VersionCode 33. Native DIAL, broad vendor bindings and physical acceptance remain open.",
     "Dev.34: Network pairing consent/24-hour ignore, five-minute QR display, focus-scoped remote text in owned fields, guarded Whisperplay Home launch, lifecycle clock and Hero refresh/metadata improvements. APK versionCode 34; runtime/OEM acceptance remains open.",
-    "Dev.35: Periodic opt-in playback adaptation, completion-aware incoming file queues and explicit universal foreground receiver mode. Native DIAL registration and physical qualification remain open."
+    "Dev.35: Periodic opt-in playback adaptation, completion-aware incoming file queues and explicit universal foreground receiver mode. Native DIAL registration and physical qualification remain open.",
+    "Dev.36: Release version 36 includes DIAL notices and the selected shared Android signing identity; physical acceptance remains deferred."
   ],
   "milestones": [
     {
@@ -109,6 +110,6 @@
       "remoteURL": "https://github.com/DiegoG0477/zombiebox-client/milestone/10"
     }
   ],
-  "developmentCheckpoint": "v0.1.0-dev.35",
+  "developmentCheckpoint": "v0.1.0-dev.36",
   "remote": "https://github.com/DiegoG0477/zombiebox-client"
 }
