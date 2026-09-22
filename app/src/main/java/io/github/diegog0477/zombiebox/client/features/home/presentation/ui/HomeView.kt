@@ -1,5 +1,6 @@
 package io.github.diegog0477.zombiebox.client.features.home.presentation.ui
 
+import android.app.ActivityManager
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
@@ -14,6 +15,8 @@ import io.github.diegog0477.zombiebox.client.core.ui.TvWidgets
 import io.github.diegog0477.zombiebox.client.core.ui.WindowedRow
 import io.github.diegog0477.zombiebox.client.features.artwork.presentation.ui.ArtworkImageView
 import io.github.diegog0477.zombiebox.client.features.artwork.presentation.viewmodel.ArtworkViewModel
+import io.github.diegog0477.zombiebox.client.features.diagnostics.platform.HardwareMemory
+import io.github.diegog0477.zombiebox.client.features.home.domain.model.HomeBudget
 import io.github.diegog0477.zombiebox.client.features.home.domain.model.HomeScope
 import io.github.diegog0477.zombiebox.client.features.home.domain.model.HomeSnapshot
 
@@ -46,6 +49,9 @@ class HomeView(
     private var scope = HomeScope()
     private val navigation = LinkedHashMap<String, Button>()
     private var heroStatus: TextView? = null
+    private val heapMb =
+        (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).memoryClass
+    private val physicalMb = HardwareMemory.physicalMb()
 
     fun status(loading: Boolean, failed: Boolean) {
         heroStatus?.apply {
@@ -229,7 +235,8 @@ class HomeView(
                 section.items.map { "item:" + section.id + ":" + it.id } +
                     if (section.id != "continue") listOf("all:" + section.id) else emptyList()
             val line =
-                WindowedRow(context, keys) { index ->
+                WindowedRow(context, keys, HomeBudget.rowCapacity(heapMb, physicalMb, tv)) { index
+                    ->
                     if (index == section.items.size) {
                         ui.button(R.string.view_all) { actions.catalog(section.id) }
                     } else {
@@ -309,7 +316,7 @@ class HomeView(
                 }
             )
             focusRows.add(Pair("section:" + section.id, line))
-            if (!tv && keys.size > 7)
+            if (!tv && keys.size > line.capacity)
                 content.addView(
                     ui.row().apply {
                         addView(

@@ -118,3 +118,8 @@ Product exit gates and deferred physical acceptance remain open.
 
 Periodic opt-in playback adaptation, completion-aware incoming file queues and explicit universal foreground receiver mode. Native DIAL registration and physical qualification remain open.
 Product milestone completion still requires its recorded acceptance gates.
+
+
+## dev.37 implementation checkpoint
+
+Memory-tier Home realization (3/5/7 cards), focus-preserving window policy and versionCode37. Physical acceptance and wider navigation remain open.

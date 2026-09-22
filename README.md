@@ -131,3 +131,8 @@ Periodic opt-in playback adaptation, completion-aware incoming file queues and e
 ## dev.36 distribution
 
 Production signing identity is selected for both APKs; see [release signing](docs/release-signing.md). DIAL protocol notices are embedded. VersionCode 36; no runtime feature or physical qualification claim.
+
+
+## dev.37 increment
+
+Home realizes three, five or seven cards per row according to heap/physical-memory and TV/handheld budgets. All semantic items remain reachable through focus or paging. This allocation bound does not establish a physical-device memory/performance result.
